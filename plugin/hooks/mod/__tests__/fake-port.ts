@@ -11,7 +11,7 @@ export const PLUGIN_ROOT = '/plugin'
 export const ENV_PATH = `${PLUGIN_ROOT}/hooks/argos.env.json`
 export const ENV = { node: '/usr/bin/node', cli: '/opt/argos/dist/cli.js', config: '/home/tim/work/config.ini' }
 
-type Ran = { exitCode: number; stdout: string; stderr?: string }
+type Ran = { exitCode: number; stdout: string; stderr?: string; isStdoutTruncated?: boolean }
 type Runner = (argv: readonly string[], init?: { timeoutMs?: number }) => Ran | Promise<Ran>
 
 export function fakePort(options: { files?: Record<string, string>; run?: Runner; cells?: Partial<typeof INITIAL> } = {}) {

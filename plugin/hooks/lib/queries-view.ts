@@ -40,6 +40,9 @@ export type QueriesModel = {
 /** Said in the result card for an entry whose spool is gone. */
 export const RESULT_GONE = 'result no longer kept — r to rerun'
 
+/** Said in the result card when even a short page was too large for the engine to pass on. */
+export const RESULT_TOO_WIDE = 'result too wide to show here — c to copy the SQL'
+
 /** SQL on one line: its whitespace collapsed. */
 const oneLine = (sql: string): string => sql.replace(/\s+/g, ' ').trim()
 

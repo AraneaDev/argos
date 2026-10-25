@@ -21,6 +21,9 @@ export const CLI_TIMEOUT_MS = 30_000
 /** Why nothing runs when the install's paths are missing or unreadable. */
 export const NOT_INSTALLED = 'argos: plugin not installed by argos install-plugin'
 
+/** Why a run gave nothing when the engine cut its output short. */
+export const OUTPUT_TOO_LARGE = 'output too large'
+
 /** Why a command could not be run, or gave nothing the pane can read. */
 const couldNotRun = (why: string): string => `argos: could not run the argos CLI (${why})`
 
@@ -80,6 +83,7 @@ export async function runCli<T>(io: Port, args: string[], parse: (raw: unknown) 
     } catch (err) {
       return { ok: false, reason: couldNotRun(message(err)) }
     }
+    if ((ran as { isStdoutTruncated?: boolean }).isStdoutTruncated === true) return { ok: false, reason: OUTPUT_TOO_LARGE }
     const raw = jsonOf(ran.stdout)
     const error = parseCliError(raw)
     if (error !== null) return { ok: false, reason: error }

@@ -17,7 +17,7 @@ import type { ConnectionView, JournalEntry } from './contract'
 import { CARD_ICON } from './marks'
 import { CHIP_BG, engineColour, FAINT, STAT_HUES, STATUS_COLOURS } from './palette'
 import { blank, button, clip, dimRow, rowsHeight, rowWidth, tintedRow } from './rows'
-import { pinOf, queriesArrangement, RESULT_GONE } from './queries-view'
+import { pinOf, queriesArrangement, RESULT_GONE, RESULT_TOO_WIDE } from './queries-view'
 import { filteredList, schemaArrangement } from './schema-view'
 import { tierOf } from './table'
 import type { Tier } from './table'
@@ -212,6 +212,7 @@ export function resultOf(result: ResultState | null, entry: JournalEntry | undef
   if (result.page !== null) return { page: result.page }
   if (result.failure === null) return { page: null, note: 'reading the result…' }
   // The journal says the result was kept, the spool says it is gone: evicted since.
+  if (result.failure === 'output too large') return { page: null, note: RESULT_TOO_WIDE }
   return { page: null, note: result.failure.startsWith('No spooled result') ? RESULT_GONE : result.failure }
 }
 

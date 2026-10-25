@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { parseConnections } from '../lib/parse'
-import { cliEnv, CLI_TIMEOUT_MS, NOT_INSTALLED, runCli } from './cli'
+import { cliEnv, CLI_TIMEOUT_MS, NOT_INSTALLED, OUTPUT_TOO_LARGE, runCli } from './cli'
 import { reset } from './state'
 import { ENV, ENV_PATH, fakePort } from './__tests__/fake-port'
 
@@ -15,6 +15,11 @@ describe('running the argos CLI', () => {
     const answer = await runCli(port.io, ['connections'], parseConnections)
     expect(answer).toEqual({ ok: true, value: [CONNECTION] })
     expect(port.runs).toEqual([{ argv: [ENV.node, ENV.cli, 'connections', '--config', ENV.config], timeoutMs: CLI_TIMEOUT_MS }])
+  })
+
+  it('says the output was too large when the engine cut it short, whatever was left of it', async () => {
+    const port = fakePort({ run: () => ({ exitCode: 0, stdout: '{"id":"e1","fields":["a"],"rows":[["xxxx', isStdoutTruncated: true }) })
+    expect(await runCli(port.io, ['result', 'e1'], parseConnections)).toEqual({ ok: false, reason: OUTPUT_TOO_LARGE })
   })
 
   it('reads argos.env.json once', async () => {

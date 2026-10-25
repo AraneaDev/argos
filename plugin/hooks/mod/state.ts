@@ -117,7 +117,7 @@ export function initialLoads() {
     /** The id of the history entry the marker is on, so new entries arriving above it do not move the selection. */
     selectedId: null as string | null,
     /** The page of the selected entry's result being read: its first row. Starts over with each entry. */
-    result: { id: null as string | null, offset: 0 },
+    result: { id: null as string | null, offset: 0, limit: 200 },
   }
 }
 

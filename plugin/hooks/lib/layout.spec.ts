@@ -207,6 +207,11 @@ describe('the Queries tab', () => {
     expect(all(paneRows(queriesModel(1, { result: { id: 'e2', offset: 0, phase: 'done', page, failure: null } }), 120, 40))).toContain('1–1 of 1')
   })
 
+  it('says the result is too wide when even a short page was cut short', () => {
+    const wide = queriesModel(0, { result: { id: 'e1', offset: 0, phase: 'done', page: null, failure: 'output too large' } })
+    expect(all(paneRows(wide, 120, 40))).toContain('result too wide to show here')
+  })
+
   it('says the result is no longer kept when the spool was evicted', () => {
     const gone = queriesModel(0, { result: { id: 'e1', offset: 0, phase: 'done', page: null, failure: "No spooled result for 'e1'" } })
     expect(all(paneRows(gone, 120, 40))).toContain('result no longer kept — r to rerun')

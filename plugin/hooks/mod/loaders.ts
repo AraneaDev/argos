@@ -6,7 +6,7 @@
 import type { ConnectionsState, HistoryState, PinsState, ResultState, SchemaState } from '../../types'
 import type { ConnectionView, JournalEntry, Pin, SchemaView, SpoolPage } from '../lib/contract'
 import { parseConnections, parseHistory, parsePins, parseSchema, parseSpoolPage } from '../lib/parse'
-import { cliEnv, runCli } from './cli'
+import { cliEnv, OUTPUT_TOO_LARGE, runCli } from './cli'
 import type { CliAnswer } from './cli'
 import type { Cell, Port } from './port'
 import { mod } from './state'
@@ -44,6 +44,8 @@ export type Loader<S, W, P> = {
 export const HISTORY_PAGE = 50
 /** How many rows of a result one page holds. */
 export const RESULT_PAGE = 200
+/** The rows a page is read with after a page of RESULT_PAGE came back too large for the engine to pass on. */
+export const RESULT_PAGE_SMALL = 20
 
 /** The entry the Queries marker is on, with the history it is in; null when the journal has not been read or is empty. */
 export async function selectedEntry(io: Port): Promise<JournalEntry | null> {
@@ -171,11 +173,12 @@ export const LOADERS = {
       if ((await io.state.view.read()).tab !== 'queries') return null
       const entry = await selectedEntry(io)
       if (entry === null || entry.outcome !== 'ok' || entry.spool === null) return null
-      return { id: entry.id, offset: mod.loads.result.id === entry.id ? mod.loads.result.offset : 0 }
+      const same = mod.loads.result.id === entry.id
+      return { id: entry.id, offset: same ? mod.loads.result.offset : 0, limit: same ? mod.loads.result.limit : RESULT_PAGE }
     },
     holds: (r, w) => r !== null && r.id === w.id && r.offset === w.offset,
     loading: (r, w): ResultState => ({ id: w.id, offset: w.offset, phase: 'loading', page: r?.id === w.id ? r.page : null, failure: null }),
-    args: async (_io, w) => ['result', w.id, '--offset', String(w.offset), '--limit', String(RESULT_PAGE)],
+    args: async (_io, w) => ['result', w.id, '--offset', String(w.offset), '--limit', String(w.limit)],
     parse: parseSpoolPage,
     landed: (r, w, answer): ResultState | null =>
       r === null || r.id !== w.id || r.offset !== w.offset
@@ -183,8 +186,17 @@ export const LOADERS = {
         : answer.ok
           ? { id: w.id, offset: w.offset, phase: 'done', page: answer.value, failure: null }
           : { id: w.id, offset: w.offset, phase: 'done', page: null, failure: answer.reason },
-    flight: { key: w => `result:${w.id}:${w.offset}`, same: (r, w) => r !== null && r.id === w.id && r.offset === w.offset },
-  } satisfies Loader<ResultState, { id: string; offset: number }, SpoolPage>,
+    flight: { key: w => `result:${w.id}:${w.offset}:${w.limit}`, same: (r, w) => r !== null && r.id === w.id && r.offset === w.offset },
+    // A page the engine cut short (wide cells) is read again, once, with fewer rows.
+    after: async io => {
+      const r = await io.state.result.read()
+      if (r === null || r.failure !== OUTPUT_TOO_LARGE) return
+      if ((mod.loads.result.id === r.id ? mod.loads.result.limit : RESULT_PAGE) <= RESULT_PAGE_SMALL) return
+      mod.loads.result = { id: r.id, offset: r.offset, limit: RESULT_PAGE_SMALL }
+      await io.state.result.update(() => null)
+      await request(io, 'result')
+    },
+  } satisfies Loader<ResultState, { id: string; offset: number; limit: number }, SpoolPage>,
 }
 
 /** The name of a read in {@link LOADERS}. */
@@ -313,7 +325,7 @@ export async function reloadPins(io: Port): Promise<void> {
 export async function showResultPage(io: Port, offset: number): Promise<void> {
   const entry = await selectedEntry(io)
   if (entry === null) return
-  mod.loads.result = { id: entry.id, offset: Math.max(0, offset) }
+  mod.loads.result = { id: entry.id, offset: Math.max(0, offset), limit: mod.loads.result.id === entry.id ? mod.loads.result.limit : RESULT_PAGE }
   await request(io, 'result')
 }
 

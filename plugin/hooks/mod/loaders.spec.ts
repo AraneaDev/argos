@@ -281,6 +281,26 @@ describe('the result loader', () => {
     expect(port.runs).toHaveLength(1)
   })
 
+  it('reads again with 20 rows when the output of 200 was cut short, and lands the smaller page', async () => {
+    const small = { ...PAGE, rows: [[1]], total: 90 }
+    const port = seeded(argv => (argv.includes('200') ? { exitCode: 0, stdout: '{"id":"e1","rows":[["x', isStdoutTruncated: true } : { exitCode: 0, stdout: JSON.stringify(small) }))
+    await request(port.io, 'result')
+    await port.advance()
+    await port.advance()
+    expect(port.runs.map(r => r.argv[r.argv.indexOf('--limit') + 1])).toEqual(['200', '20'])
+    expect(port.values.get('result') as ResultState).toMatchObject({ id: 'e1', offset: 0, phase: 'done', page: small, failure: null })
+  })
+
+  it('stops at 20 rows: when even that is cut short the card says the result is too wide', async () => {
+    const port = seeded(() => ({ exitCode: 0, stdout: '{"id', isStdoutTruncated: true }))
+    await request(port.io, 'result')
+    await port.advance()
+    await port.advance()
+    await port.advance()
+    expect(port.runs).toHaveLength(2)
+    expect(port.values.get('result')).toMatchObject({ page: null, failure: 'output too large' })
+  })
+
   it('stores why when the spool is gone', async () => {
     const port = seeded(() => ({ exitCode: 1, stdout: "{\"error\":\"No spooled result for 'e1'\"}" }))
     await request(port.io, 'result')

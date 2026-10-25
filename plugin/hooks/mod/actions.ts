@@ -17,7 +17,7 @@ import type { JournalEntry, TableInfo } from '../lib/contract'
 import { parseJournalEntry, parsePin, parseUnpinned } from '../lib/parse'
 import type { Row } from '../lib/types'
 import { runCli } from './cli'
-import { moreHistory, refreshSchema, RESULT_PAGE as RESULT_PAGE_ROWS, reloadPins, reloadQueries, request, requestQueries, requestSchema, selectedEntry, showResultPage } from './loaders'
+import { moreHistory, refreshSchema, reloadPins, reloadQueries, request, requestQueries, requestSchema, selectedEntry, showResultPage } from './loaders'
 import type { Port } from './port'
 import { focusField, mod } from './state'
 
@@ -190,7 +190,7 @@ async function resultPage(io: Port, direction: 1 | -1): Promise<void> {
   const entry = await selectedEntry(io)
   const page = entry === null ? null : resultOf(await io.state.result.read(), entry).page
   if (page === null) return
-  const to = direction === 1 ? page.offset + page.rows.length : page.offset - RESULT_PAGE_ROWS
+  const to = direction === 1 ? page.offset + page.rows.length : page.offset - mod.loads.result.limit
   if (direction === 1 && to >= page.total) return
   await io.state.view.update(v => {
     const { result: _, ...scroll } = v.scroll
