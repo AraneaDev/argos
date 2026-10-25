@@ -6,6 +6,7 @@
 
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
+import { mkdir } from 'fs/promises';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -37,6 +38,7 @@ import { Logger } from '../utils/logger.js';
 import { getErrorMessage, sanitizeError, sanitizeMessage } from '../utils/error-handler.js';
 import { getToolDefinitions } from '../tools/tool-definitions.js';
 import { createToolDispatcher, type ToolDispatchFn } from '../tools/dispatcher.js';
+import { PaneStore, dataDirFor } from '../pane/store.js';
 import type { ToolHandlerContext } from '../tools/handlers/types.js';
 
 /**
@@ -110,6 +112,7 @@ export class SQLMCPServer extends EventEmitter {
 
   private config: ParsedServerConfig | null = null;
   private configPath: string = '';
+  private paneStore: PaneStore | null = null;
   private initialized = false;
 
   constructor() {
@@ -151,6 +154,7 @@ export class SQLMCPServer extends EventEmitter {
 
     try {
       this.loadConfig(configPath);
+      this.paneStore = await this.createPaneStore();
       await this.initializeManagers();
 
       // Create the tool dispatcher with a late-binding context
@@ -169,6 +173,9 @@ export class SQLMCPServer extends EventEmitter {
         },
         get schemaWatch() {
           return server.schemaWatch;
+        },
+        get paneStore() {
+          return server.paneStore;
         },
         get sshTunnelManager() {
           return server.sshTunnelManager;
@@ -194,6 +201,20 @@ export class SQLMCPServer extends EventEmitter {
     } catch (error) {
       this.logger.error('Failed to initialize server', error as Error);
       throw error;
+    }
+  }
+
+  /** Journal store beside the config in use; null (journaling off) if its directory is unusable. */
+  private async createPaneStore(): Promise<PaneStore | null> {
+    try {
+      const dir = dataDirFor(this.configPath);
+      await mkdir(join(dir, 'spool'), { recursive: true, mode: 0o700 });
+      return new PaneStore(dir);
+    } catch (error) {
+      this.logger.warning('Pane journal disabled: data directory unavailable', {
+        error: getErrorMessage(error),
+      });
+      return null;
     }
   }
 

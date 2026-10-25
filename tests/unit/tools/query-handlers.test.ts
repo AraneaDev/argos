@@ -50,6 +50,7 @@ function createMockContext(
       generateSchemaContext: jest.fn(),
     } as any,
     schemaWatch: { check: jest.fn().mockResolvedValue([]) } as any,
+    paneStore: null,
     sshTunnelManager: {
       hasTunnel: jest.fn().mockReturnValue(false),
       closeTunnel: jest.fn(),
