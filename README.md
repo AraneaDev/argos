@@ -109,6 +109,14 @@ You should see `argos` listed as connected. Its tools appear in Claude Code as `
 claude mcp remove argos --scope user
 ```
 
+## Claude Code pane
+
+Argos ships a pane for Claude Code that sits beside the chat: your connections,
+their schema, every query Claude runs (with its result), and an Editor for your
+own read-only queries. After `npm run build`, install it with
+`argos install-plugin` (a preview) and `argos install-plugin --execute`, then
+type `/argos` in Claude Code. See [the pane guide](docs/claude-code/pane.md).
+
 ## Use cases
 
 ### **Data Analytics & Business Intelligence**
@@ -360,6 +368,7 @@ execution plan with dialect-specific advice when something is slow.
 | `argos setup` | Run the interactive configuration wizard |
 | `argos help` | Show usage (also what plain `argos` does) |
 | `argos version` | Show the version |
+| `argos install-plugin` | Install the [Claude Code pane](docs/claude-code/pane.md) (preview; `--execute` to install) |
 
 `argos` is exposed as a `bin` entry, so `npm link` (or a global install) puts it on your `PATH`. Registration with Claude Code is handled by `claude mcp add`, see [Quick start](#quick-start).
 

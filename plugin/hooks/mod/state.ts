@@ -140,6 +140,14 @@ export function initialCli() {
   }
 }
 
+/** The drawing's own state (`render.tsx`). */
+export function initialPane() {
+  return {
+    /** Set once the pane has been too large to draw, so the debug log hears of it once. */
+    tooLargeLogged: false,
+  }
+}
+
 /** The state of one load, by area: what {@link reset} starts over from the factories above. */
 function initialSlices() {
   return {
@@ -147,6 +155,7 @@ function initialSlices() {
     registration: initialRegistration(),
     loads: initialLoads(),
     cli: initialCli(),
+    pane: initialPane(),
     queries: initialQueries(),
   }
 }

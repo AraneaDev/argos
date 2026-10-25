@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Handlers } from './actions'
-import { drawPane, failurePane } from './render'
+import { drawnText, drawPane, failurePane } from './render'
 import { fakePort } from './__tests__/fake-port'
 
 // Elements as the JSX stub makes them: { type, props }.
@@ -39,5 +39,13 @@ describe('a pane that cannot be drawn', () => {
   it('draws the pane itself when nothing fails', async () => {
     const drawn = await drawPane(fakePort().io, ui, 'terminal', { bodyColumns: 100 }, act)
     expect(textOf(drawn)).toContain('History')
+  })
+})
+
+describe('drawnText', () => {
+  it('counts the text of every element, whether its children sit beside its props or inside them', () => {
+    expect(drawnText({ props: { label: 'abc' }, children: ['de', { props: { children: 'f' } }] })).toBe(6)
+    expect(drawnText({ props: { children: ['ab', { props: { text: 'cd' } }] } })).toBe(4)
+    expect(drawnText(null)).toBe(0)
   })
 })

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { View } from '../../types'
 import type { ConnectionView, JournalEntry, SchemaView } from './contract'
-import { INITIAL_VIEW, paneLayout, paneRows, withScrollsKept } from './layout'
+import { INITIAL_VIEW, paneLayout, paneRows, shrinkRows, withScrollsKept } from './layout'
 import type { PaneModel } from './layout'
 import { rowWidth } from './rows'
 import type { Row } from './types'
@@ -252,5 +252,28 @@ describe('the Editor tab', () => {
     expect(before).toContain('r: run')
     expect(before).not.toContain('s: send')
     expect(lines(paneLayout(editorModel({ editor: ran() }), 120, 40).footer).join('\n')).toContain('s: send')
+  })
+})
+
+describe('shrinkRows', () => {
+  // A pane whose header weighs 54,000 characters whatever its height, and each list row 1,000 more.
+  const weigh = (rows: number) => ({ tree: rows, weight: 54_000 + rows * 1_000 })
+
+  it('keeps giving rows back until the fewest before it lets the caller fall back', () => {
+    const drawn: number[] = []
+    const fitted = shrinkRows(200, 16, 70_000, weigh(200), rows => {
+      drawn.push(rows)
+      return weigh(rows)
+    })
+    expect(fitted).toEqual({ tree: 16, weight: 70_000, rows: 16 })
+    expect(drawn.length).toBeLessThanOrEqual(5)
+    expect(drawn.at(-1)).toBe(16)
+  })
+
+  it('draws nothing more when the first fits, and stops at the fewest when even that is too heavy', () => {
+    expect(shrinkRows(30, 16, 70_000, weigh(10), () => weigh(0))).toEqual({ tree: 10, weight: 64_000, rows: 30 })
+    const heavy = (rows: number) => ({ tree: rows, weight: 100_000 + rows })
+    const fitted = shrinkRows(200, 16, 70_000, heavy(200), heavy)
+    expect([fitted.rows, fitted.weight > 70_000]).toEqual([16, true])
   })
 })

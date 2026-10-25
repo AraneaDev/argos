@@ -7,7 +7,7 @@
 import type { Elements, RenderElement, RenderNode, RenderSurface, UiPressArgument } from 'claude-code'
 
 import { paneHeight } from '../lib/cards'
-import { paneLayout } from '../lib/layout'
+import { paneLayout, shrinkRows } from '../lib/layout'
 import type { PaneModel } from '../lib/layout'
 import { dimRow, pressLabel, rowsHeight, textStyle } from '../lib/rows'
 import { cells } from '../lib/text'
@@ -206,6 +206,32 @@ export function failurePane(act: Handlers, ui: Elements[RenderSurface], columns:
 }
 
 /**
+ * How much text the pane lets one drawing hold. The engine refuses no tree
+ * for its size: it draws the first 100,000 characters of its texts (children,
+ * labels, link texts, code) and cuts the rest, so the pane stays under that,
+ * with room to spare, rather than see its last rows cut mid-line.
+ */
+export const TEXT_BUDGET = 90_000
+
+/** The fewest rows the pane lays its lists out for when it gives rows back to fit its budget. */
+export const SHORT_ROWS = 16
+
+/**
+ * A drawn tree's size as the engine bounds it: the characters of every text
+ * it draws (children, labels, link texts, code sources, alts). The engine's
+ * element keeps its children beside its props; a JSX element, as the specs
+ * build one, inside them: both are read.
+ */
+export function drawnText(tree: unknown): number {
+  if (typeof tree === 'string') return tree.length
+  if (Array.isArray(tree)) return tree.reduce((n: number, t) => n + drawnText(t), 0)
+  if (tree === null || typeof tree !== 'object') return 0
+  const { props = {}, children } = tree as { props?: Record<string, unknown>; children?: unknown }
+  const own = ['label', 'text', 'source', 'alt'].reduce((n, k) => n + (typeof props[k] === 'string' ? (props[k] as string).length : 0), 0)
+  return own + drawnText(children) + drawnText(props.children)
+}
+
+/**
  * The Argos pane, for a pane `bodyColumns` wide scrolled as `scroll` says.
  * When the rows are taller than the window the footer bar is drawn over its
  * last rows wherever it is scrolled to. A failure to draw is one dim line,
@@ -215,33 +241,56 @@ export async function drawPane(io: Port, ui: Elements[RenderSurface], surface: R
   const { Box } = ui
   const columns = Math.max(1, props.bodyColumns)
   const terminal = surface === 'terminal'
-  let laidOut: ReturnType<typeof paneLayout>
+  let model: PaneModel
+  let height: number
   try {
-    laidOut = paneLayout(await paneModel(io, terminal), columns, paneHeight(props.scroll))
+    model = await paneModel(io, terminal)
+    height = paneHeight(props.scroll)
   } catch (err) {
     return failurePane(act, ui, columns, terminal, err)
   }
-  const height = paneHeight(props.scroll)
   const offset = Math.max(0, props.scroll?.offset ?? 0)
-  // Kept for the wheel: the last layout drawn is the one on screen.
-  mod.drawn.rows = laidOut.body
-  mod.drawn.offset = offset
-  if (!laidOut.pinned) {
+  const build = (rows: number): RenderElement => {
+    const laidOut = paneLayout(model, columns, rows)
+    // Kept for the wheel: the last layout drawn is the one on screen.
+    mod.drawn.rows = laidOut.body
+    mod.drawn.offset = offset
+    if (!laidOut.pinned) {
+      return (
+        <Box key="pane" flexDirection="column">
+          {[...laidOut.body, ...laidOut.footer].map(row => drawRow(act, ui, row, columns, terminal))}
+        </Box>
+      )
+    }
+    // Taller than the window: the bar is drawn over its last rows wherever it is scrolled to, and the body ends in room for it.
+    const reserve: Row[] = laidOut.footer.map((_, i) => ({ key: `bar-room-${i}`, segments: [{ text: ' ' }] }))
+    const top = Math.min(offset, rowsHeight(laidOut.body) + reserve.length - rows) + rows - laidOut.footer.length
     return (
       <Box key="pane" flexDirection="column">
-        {[...laidOut.body, ...laidOut.footer].map(row => drawRow(act, ui, row, columns, terminal))}
+        {[...laidOut.body, ...reserve].map(row => drawRow(act, ui, row, columns, terminal))}
+        <Box key="bar" position="absolute" top={Math.max(0, top)} left={0} width={columns} flexDirection="column">
+          {laidOut.footer.map(row => drawRow(act, ui, row, columns, terminal))}
+        </Box>
       </Box>
     )
   }
-  // Taller than the window: the bar is drawn over its last rows wherever it is scrolled to, and the body ends in room for it.
-  const reserve: Row[] = laidOut.footer.map((_, i) => ({ key: `bar-room-${i}`, segments: [{ text: ' ' }] }))
-  const top = Math.min(offset, rowsHeight(laidOut.body) + reserve.length - height) + height - laidOut.footer.length
-  return (
-    <Box key="pane" flexDirection="column">
-      {[...laidOut.body, ...reserve].map(row => drawRow(act, ui, row, columns, terminal))}
-      <Box key="bar" position="absolute" top={Math.max(0, top)} left={0} width={columns} flexDirection="column">
-        {laidOut.footer.map(row => drawRow(act, ui, row, columns, terminal))}
-      </Box>
-    </Box>
-  )
+  try {
+    const first = build(height)
+    const weight = drawnText(first)
+    if (weight <= TEXT_BUDGET) return first
+    // Lists make most of the weight: fewer rows each try, in proportion to the budget, down to SHORT_ROWS at the last.
+    const fitted = shrinkRows(height, SHORT_ROWS, TEXT_BUDGET, { tree: first, weight }, rows => {
+      const smaller = build(rows)
+      return { tree: smaller, weight: drawnText(smaller) }
+    })
+    if (fitted.weight <= TEXT_BUDGET) return fitted.tree
+    // Still past the budget at the fewest rows: one line says so, rather than a tree the engine would cut mid-line.
+    if (!mod.pane.tooLargeLogged) {
+      mod.pane.tooLargeLogged = true
+      io.ui.log(`argos: the pane was too large to draw (${fitted.weight} characters at ${fitted.rows} rows), so it drew one line instead`, { to: 'debug' })
+    }
+    return failurePane(act, ui, columns, terminal, new Error('too large to draw here: make the pane narrower'))
+  } catch (err) {
+    return failurePane(act, ui, columns, terminal, err)
+  }
 }

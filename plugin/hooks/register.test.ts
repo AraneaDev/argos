@@ -373,3 +373,68 @@ describe('typing in a field', () => {
     expect((await ui.find({ key: 'tab:schema-bg' })) !== undefined).toBe(true)
   })
 })
+
+type DrawnNode = { props?: Record<string, unknown>; children?: unknown[] }
+
+/** How big a drawn tree is: its nodes, its depth and the text it draws (strings, labels, texts, sources, alts), which is what the engine bounds a pane by. */
+function treeSize(tree: unknown): { nodes: number; depth: number; text: number } {
+  let nodes = 0
+  const deepest = (node: unknown, depth: number): number => {
+    if (typeof node !== 'object' || node === null) return depth - 1
+    nodes++
+    return Math.max(depth, ...((node as DrawnNode).children ?? []).map(c => deepest(c, depth + 1)))
+  }
+  const depth = deepest(tree, 1)
+  const texts = (node: unknown): number => {
+    if (typeof node === 'string') return node.length
+    if (typeof node !== 'object' || node === null) return 0
+    const n = node as DrawnNode
+    const own = ['label', 'text', 'source', 'alt'].reduce((sum, k) => sum + (typeof n.props?.[k] === 'string' ? (n.props[k] as string).length : 0), 0)
+    return own + (n.children ?? []).reduce((sum: number, c) => sum + texts(c), 0)
+  }
+  return { nodes, depth, text: texts(tree) }
+}
+
+describe('the engine limits', () => {
+  test('every tab stays under the text budget, 10,000 nodes and 16 deep, with 5,000 history entries, 300 tables and a 200x60 result', { timeoutMs: 120_000 }, async ($, on) => {
+    const long = 'a_rather_long_identifier_name_that_goes_on_'
+    const journal = Array.from({ length: 5000 }, (_, i) => entry(`e${i}`, { sql: `SELECT ${long}${i}, ${long}2 FROM ${long}table WHERE id = ${i} AND name LIKE '%${long}%'` }))
+    const tables = Array.from({ length: 300 }, (_, i) => ({
+      name: `${long}table_${i}`,
+      type: 'table',
+      columns: Array.from({ length: 12 }, (_, c) => column(`${long}col_${c}`, 'VARCHAR(255)', c === 0 ? 'PRI' : '')),
+      primary_key: [`${long}col_0`],
+      foreign_keys: i === 0 ? [] : [{ column: `${long}col_1`, references: { table: `${long}table_${i - 1}`, column: `${long}col_0` } }],
+      row_estimate: null,
+    }))
+    const schema = JSON.stringify({ database: 'demo', type: 'sqlite', capturedAt: '2000-01-01T00:00:00.000Z', tables, views: [], lastChange: null })
+    const wide = JSON.stringify({ id: 'e1', fields: Array.from({ length: 60 }, (_, c) => `${long}f${c}`), rows: Array.from({ length: 200 }, (_, r) => Array.from({ length: 60 }, (_, c) => `${long}value_${r}_${c}`)), total: 200, offset: 0, truncated: false })
+    const ran = JSON.stringify(entry('e9000'))
+    const w = world(on, { answers: { history: { exitCode: 0, stdout: JSON.stringify(journal) }, schema: { exitCode: 0, stdout: schema }, result: { exitCode: 0, stdout: wide }, query: { exitCode: 0, stdout: ran } } })
+    await $.session.start(START)
+    await slash($)
+    await w.clock.settle()
+    for (const surface of ['terminal', 'desktop'] as const) {
+      for (const bodyColumns of [60, 100, 160]) {
+        for (const bodyRows of [20, 50]) {
+          const ui = await $.ui.mount({ plugin: 'argos', surface, component: 'Pane', requestId: 'argos', props: { ...PANE_PROPS, bodyColumns, scroll: { offset: 0, bodyRows } } })
+          for (const tab of ['queries', 'schema', 'editor', 'connections']) {
+            await ui.press({ key: `tab:${tab}` })
+            await w.clock.settle()
+            if (tab === 'editor' && (await ui.find({ type: 'Button', key: 'run' })) !== undefined) {
+              await ui.press({ key: 'run' })
+              await w.clock.settle()
+            }
+            const size = treeSize(await ui.drawn())
+            const at = `${surface} ${bodyColumns}x${bodyRows} ${tab}: ${JSON.stringify(size)}`
+            expect(size.nodes, at).toBeGreaterThan(5)
+            expect(size.nodes, at).toBeLessThan(10_000)
+            expect(size.depth, at).toBeLessThan(16)
+            expect(size.text, at).toBeLessThanOrEqual(90_000)
+          }
+          await ui.unmount()
+        }
+      }
+    }
+  })
+})
