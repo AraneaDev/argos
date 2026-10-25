@@ -1931,6 +1931,42 @@ describe('ConnectionManager', () => {
       expect(destroyPoolSpy).toHaveBeenCalled();
     });
 
+    test('schemaFingerprint bypasses the query cache and hashes the rows', async () => {
+      const { QueryCache } = await import('../../src/classes/QueryCache.js');
+      const cache = new QueryCache();
+      const cm = new ConnectionManager(mockSSHTunnelManager, undefined, cache);
+      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
+        TestConfigFixtures.validPostgresConfig
+      );
+      jest.spyOn(cm as any, 'createAdapter').mockReturnValue(mockAdapter);
+      cm.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
+      await cm.getConnection('test_db');
+
+      const sql = mockAdapter.fingerprintQuery();
+      const mk = (v: string) => ({
+        rows: [{ argos_fingerprint: v }],
+        fields: ['argos_fingerprint'],
+        rowCount: 1,
+        executionTime: 1,
+      });
+      const execSpy = jest.spyOn(mockAdapter, 'executeQuery');
+      execSpy.mockResolvedValue(mk('a') as any);
+      // Seed the cache with a hit for that exact SQL
+      await cm.executeQuery('test_db', sql);
+      execSpy.mockClear();
+
+      const h1 = await cm.schemaFingerprint('test_db');
+      const h2 = await cm.schemaFingerprint('test_db');
+      expect(execSpy).toHaveBeenCalledTimes(2);
+      expect(execSpy.mock.calls[0][1]).toBe(sql);
+      expect(h1).toMatch(/^[0-9a-f]{64}$/);
+      expect(h2).toBe(h1);
+
+      execSpy.mockResolvedValue(mk('b') as any);
+      expect(await cm.schemaFingerprint('test_db')).not.toBe(h1);
+      await cm.closeAll();
+    });
+
     test('returns cached result on second identical SELECT', async () => {
       // Create a ConnectionManager WITH a QueryCache
       const { QueryCache } = await import('../../src/classes/QueryCache.js');

@@ -302,6 +302,13 @@ export class MySQLAdapter extends DatabaseAdapter {
     return `EXPLAIN FORMAT=JSON ${query}`;
   }
 
+  /**
+   * Cheap query whose single row changes when the schema changes.
+   */
+  fingerprintQuery(): string {
+    return `SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS(':', table_name, column_name, column_type, is_nullable))) AS argos_fingerprint FROM information_schema.columns WHERE table_schema = DATABASE()`;
+  }
+
   private static readonly FULL_SCAN = ' MYSQL: Full table scan detected - add appropriate indexes';
   private static readonly FILESORT =
     ' MYSQL: Filesort operation - consider adding index on ORDER BY columns';

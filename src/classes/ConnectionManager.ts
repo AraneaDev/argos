@@ -3,6 +3,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { createHash } from 'crypto';
 import type {
   DatabaseConfig,
   ConnectionInfo,
@@ -761,6 +762,19 @@ export class ConnectionManager extends EventEmitter {
       this.emit('error', error, dbName);
       throw error;
     }
+  }
+
+  /**
+   * Hash of the engine's cheap schema fingerprint rows. Bypasses the query cache and metrics.
+   */
+  async schemaFingerprint(dbName: string): Promise<string> {
+    await this.getConnection(dbName);
+    const adapter = this.adapters.get(dbName);
+    if (!adapter) {
+      throw new ConnectionError(`No adapter found for database '${dbName}'`);
+    }
+    const result = await this._executeQueryInternal(dbName, adapter.fingerprintQuery());
+    return createHash('sha256').update(JSON.stringify(result.rows)).digest('hex');
   }
 
   /**

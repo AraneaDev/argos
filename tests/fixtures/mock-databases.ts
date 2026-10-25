@@ -113,6 +113,10 @@ export class MockDatabaseAdapter extends DatabaseAdapter {
     return `EXPLAIN ${query}`;
   }
 
+  fingerprintQuery(): string {
+    return 'SELECT 1 AS argos_fingerprint';
+  }
+
   protected extractFieldNames(result: unknown): string[] {
     if (typeof result === 'object' && result !== null && 'fields' in result) {
       return (result as any).fields || [];

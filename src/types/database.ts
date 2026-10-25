@@ -154,6 +154,7 @@ export interface DatabaseSchema {
   database: string;
   type: DatabaseTypeString;
   captured_at: string;
+  fingerprint?: string;
   tables: Record<string, TableInfo>;
   views: Record<string, TableInfo>;
   summary: {

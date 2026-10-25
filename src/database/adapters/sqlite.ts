@@ -244,6 +244,13 @@ export class SQLiteAdapter extends DatabaseAdapter {
   }
 
   /**
+   * Cheap query whose single row changes when the schema changes.
+   */
+  fingerprintQuery(): string {
+    return `SELECT schema_version AS argos_fingerprint FROM pragma_schema_version`;
+  }
+
+  /**
    *
    */
   override getPerformanceRecommendations(explainResult: QueryResult, _query: string): string[] {

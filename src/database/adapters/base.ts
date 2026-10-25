@@ -93,6 +93,12 @@ export abstract class DatabaseAdapter {
    */
   abstract buildExplainQuery(_query: string): string;
 
+  /**
+   * Cheap query returning one row with a column named argos_fingerprint (plus an optional n)
+   * that changes whenever the schema changes.
+   */
+  abstract fingerprintQuery(): string;
+
   // ============================================================================
   // Performance Analysis
   // ============================================================================

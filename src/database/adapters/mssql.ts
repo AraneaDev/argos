@@ -351,6 +351,13 @@ export class MSSQLAdapter extends DatabaseAdapter {
     return `SET SHOWPLAN_ALL ON; ${query}; SET SHOWPLAN_ALL OFF`;
   }
 
+  /**
+   * Cheap query whose single row changes when the schema changes.
+   */
+  fingerprintQuery(): string {
+    return `SELECT COUNT(*) AS n, CONVERT(varchar(30), MAX(modify_date), 126) AS argos_fingerprint FROM sys.objects WHERE is_ms_shipped = 0`;
+  }
+
   // ============================================================================
   // Schema Capture
   // ============================================================================
