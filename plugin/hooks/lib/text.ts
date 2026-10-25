@@ -143,3 +143,12 @@ export function wrapWords(text: string, columns: number): string[] {
   if (line !== '') lines.push(line)
   return lines
 }
+
+/** How long ago, in its largest whole unit: `12s`, `5m`, `3h`, `2d`. */
+export function formatAge(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000))
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.round(s / 60)}m`
+  if (s < 86_400) return `${Math.round(s / 3600)}h`
+  return `${Math.round(s / 86_400)}d`
+}

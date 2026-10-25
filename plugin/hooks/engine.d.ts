@@ -26,7 +26,7 @@ declare module 'claude-code' {
     plugin: { root: string }
   }
   export type Handler = (...args: any[]) => any
-  export type On = (event: string, optionsOrHandler: Handler | object, handler?: Handler) => void
+  export type On = (event: string, optionsOrHandler: Handler | object, handler?: Handler) => { catch: (handler: Handler) => void }
   export type Register = (on: On, options: PluginOptions) => any
   export type RenderPropsOf = Record<string, any>
   export type RenderElement = any

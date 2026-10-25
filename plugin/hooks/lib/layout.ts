@@ -1,0 +1,209 @@
+/**
+ * The pane's layout: every row it draws, fitted to the columns it has.
+ *
+ * Pure: the mod's state in ({@link PaneModel}), rows of styled segments out.
+ * The render hook only turns segments into elements, so every decision about
+ * width, order and colour is made here and tested here. The header and the
+ * footer come from `chrome.ts`, the cards and the grid from `cards.ts`, the
+ * stat tiles from `tiles.ts`; each tab's cards are dispatched from
+ * {@link tabArrangement}.
+ */
+import type { ConnectionsState, PaneTab, View } from '../../types'
+import type { Arrangement, Block, Section } from './cards'
+import { arrange, scrolledTo } from './cards'
+import { footerRows, homeShort, padded, padOf, tabRows, titleRow } from './chrome'
+import type { FooterKey, Pill } from './chrome'
+import type { ConnectionView } from './contract'
+import { CARD_ICON } from './marks'
+import { CHIP_BG, engineColour, FAINT, STAT_HUES, STATUS_COLOURS } from './palette'
+import { blank, button, clip, dimRow, rowsHeight, rowWidth, tintedRow } from './rows'
+import { tierOf } from './table'
+import type { Tier } from './table'
+import { formatAge, padEnd } from './text'
+import { tilesBlock } from './tiles'
+import type { Stat } from './tiles'
+import type { Row, Segment } from './types'
+
+/** Everything the pane draws, read from state once per render. */
+export type PaneModel = {
+  /** The config.ini the CLI reads, as the install wrote it. */
+  config: string | null
+  connections: ConnectionsState | null
+  view: View
+  /** The mod's clock, in milliseconds: what ages are counted from. */
+  now: number
+  /** Whether plain Buttons are drawn as text (`1: label`): the terminal. */
+  terminal: boolean
+}
+
+/** The view a pane opens on: the Queries tab, every marker on its first row. */
+export const INITIAL_VIEW: View = {
+  tab: 'queries',
+  marker: { queries: 0, schema: 0, editor: 0, connections: 0 },
+  scroll: {},
+  db: null,
+}
+
+/** A pane this many rows tall or shorter keeps its header tight: no blank rows around it. */
+export const SHORT_PANE = 24
+
+/**
+ * `after`, keeping the windows the wheel scrolled only while the view stands
+ * as it was: once the tab or the open tab's marker moves, each list goes
+ * back to the window round the marker.
+ */
+export function withScrollsKept(before: View, after: View): View {
+  const stood = before.tab === after.tab && before.marker[before.tab] === after.marker[after.tab]
+  return stood || Object.keys(after.scroll).length === 0 ? after : { ...after, scroll: {} }
+}
+
+/** How many rows the marker walks on `tab`. */
+export function walkable(tab: PaneTab, connections: ConnectionsState | null): number {
+  return tab === 'connections' ? (connections?.answer?.length ?? 0) : 0
+}
+
+/** The header's pill: what the pane is, or that its connections are being read or could not be. */
+function pillOf(model: PaneModel): Pill {
+  const c = model.connections
+  if (c?.failure !== null && c?.failure !== undefined && c.answer === null) return { text: 'unavailable', tone: 'warn' }
+  if (c?.phase === 'loading' && c.answer === null) return { text: 'reading…', tone: 'accent' }
+  return { text: 'read-only pane', tone: 'ok' }
+}
+
+/** The cells a connection card's labels take. */
+const LABEL = 8
+
+/** One labelled line of a connection card. */
+const line = (label: string, value: Segment[]): Segment[] => [{ text: padEnd(label, LABEL), dim: true }, ...value]
+
+/** When the schema was captured, as a card says it. */
+function capturedOf(at: string | null, now: number): Segment[] {
+  const t = at === null ? Number.NaN : Date.parse(at)
+  return Number.isNaN(t) ? [{ text: 'never captured', dim: true }] : [{ text: `captured ${formatAge(now - t)} ago` }]
+}
+
+/**
+ * One connection as a card: its name in the title, then its engine (a chip in
+ * its colour), host, tunnel, access, whether MCP may change its config, and
+ * when its schema was captured. The marked card is tinted, its first line
+ * carrying the marker and the press that marks it.
+ */
+function connectionBlock(c: ConnectionView, i: number, marked: boolean, now: number): Block {
+  return {
+    key: `connection-${i}`,
+    make: (inner): Section => {
+      const colour = engineColour(c.type)
+      const tunnel = [c.ssh ? 'SSH' : '', c.ssl ? 'SSL' : ''].filter(t => t !== '').join(' · ')
+      const lines: Segment[][] = [
+        line('engine', [{ text: ` ${c.type} `, ...(colour === undefined ? { dim: true } : { color: colour }), bg: CHIP_BG }]),
+        line('host', c.host === null ? [{ text: 'local', dim: true }] : [{ text: c.host }]),
+        line('tunnel', tunnel === '' ? [{ text: 'none', dim: true }] : [{ text: tunnel }]),
+        line('access', c.selectOnly ? [{ text: 'SELECT_ONLY', color: STATUS_COLOURS.ok }] : [{ text: 'full access', color: STATUS_COLOURS.warn }]),
+        line('MCP', [{ text: `configurable: ${c.mcpConfigurable ? 'yes' : 'no'}`, ...(c.mcpConfigurable ? {} : { dim: true }) }]),
+        line('schema', capturedOf(c.schemaCapturedAt, now)),
+      ]
+      const body = lines.map((segments, n) => {
+        const [label, ...rest] = segments
+        // The first line's label is the press that marks the card; the marker stands before it.
+        const lead: Segment[] = n === 0 ? [{ text: marked ? '›' : ' ', bold: true }, button(`row:${i}`, label!.text, undefined, { dim: true })] : [{ text: ' ' }, label!]
+        return tintedRow(`connection-${i}-${n}`, clip([...lead, ...rest], inner), marked, { columns: inner })
+      })
+      return { key: `connection-${i}`, title: c.name, glyph: CARD_ICON.connection, body }
+    },
+  }
+}
+
+/** The Connections tab's figures: how many, how many select-only, with full access, tunnelled, with a schema captured. */
+function connectionStats(list: ConnectionView[]): Stat[] {
+  const count = (pick: (c: ConnectionView) => boolean) => String(list.filter(pick).length)
+  return [
+    { key: 'connections', label: list.length === 1 ? 'connection' : 'connections', value: String(list.length), hue: STAT_HUES.connections },
+    { key: 'select-only', label: 'select-only', value: count(c => c.selectOnly), hue: STAT_HUES.selectOnly },
+    { key: 'full', label: 'full access', value: count(c => !c.selectOnly), ...(list.some(c => !c.selectOnly) ? { tone: 'warn' as const } : { hue: STAT_HUES.selectOnly }) },
+    { key: 'tunnels', label: 'over SSH', value: count(c => c.ssh), hue: STAT_HUES.tunnels },
+    { key: 'captured', label: 'captured', value: count(c => c.schemaCapturedAt !== null), hue: STAT_HUES.captured },
+  ]
+}
+
+/** A card that says one thing, dim. */
+function noticeBlock(key: string, title: string, text: string): Block {
+  return { key, make: (inner): Section => ({ key, title, body: [dimRow(`${key}-line`, `   ${text}`, inner)] }) }
+}
+
+/**
+ * The Connections tab: the figures across the top, then one card per
+ * connection, two to a grid row when wide, one column narrower.
+ */
+function connectionsArrangement(model: PaneModel, selected: number, tier: Tier): Arrangement {
+  const c = model.connections
+  const list = c?.answer ?? null
+  if (list === null) return c?.failure === null || c?.failure === undefined ? { left: [noticeBlock('connections-wait', 'Connections', 'reading connections…')] } : { left: [] }
+  const where = model.config === null ? 'config.ini' : homeShort(model.config)
+  if (list.length === 0) return { left: [noticeBlock('connections-none', 'Connections', `no connections in ${where}`)] }
+  const cards = list.map((conn, i) => connectionBlock(conn, i, i === selected, model.now))
+  const pairs: Block[][] = []
+  for (let i = 0; i < cards.length; i += 2) pairs.push(cards.slice(i, i + 2))
+  // The tiles collapse to a line when narrow: they are laid out for the pane's own tier.
+  const tiles = tilesBlock(connectionStats(list), tier)
+  return { top: [tiles], left: cards, rows: pairs, order: [tiles, ...cards] }
+}
+
+/** The open tab's cards. The Queries, Schema and Editor tabs are drawn by the tasks that bring their data. */
+function tabArrangement(model: PaneModel, selected: number, tier: Tier): Arrangement {
+  if (model.view.tab === 'connections') return connectionsArrangement(model, selected, tier)
+  const title = model.view.tab === 'queries' ? 'Queries' : model.view.tab === 'schema' ? 'Schema' : 'Editor'
+  return { left: [noticeBlock(model.view.tab, title, 'nothing to show here yet')] }
+}
+
+/** The keys the footer offers on the open tab. */
+function footerKeys(model: PaneModel): FooterKey[] {
+  const moves: FooterKey[] = walkable(model.view.tab, model.connections) > 1 ? [{ id: 'down', hotkey: 'j', label: '↓', move: true }, { id: 'up', hotkey: 'k', label: '↑', move: true }] : []
+  return moves
+}
+
+/**
+ * The pane laid out: its rows from the header down (`body`) and the footer
+ * bar (`footer`). When the two fit the height, the body is filled with blank
+ * rows so the bar sits at the bottom of the pane; when they do not
+ * (`pinned`), the bar is drawn over the window's last rows wherever the pane
+ * is scrolled to, and the body ends in as many blank rows as the bar has.
+ *
+ * The header has room around it: a blank row above the name and another
+ * between it and the tabs, then a blank row and a rule before the first
+ * card. Narrow, the row above the name goes; on a short pane (24 rows or
+ * fewer) the blank rows go first. A failure (the CLI could not be run, or
+ * said why not) is one dim line under the header.
+ */
+export function paneLayout(model: PaneModel, columns: number, height: number): { body: Row[]; footer: Row[]; pinned: boolean } {
+  const width = Math.max(1, columns)
+  const tier = tierOf(width)
+  const short = height <= SHORT_PANE
+  const pad = padOf(tier)
+  const inner = Math.max(1, width - 2 * pad)
+  const selected = Math.min(Math.max(0, model.view.marker[model.view.tab]), Math.max(0, walkable(model.view.tab, model.connections) - 1))
+  const rows: Row[] = []
+  if (!short && tier !== 'narrow') rows.push(blank('head-top'))
+  rows.push(padded(titleRow({ connections: model.connections?.answer ?? [], pill: pillOf(model), config: model.config }, inner, tier, width), pad, width))
+  if (!short) rows.push(blank('head-gap'))
+  rows.push(...tabRows(model.view.tab, inner, model.terminal, tier === 'narrow').map(row => padded(row, pad, width)))
+  if (!short) rows.push(blank('head-end'))
+  rows.push({ key: 'head-rule', segments: [{ text: '─'.repeat(width), color: FAINT }] })
+  const failure = model.connections?.failure ?? null
+  if (failure !== null) rows.push(padded(dimRow('failure', failure, inner), pad, width))
+  const bar = footerRows(footerKeys(model), width)
+  const footer = [...(short ? [] : [blank('gap-keys')]), ...bar]
+  const room = height - rows.length - footer.length
+  // The connection cards keep their own height: stretched to the foot, a grid row of two would stand hollow.
+  rows.push(...arrange(scrolledTo(tabArrangement(model, selected, tier), model.view.scroll), width, room, model.view.tab !== 'connections'))
+  const body = rows.map(row => (rowWidth(row) <= width ? row : { ...row, segments: clip(row.segments, width) }))
+  const fill = height - rowsHeight(body) - footer.length
+  if (fill >= 0) return { body: [...body, ...Array.from({ length: fill }, (_, i) => blank(`fill-${i}`))], footer, pinned: false }
+  return { body, footer, pinned: true }
+}
+
+/** Every row the pane draws, the footer last: {@link paneLayout}'s body and footer as one list. */
+export function paneRows(state: PaneModel, columns: number, rows: number): Row[] {
+  const laid = paneLayout(state, columns, rows)
+  return [...laid.body, ...laid.footer]
+}
+

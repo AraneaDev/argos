@@ -40,6 +40,27 @@ export type Tone = keyof typeof STATUS_COLOURS
 export const TITLE = 'claude'
 
 /**
+ * Each stat tile's figure, coloured when nothing is wrong with it: a tone
+ * (blocked queries, schema changes above zero) still wins. Blocked queries
+ * and select-only connections sit in the success colour at rest, so a clean
+ * pane reads clean at a glance. No hue here is an engine's, nor the
+ * selection's: those mean an engine, and the marker and the open tab.
+ */
+export const STAT_HUES = {
+  connections: 'professionalBlue',
+  selectOnly: STATUS_COLOURS.ok,
+  tunnels: 'briefLabelYou',
+  captured: 'rainbow_blue',
+  queries: 'professionalBlue',
+  pinned: 'chromeYellow',
+  blocked: STATUS_COLOURS.ok,
+  changes: 'briefLabelYou',
+  tables: 'professionalBlue',
+  views: 'briefLabelYou',
+  columns: 'rainbow_indigo',
+} as const
+
+/**
  * Each engine's chip colour, by the name its connection is configured with:
  * four theme keys apart from one another and from the status colours, so a
  * chip never reads as an outcome.

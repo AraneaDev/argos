@@ -1,11 +1,22 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["node", "vitest"],
+    "types": [
+      "node",
+      "vitest"
+    ],
     "jsx": "react",
     "jsxFactory": "h",
     "jsxFragmentFactory": "Fragment"
   },
-  "include": ["engine.d.ts", "lib/**/*.ts"],
+  "include": [
+    "engine.d.ts",
+    "../types/index.d.ts",
+    "register.tsx",
+    "register.test.ts",
+    "lib/**/*.ts",
+    "mod/**/*.ts",
+    "mod/**/*.tsx"
+  ],
   "exclude": []
 }

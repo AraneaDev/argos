@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ACCENT, ENGINE_COLOURS, ENGINE_HUES, FAINT, HEADING, SECONDARY, STATUS_COLOURS, TITLE, boundaryColour, boundaryLabel, engineColour, heat } from './palette'
+import { ACCENT, ENGINE_COLOURS, ENGINE_HUES, FAINT, HEADING, SECONDARY, STAT_HUES, STATUS_COLOURS, TITLE, boundaryColour, boundaryLabel, engineColour, heat } from './palette'
+import { THEMES } from './themes'
 
 describe('engineColour', () => {
   it('gives each of the four engines a chip hue of its own, none a status colour', () => {
@@ -45,5 +46,24 @@ describe('the livelier look', () => {
     const order = [ACCENT, STATUS_COLOURS.ok, STATUS_COLOURS.warn, STATUS_COLOURS.alert]
     for (let i = 1; i < 9; i++) expect(order.indexOf(heat(i, 9))).toBeGreaterThanOrEqual(order.indexOf(heat(i - 1, 9)))
     expect(heat(0, 1)).toBe(ACCENT)
+  })
+})
+
+describe('STAT_HUES', () => {
+  it('colours no tile in an engine hue, the accent or a warning colour', () => {
+    const hues: string[] = Object.values(STAT_HUES)
+    for (const engine of Object.values(ENGINE_COLOURS)) expect(hues).not.toContain(engine)
+    expect(hues).not.toContain(ACCENT)
+    expect(hues).not.toContain(STATUS_COLOURS.warn)
+    expect(hues).not.toContain(STATUS_COLOURS.alert)
+  })
+})
+
+describe('STAT_HUES in the themes', () => {
+  it('names only theme keys both themes define', () => {
+    for (const hue of Object.values(STAT_HUES)) {
+      expect(THEMES.dark[hue], hue).toBeDefined()
+      expect(THEMES.light[hue], hue).toBeDefined()
+    }
   })
 })

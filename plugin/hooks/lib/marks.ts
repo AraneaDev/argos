@@ -78,7 +78,7 @@ export const CARD_ICON = {
   'branch-files': '≡', find: '⌕', budget: '!', churn: '≡', 'churn-plot': '∴', 'churn-list': '≡', rings: '◎', route: '⇢',
   'route-others': '⇢', flows: '⇄', changes: '±', tests: '✓', trend: '∿', detail: '◇', used: '←', uses: '→', deps: '←', comps: '→',
   notes: '✎', diff: '±', drift: 'Δ', session: '±', composition: '▥', concentration: '◎', health: '∿',
-  pinned: '★', history: '≡', result: '◇', tables: '▦', relations: '⇄', query: '›_',
+  pinned: '★', history: '≡', result: '◇', tables: '▦', relations: '⇄', query: '›_', connection: '▣',
 } as const satisfies Readonly<Record<string, string>>
 
 /** Glyphs in two families on purpose, because there they say the same thing: ok and tested, a warning and untested, a change, a cycle. */
