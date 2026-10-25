@@ -36,7 +36,7 @@ export type Port = {
   fs: Pick<Engine['fs'], 'read'>
   store: Pick<Engine['store'], 'get' | 'set'>
   command: Pick<Engine['command'], 'register'>
-  prompt: Pick<Engine['prompt'], 'submit'>
+  prompt: Pick<Engine['prompt'], 'fill'>
   plugin: { root: string }
   state: Cells
 }

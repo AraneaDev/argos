@@ -185,6 +185,8 @@ async function paneModel(io: Port, terminal: boolean): Promise<PaneModel> {
     history: await io.state.history.read(),
     pins: await io.state.pins.read(),
     result: await io.state.result.read(),
+    draft: await io.state.draft.read(),
+    editor: await io.state.editor.read(),
     since: mod.session.startedAt,
     view: await io.state.view.read(),
     now: await io.clock.now(),

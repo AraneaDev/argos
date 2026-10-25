@@ -18,6 +18,8 @@ const model = (over: Partial<PaneModel> = {}, view: Partial<View> = {}): PaneMod
   history: null,
   pins: null,
   result: null,
+  draft: '',
+  editor: { running: false, entry: null, page: null, failure: null },
   view: { ...INITIAL_VIEW, tab: 'connections', ...view },
   since: null,
   now: NOW,
@@ -226,5 +228,29 @@ describe('a schema read for another connection', () => {
     expect(text).toContain('reading the schema of shop…')
     expect(all(paneRows(schemaModel(), 120, 40))).toContain('captured')
     expect(all(paneRows(stale, 120, 40))).toContain('reading…')
+  })
+})
+
+describe('the Editor tab', () => {
+  const editorModel = (over: Partial<PaneModel> = {}): PaneModel => model({ draft: 'DELETE FROM t', ...over }, { tab: 'editor', db: 'demo' })
+  const ran = (over: Partial<JournalEntry> = {}) => ({ running: false, entry: E('e9', { source: 'pane', tool: 'pane_query', ...over }), page: null, failure: null })
+
+  it('shows the field with the draft, and the refusal of a blocked entry', () => {
+    const text = all(paneLayout(editorModel({ editor: ran({ outcome: 'blocked', reason: 'only SELECT is allowed', spool: null }) }), 100, 40).body)
+    expect(text).toContain('DELETE FROM t')
+    expect(text).toContain('refused: only SELECT is allowed')
+  })
+
+  it('draws the result grid of a run', () => {
+    const page = { id: 'e9', fields: ['n'], rows: [[41], [42]], total: 2, offset: 0, truncated: false }
+    const text = all(paneLayout(editorModel({ editor: { ...ran(), page } }), 100, 40).body)
+    expect(text).toContain('42')
+  })
+
+  it('offers run always, and pin and send once something ran', () => {
+    const before = lines(paneLayout(editorModel(), 120, 40).footer).join('\n')
+    expect(before).toContain('r: run')
+    expect(before).not.toContain('s: send')
+    expect(lines(paneLayout(editorModel({ editor: ran() }), 120, 40).footer).join('\n')).toContain('s: send')
   })
 })

@@ -18,6 +18,9 @@ export type CliEnv = { node: string; cli: string; config: string }
 /** How long one command may run: a cold start opening an SSH tunnel takes seconds. */
 export const CLI_TIMEOUT_MS = 30_000
 
+/** A query run on the person's behalf may take as long as a query may. */
+export const QUERY_TIMEOUT_MS = 120_000
+
 /** Why nothing runs when the install's paths are missing or unreadable. */
 export const NOT_INSTALLED = 'argos: plugin not installed by argos install-plugin'
 

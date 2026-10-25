@@ -90,7 +90,7 @@ export function fakePort(options: { files?: Record<string, string>; run?: Runner
         return { command: args.name }
       },
     },
-    prompt: { submit: async () => ({}) },
+    prompt: { fill: async () => ({ isFilled: true }) },
     plugin: { root: PLUGIN_ROOT },
     state,
   } as unknown as Port

@@ -8,9 +8,10 @@
  * stat tiles from `tiles.ts`; each tab's cards are dispatched from
  * {@link tabArrangement}.
  */
-import type { ConnectionsState, HistoryState, PaneTab, PinsState, ResultState, SchemaState, View } from '../../types'
+import type { ConnectionsState, EditorState, HistoryState, PaneTab, PinsState, ResultState, SchemaState, View } from '../../types'
 import type { Arrangement, Block, Section } from './cards'
 import { arrange, scrolledTo } from './cards'
+import { editorArrangement } from './editor-view'
 import { footerRows, homeShort, padded, padOf, tabRows, titleRow } from './chrome'
 import type { FooterKey, Pill } from './chrome'
 import type { ConnectionView, JournalEntry } from './contract'
@@ -38,6 +39,10 @@ export type PaneModel = {
   pins: PinsState | null
   /** The result of the entry the Queries tab selected, as last read. */
   result: ResultState | null
+  /** The SQL in the Editor. */
+  draft: string
+  /** The Editor's last run. */
+  editor: EditorState
   view: View
   /** When this session began, in milliseconds on the mod's clock; null when unknown. */
   since: number | null
@@ -237,12 +242,18 @@ function queriesTabArrangement(model: PaneModel, selected: number, tier: Tier): 
   )
 }
 
-/** The open tab's cards. The Editor tab is drawn by the task that brings its data. */
+/** The connection the Schema and Editor tabs work on: the one picked, else the first listed. */
+export function dbOf(connections: ConnectionsState | null, db: string | null): ConnectionView | undefined {
+  const list = connections?.answer ?? []
+  return list.find(c => c.name === db) ?? list[0]
+}
+
+/** The open tab's cards. */
 function tabArrangement(model: PaneModel, selected: number, tier: Tier): Arrangement {
   if (model.view.tab === 'connections') return connectionsArrangement(model, selected, tier)
   if (model.view.tab === 'schema') return schemaTabArrangement(model, selected, tier)
   if (model.view.tab === 'queries') return queriesTabArrangement(model, selected, tier)
-  return { left: [noticeBlock(model.view.tab, 'Editor', 'nothing to show here yet')] }
+  return editorArrangement({ draft: model.draft, connection: dbOf(model.connections, model.view.db), connections: model.connections?.answer?.length ?? 0, editor: model.editor, now: model.now })
 }
 
 /** The keys the footer offers on the Queries tab: what can be done to the selected entry. */
@@ -263,11 +274,23 @@ function queriesKeys(model: PaneModel): FooterKey[] {
   ]
 }
 
+/** The keys the footer offers on the Editor tab: run, switch connection, and what can be done with the last run. */
+function editorKeys(model: PaneModel): FooterKey[] {
+  const { entry } = model.editor
+  return [
+    { id: 'run', hotkey: 'r', label: 'run' },
+    ...((model.connections?.answer?.length ?? 0) > 1 ? [{ id: 'next', hotkey: 'n', label: 'next connection' }] : []),
+    ...(entry !== null || model.draft.trim() !== '' ? [{ id: 'copy', hotkey: 'c', label: 'copy' }] : []),
+    ...(entry === null ? [] : [{ id: 'pin', hotkey: 'p', label: pinOf(model.pins?.answer ?? [], entry) === undefined ? 'pin' : 'unpin' }, { id: 'send', hotkey: 's', label: 'send to Claude' }]),
+  ]
+}
+
 /** The keys the footer offers on the open tab. */
 function footerKeys(model: PaneModel): FooterKey[] {
   const { tab, filter } = model.view
   const schema = schemaFor(model.schema, model.view.db)
   if (tab === 'queries') return queriesKeys(model)
+  if (tab === 'editor') return editorKeys(model)
   const moves: FooterKey[] = walkable(tab, model.connections, schema, filter, model.history) > 1 ? [{ id: 'down', hotkey: 'j', label: '↓', move: true }, { id: 'up', hotkey: 'k', label: '↑', move: true }] : []
   if (tab !== 'schema') return moves
   const shown = schema?.answer != null

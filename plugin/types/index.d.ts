@@ -175,6 +175,19 @@ export type ResultState = {
   failure: string | null
 }
 
+/**
+ * The Editor tab's last run: `entry` is the journal entry the CLI printed for
+ * it (a refused or failed query comes back as an entry too, with its
+ * `reason`), `page` the first page of its rows, `failure` why the CLI gave
+ * no entry at all. `running` while the query runs.
+ */
+export type EditorState = {
+  running: boolean
+  entry: JournalEntry | null
+  page: SpoolPage | null
+  failure: string | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     argos: {
@@ -193,6 +206,8 @@ declare module 'claude-code' {
       pins: PinsState | null
       /** The result of the entry the Queries tab has selected; null until one was read. */
       result: ResultState | null
+      /** The Editor tab's last run. */
+      editor: EditorState
     }
   }
 }

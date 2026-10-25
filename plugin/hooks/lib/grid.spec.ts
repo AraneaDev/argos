@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { SpoolPage } from './contract'
-import { gridRows, gridWindow, pageAs } from './grid'
+import { gridRows, gridWindow } from './grid'
 import { rowWidth } from './rows'
 import type { Row } from './types'
 
@@ -54,19 +54,5 @@ describe('the grid', () => {
     const rows = gridRows(page(fields, [fields.map(() => 1)]), 30, 5)
     for (const row of rows) expect(rowWidth(row)).toBeLessThanOrEqual(30)
     expect(lines(rows).join('\n')).toMatch(/\+\d+ more columns/)
-  })
-})
-
-describe('a page as text to copy', () => {
-  const p = page(['id', 'note'], [[1, 'a|b'], [2, null], [3, 'say "hi", ok']])
-  it('markdown: a table with the pipes escaped and null as NULL', () => {
-    expect(pageAs(p, 'markdown')).toBe(['| id | note |', '| --- | --- |', '| 1 | a\\|b |', '| 2 | NULL |', '| 3 | say "hi", ok |'].join('\n'))
-  })
-  it('CSV: quoted where a value needs it, null empty', () => {
-    expect(pageAs(p, 'CSV')).toBe(['id,note', '1,a|b', '2,', '3,"say ""hi"", ok"'].join('\n'))
-  })
-  it('JSON: an array of objects, whole values', () => {
-    expect(JSON.parse(pageAs(p, 'JSON'))).toEqual([{ id: 1, note: 'a|b' }, { id: 2, note: null }, { id: 3, note: 'say "hi", ok' }])
-    expect(pageAs(page(['n'], [['x'.repeat(10_000)]]), 'JSON')).toContain('x'.repeat(10_000))
   })
 })

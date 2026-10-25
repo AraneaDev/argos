@@ -53,7 +53,7 @@ function ageOf(entry: JournalEntry, now: number | undefined): string {
 }
 
 /** `12 rows · 34ms · 3m`: whatever of the three the entry has. */
-function metaOf(entry: JournalEntry, now: number | undefined): string {
+export function metaOf(entry: JournalEntry, now: number | undefined): string {
   const rows = entry.rowCount === null ? [] : [`${grouped(entry.rowCount)} ${entry.rowCount === 1 ? 'row' : 'rows'}`]
   const took = entry.durationMs === null ? [] : [`${grouped(Math.round(entry.durationMs))}ms`]
   const age = ageOf(entry, now)
@@ -199,7 +199,7 @@ function queryBlock(entry: JournalEntry, model: QueriesModel): Block {
 }
 
 /** The Result card: the grid of the page read, or a line saying why there is none. */
-function resultBlock(model: QueriesModel, entry: JournalEntry | undefined): Block {
+export function resultBlock(model: Pick<QueriesModel, 'result' | 'resultNote'>, entry: JournalEntry | undefined): Block {
   const page = model.result
   return {
     key: 'result',

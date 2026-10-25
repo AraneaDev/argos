@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import type { HistoryState, SchemaState, View } from '../../types'
 import type { JournalEntry, SchemaView } from '../lib/contract'
 import { focusMoved, handlersOf, pressOf, wheelScrolled } from './actions'
+import { INITIAL_VIEW } from '../lib/layout'
 import { mod, reset } from './state'
 import { fakePort } from './__tests__/fake-port'
 
@@ -275,12 +276,27 @@ describe('the Queries tab', () => {
     expect(copied).toEqual(['SELECT e1'])
   })
 
-  it('s is a stub for now: it does nothing', async () => {
-    const port = onQueries()
-    const before = structuredClone(Object.fromEntries(port.values))
+  it('s places the query and its rows in the prompt box without submitting it', async () => {
+    const port = onQueries(undefined, { result: { id: 'e1', offset: 0, phase: 'done', page: PAGE, failure: null } })
+    const filled: { text: string; mode?: string }[] = []
+    ;(port.io.prompt as { fill: unknown }).fill = async (args: { text: string; mode?: string }) => (filled.push(args), { isFilled: true })
     await press(port, 'send')
-    expect(Object.fromEntries(port.values)).toEqual(before)
-    expect(port.runs).toHaveLength(0)
+    expect(filled).toHaveLength(1)
+    expect(filled[0]!.text).toContain('```sql\nSELECT e1\n```')
+    expect(filled[0]!.text).toContain('| 1 | ada |')
+    expect(filled[0]!.mode).toBe('insert')
+  })
+
+  it('s copies for Claude when the prompt box is not there to take it', async () => {
+    const port = onQueries()
+    ;(port.io.prompt as { fill: unknown }).fill = async () => ({ isFilled: false, refusal: 'dialog' })
+    const copied: string[] = []
+    const toasts: string[] = []
+    ;(port.io.ui as { copy: unknown }).copy = async (args: { text: string }) => (copied.push(args.text), { isCopied: true })
+    ;(port.io.ui as { toast: unknown }).toast = async (t: string) => void toasts.push(t)
+    await press(port, 'send')
+    expect(copied[0]).toContain('SELECT e1')
+    expect(toasts).toEqual(['copied for Claude — paste into your prompt'])
   })
 
   it('m reads the next page of rows, b the earlier one, and neither goes past either end', async () => {
@@ -315,5 +331,62 @@ describe('the Queries tab', () => {
     expect(await wheelScrolled(port.io, rows, 0, { row: 0, column: 3 }, 1)).toBe(true)
     await port.advance()
     expect(port.runs.some(r => r.argv.includes('--before'))).toBe(true)
+  })
+})
+
+describe('the Editor tab', () => {
+  const ran = entry('n1', { source: 'pane', tool: 'pane_query', sql: 'SELECT 1', database: 'b' })
+  const onEditor = (run: Parameters<typeof fakePort>[0] extends infer O ? (O extends { run?: infer R } ? R : never) : never, extra: Record<string, unknown> = {}) =>
+    fakePort({ run, cells: { connections: LISTED, draft: 'SELECT 1', view: { ...INITIAL_VIEW, tab: 'editor', db: 'b' }, ...extra } })
+
+  it('starts from the draft the Schema tab wrote, and typing changes it', async () => {
+    const port = onEditor(() => ({ exitCode: 0, stdout: '{}' }), { draft: 'SELECT * FROM t LIMIT 100' })
+    expect(port.values.get('draft')).toBe('SELECT * FROM t LIMIT 100')
+    handlersOf(port.io).type('sql', 'SELECT 2')
+    await port.advance()
+    expect(port.values.get('draft')).toBe('SELECT 2')
+  })
+
+  it('Enter runs the text on the connection picked, and keeps the entry with its first page', async () => {
+    const port = onEditor(argv => ({ exitCode: 0, stdout: JSON.stringify(argv[2] === 'query' ? ran : { ...PAGE, id: 'n1' }) }))
+    handlersOf(port.io).submit('sql', 'SELECT 1')
+    await port.advance()
+    await port.advance()
+    expect(port.runs[0]!.argv.slice(2, 7)).toEqual(['query', 'b', '--sql', 'SELECT 1', '--config'])
+    expect(port.runs[1]!.argv.slice(2, 6)).toEqual(['result', 'n1', '--offset', '0'])
+    const editor = port.values.get('editor') as { entry: JournalEntry; page: unknown; running: boolean }
+    expect(editor.entry.id).toBe('n1')
+    expect(editor.page).not.toBeNull()
+    expect(editor.running).toBe(false)
+  })
+
+  it('a refused write keeps its reason and reads no rows', async () => {
+    const blocked = { ...ran, outcome: 'blocked', reason: 'only SELECT is allowed', spool: null, rowCount: null }
+    const port = onEditor(() => ({ exitCode: 0, stdout: JSON.stringify(blocked) }), { draft: 'DROP TABLE t' })
+    await press(port, 'run')
+    expect(port.runs).toHaveLength(1)
+    expect((port.values.get('editor') as { entry: JournalEntry }).entry.reason).toBe('only SELECT is allowed')
+  })
+
+  it('n changes the connection and keeps the SQL', async () => {
+    const port = onEditor(() => ({ exitCode: 0, stdout: '{}' }))
+    await press(port, 'next')
+    expect(viewOf(port).db).toBe('c')
+    expect(port.values.get('draft')).toBe('SELECT 1')
+    expect(port.runs).toHaveLength(0)
+  })
+
+  it('c copies the rows, p pins the run, s sends it', async () => {
+    const port = onEditor(argv => ({ exitCode: 0, stdout: JSON.stringify(argv[2] === 'pin' ? { id: 'p1', name: null, database: 'b', sql: 'SELECT 1', createdAt: '', lastJournalId: 'n1' } : argv[2] === 'pins' ? [] : ran) }), { editor: { running: false, entry: ran, page: { ...PAGE, id: 'n1' }, failure: null } })
+    const copied: string[] = []
+    ;(port.io.ui as { copy: unknown }).copy = async (args: { text: string }) => (copied.push(args.text), { isCopied: true })
+    await press(port, 'copy')
+    expect(copied[0]).toContain('| id | name |')
+    await press(port, 'pin')
+    expect(port.runs.some(r => r.argv[2] === 'pin' && r.argv[3] === 'n1')).toBe(true)
+    const filled: string[] = []
+    ;(port.io.prompt as { fill: unknown }).fill = async (args: { text: string }) => (filled.push(args.text), { isFilled: true })
+    await press(port, 'send')
+    expect(filled[0]).toContain('Connection: b')
   })
 })

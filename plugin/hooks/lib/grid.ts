@@ -87,21 +87,3 @@ export function gridRows(page: SpoolPage, columns: number, room: number, scroll 
   if (notes.length > 0 && (below > 0 || window.start > 0 || rows.length < room)) rows.push(dimRow('grid-more', notes.join(' · '), width))
   return rows
 }
-
-/** The formats a page is copied in, in the order a repeat press cycles through them. */
-export const PAGE_FORMATS = ['markdown', 'CSV', 'JSON'] as const
-export type PageFormat = (typeof PAGE_FORMATS)[number]
-
-const plainCell = (value: unknown): string => (value === null || value === undefined ? '' : typeof value === 'string' ? value : typeof value === 'object' ? JSON.stringify(value) : String(value))
-
-/** A page as text to copy: a markdown table, CSV (quoted where a value needs it) or JSON (an array of objects). Whole values, nothing clipped. */
-export function pageAs(page: SpoolPage, format: PageFormat): string {
-  if (format === 'JSON') return JSON.stringify(page.rows.map(row => Object.fromEntries(page.fields.map((f, c) => [f, row[c] ?? null]))), null, 2)
-  if (format === 'CSV') {
-    const quote = (v: string): string => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
-    return [page.fields.map(quote), ...page.rows.map(row => page.fields.map((_, c) => quote(plainCell(row[c]))))].map(line => line.join(',')).join('\n')
-  }
-  const cell = (v: string): string => v.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
-  const line = (cells: string[]): string => `| ${cells.map(cell).join(' | ')} |`
-  return [line(page.fields), line(page.fields.map(() => '---')), ...page.rows.map(row => line(page.fields.map((_, c) => (row[c] === null || row[c] === undefined ? 'NULL' : plainCell(row[c])))))].join('\n')
-}

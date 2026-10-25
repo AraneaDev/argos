@@ -27,6 +27,7 @@ export const INITIAL: CellValues = {
   history: null,
   pins: null,
   result: null,
+  editor: { running: false, entry: null, page: null, failure: null },
 }
 
 /**

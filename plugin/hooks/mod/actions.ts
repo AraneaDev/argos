@@ -9,14 +9,15 @@ import type { RenderSurface } from 'claude-code'
 import type { PaneTab, View } from '../../types'
 import { wheelMove, wheelTarget } from '../lib/cards'
 import { TABS } from '../lib/chrome'
-import { pageAs, PAGE_FORMATS } from '../lib/grid'
+import { pageAs, PAGE_FORMATS, sendText } from '../lib/clip'
 import { resultOf, schemaFor, walkable } from '../lib/layout'
 import { pinOf } from '../lib/queries-view'
 import { filteredList, sketchOf, sqlOf } from '../lib/schema-view'
-import type { JournalEntry, TableInfo } from '../lib/contract'
+import type { JournalEntry, SpoolPage, TableInfo } from '../lib/contract'
 import { parseJournalEntry, parsePin, parseUnpinned } from '../lib/parse'
 import type { Row } from '../lib/types'
-import { runCli } from './cli'
+import { QUERY_TIMEOUT_MS, runCli } from './cli'
+import { runEditor } from './editor'
 import { moreHistory, refreshSchema, reloadPins, reloadQueries, request, requestQueries, requestSchema, selectedEntry, showResultPage } from './loaders'
 import type { Port } from './port'
 import { focusField, mod } from './state'
@@ -65,16 +66,19 @@ async function markedTable(io: Port): Promise<{ table: TableInfo; engine: string
   return table === undefined ? null : { table, engine: schema.type }
 }
 
-/** `tab` on the Schema tab: the next connection's schema, round the list. */
+/** `n`: the next connection, round the list; on the Schema tab its schema is read. */
 async function nextConnection(io: Port): Promise<void> {
   const list = (await io.state.connections.read())?.answer ?? []
   if (list.length === 0) return
+  const editing = (await io.state.view.read()).tab === 'editor'
   await io.state.view.update(v => {
     const at = list.findIndex(c => c.name === v.db)
     const to = (at + 1) % list.length
-    return { ...v, db: list[to]!.name, filter: '', filtering: false, marker: { ...v.marker, schema: 0, connections: to } }
+    // In the Editor the connection changes and nothing else does: the SQL typed stays.
+    return editing ? { ...v, db: list[to]!.name, marker: { ...v.marker, connections: to } } : { ...v, db: list[to]!.name, filter: '', filtering: false, marker: { ...v.marker, schema: 0, connections: to } }
   })
-  await requestSchema(io)
+  if (editing) focusField(io, 'sql')
+  else await requestSchema(io)
 }
 
 /** `q`: a hundred rows of the marked table, in the Editor, which opens. */
@@ -83,6 +87,7 @@ async function putQuery(io: Port): Promise<void> {
   if (marked === null) return
   await io.state.draft.update(() => sqlOf(marked.table.name, marked.engine))
   await io.state.view.update(v => ({ ...v, tab: 'editor', filtering: false }))
+  focusField(io, 'sql')
 }
 
 /** `c`: a CREATE TABLE sketch of the marked table, to the clipboard. */
@@ -100,14 +105,8 @@ async function toggleFilter(io: Port): Promise<void> {
   if (!open) focusField(io, 'filter')
 }
 
-/** What the `send` key does until it is wired. */
-const SEND_STUB = undefined
-
 /** How long a repeat press of `c` still counts as asking for the next format, in milliseconds. */
 const COPY_CYCLE_MS = 2000
-
-/** A rerun may take as long as a query may. */
-const RERUN_TIMEOUT_MS = 120_000
 
 /** `r`: the selected entry's SQL, run again on its connection as the person (the CLI's `query`); the journal then lists it as the newest. */
 async function rerun(io: Port): Promise<void> {
@@ -115,7 +114,7 @@ async function rerun(io: Port): Promise<void> {
   if (entry === null || mod.queries.rerunning) return
   mod.queries.rerunning = true
   try {
-    const ran = await runCli(io, ['query', entry.database, '--sql', entry.sql], parseJournalEntry, RERUN_TIMEOUT_MS)
+    const ran = await runCli(io, ['query', entry.database, '--sql', entry.sql], parseJournalEntry, QUERY_TIMEOUT_MS)
     if (!ran.ok) {
       await io.ui.toast(ran.reason)
       return
@@ -141,12 +140,26 @@ async function editEntry(io: Port): Promise<void> {
   if (entry === null) return
   await io.state.draft.update(() => entry.sql)
   await io.state.view.update(v => ({ ...v, tab: 'editor', db: entry.database, filtering: false }))
+  focusField(io, 'sql')
 }
 
-/** `p`: pins the selected entry's query, or unpins it when it is pinned. */
-async function togglePin(io: Port): Promise<void> {
+/** What `c`, `p` and `s` act on: the Queries tab's selected entry and its result page, or the Editor's last run (and the SQL typed, when none ran). */
+async function subject(io: Port): Promise<{ entry: JournalEntry | null; page: SpoolPage | null; sql: string }> {
+  if ((await io.state.view.read()).tab === 'editor') {
+    const { entry, page } = await io.state.editor.read()
+    return { entry, page, sql: entry?.sql ?? (await io.state.draft.read()) }
+  }
   const entry = await selectedEntry(io)
-  if (entry === null) return
+  return { entry, page: entry === null ? null : resultOf(await io.state.result.read(), entry).page, sql: entry?.sql ?? '' }
+}
+
+/** `p`: pins the query on show, or unpins it when it is pinned. */
+async function togglePin(io: Port): Promise<void> {
+  const { entry } = await subject(io)
+  if (entry === null) {
+    await io.ui.toast('Run the query first')
+    return
+  }
   const pinned = pinOf((await io.state.pins.read())?.answer ?? [], entry)
   const done = pinned === undefined ? await runCli(io, ['pin', entry.id], parsePin) : await runCli(io, ['unpin', pinned.id], parseUnpinned)
   if (!done.ok) {
@@ -159,12 +172,11 @@ async function togglePin(io: Port): Promise<void> {
 
 /** `c`: the result page on show to the clipboard as markdown; again within two seconds, CSV, then JSON. With no result, the SQL. */
 async function copyResult(io: Port, _rest: string, surface: RenderSurface | undefined): Promise<void> {
-  const entry = await selectedEntry(io)
-  if (entry === null) return
-  const page = resultOf(await io.state.result.read(), entry).page
+  const { entry, page, sql } = await subject(io)
   const where = surface === undefined ? {} : { surface }
   if (page === null) {
-    const copied = await io.ui.copy({ text: entry.sql, ...where })
+    if (entry === null && sql.trim() === '') return
+    const copied = await io.ui.copy({ text: sql, ...where })
     await io.ui.toast(copied.isCopied ? 'Copied the SQL' : `Could not copy: ${copied.reason ?? 'the surface refused'}`)
     return
   }
@@ -175,6 +187,29 @@ async function copyResult(io: Port, _rest: string, surface: RenderSurface | unde
   const name = PAGE_FORMATS[format]!
   const copied = await io.ui.copy({ text: pageAs(page, name), ...where })
   await io.ui.toast(copied.isCopied ? `Copied ${page.rows.length} ${page.rows.length === 1 ? 'row' : 'rows'} as ${name}` : `Could not copy: ${copied.reason ?? 'the surface refused'}`)
+}
+
+/** What the person is told when send fell back to the clipboard. */
+export const SENT_BY_CLIPBOARD = 'copied for Claude — paste into your prompt'
+
+/**
+ * `s`: the query on show with its connection and rows (`sendText`) placed in
+ * the prompt box as draft text — never submitted; the person reads it, adds
+ * their question and sends. Where the engine has no box to put it in (a
+ * dialog holds the keys, or the session is headless) it goes to the
+ * clipboard instead.
+ */
+async function sendToClaude(io: Port, _rest: string, surface: RenderSurface | undefined): Promise<void> {
+  const { entry, page } = await subject(io)
+  if (entry === null) return
+  const text = sendText(entry, page)
+  const filled = await io.prompt.fill({ text: `${text}\n`, mode: 'insert' }).catch(() => ({ isFilled: false }))
+  if (filled.isFilled) {
+    await io.ui.toast('Placed in your prompt — add your question and send')
+    return
+  }
+  const copied = await io.ui.copy({ text, ...(surface === undefined ? {} : { surface }) })
+  await io.ui.toast(copied.isCopied ? SENT_BY_CLIPBOARD : `Could not copy: ${copied.reason ?? 'the surface refused'}`)
 }
 
 /** A press on a pin: the entry it was last run as is selected, when the history holds it. */
@@ -214,6 +249,7 @@ export const PRESSES: ReadonlyMap<string, Press> = new Map<string, Press>([
       await io.state.view.update(v => ({ ...v, tab, filtering: false }))
       if (tab === 'schema') await requestSchema(io)
       if (tab === 'queries') await requestQueries(io)
+      if (tab === 'editor') focusField(io, 'sql')
     },
   ],
   ['row:', (io, rest) => (/^\d+$/.test(rest) ? mark(io, () => Number(rest)) : undefined)],
@@ -231,8 +267,8 @@ export const PRESSES: ReadonlyMap<string, Press> = new Map<string, Press>([
   ['pin', togglePin],
   ['pinned:', openPin],
   ['copy', copyResult],
-  // Send to Claude is Task 13's: the key is drawn on the person's own queries and does nothing yet.
-  ['send', () => SEND_STUB],
+  ['send', sendToClaude],
+  ['run', runEditor],
   ['more-rows', io => resultPage(io, 1)],
   ['back-rows', io => resultPage(io, -1)],
 ])
@@ -279,6 +315,17 @@ async function submitFilter(io: Port, text: string): Promise<void> {
   await io.state.view.update(v => ({ ...v, filter: text, filtering: false, marker: { ...v.marker, schema: 0 } }))
 }
 
+/** The SQL as typed. */
+async function typeSql(io: Port, text: string): Promise<void> {
+  await io.state.draft.update(() => text)
+}
+
+/** Enter in the SQL field: the text as it stands is run. */
+async function submitSql(io: Port, text: string): Promise<void> {
+  await typeSql(io, text)
+  await runEditor(io)
+}
+
 /** The wheel over a list longer than its window scrolls that list, the marker left where it is; false when the pointer is over none, or at its end. */
 export async function wheelScrolled(io: Port, rows: readonly Row[], offset: number, pointer: { row: number; column: number }, by: number): Promise<boolean> {
   const moved = wheelMove(rows, offset, pointer, by)
@@ -296,8 +343,7 @@ export function handlersOf(io: Port): Handlers {
     press: (id, surface) => void Promise.resolve()
       .then(() => pressAction(io, id, surface))
       .catch(() => undefined),
-    // The table filter is the one field so far (the Editor's arrives with the Editor tab).
-    type: (field, value) => void Promise.resolve().then(() => (field === 'filter' ? typeFilter(io, value) : undefined)).catch(() => undefined),
-    submit: (field, value) => void Promise.resolve().then(() => (field === 'filter' ? submitFilter(io, value) : undefined)).catch(() => undefined),
+    type: (field, value) => void Promise.resolve().then(() => (field === 'filter' ? typeFilter(io, value) : field === 'sql' ? typeSql(io, value) : undefined)).catch(() => undefined),
+    submit: (field, value) => void Promise.resolve().then(() => (field === 'filter' ? submitFilter(io, value) : field === 'sql' ? submitSql(io, value) : undefined)).catch(() => undefined),
   }
 }

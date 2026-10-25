@@ -23,6 +23,7 @@ const draft = atom({ plugin: 'argos', key: 'draft' } as const, INITIAL.draft)
 const history = atom({ plugin: 'argos', key: 'history' } as const, INITIAL.history)
 const pins = atom({ plugin: 'argos', key: 'pins' } as const, INITIAL.pins)
 const result = atom({ plugin: 'argos', key: 'result' } as const, INITIAL.result)
+const editor = atom({ plugin: 'argos', key: 'editor' } as const, INITIAL.editor)
 
 /**
  * The engine as the mod's modules reach it, from this dispatch's `$`. The
@@ -49,7 +50,7 @@ function portOf($: EngineInterface): Port {
     fs: { read: (path, options) => $.fs.read(path, options) },
     store: { get: key => $.store.get(key), set: (key, value) => $.store.set(key, value) },
     command: { register: args => $.command.register(args) },
-    prompt: { submit: args => $.prompt.submit(args) },
+    prompt: { fill: args => $.prompt.fill(args) },
     plugin: { root: $.plugin.root },
     state: {
       // A move of the tab or the marker lets the wheel's windows go (withScrollsKept).
@@ -61,6 +62,7 @@ function portOf($: EngineInterface): Port {
       history: { read: () => read($, history), update: change => update($, history, change) },
       pins: { read: () => read($, pins), update: change => update($, pins, change) },
       result: { read: () => read($, result), update: change => update($, result, change) },
+      editor: { read: () => read($, editor), update: change => update($, editor, change) },
     },
   }
 }
