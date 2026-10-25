@@ -22,6 +22,8 @@ export const INITIAL: CellValues = {
   view: INITIAL_VIEW,
   connections: null,
   config: null,
+  schema: null,
+  draft: '',
 }
 
 /**
@@ -95,6 +97,10 @@ export function initialLoads() {
     timers: new Map<string, Timer>(),
     /** Bumped by every open of the pane: the connections are read again for each. */
     connectionsAsk: 0,
+    /** Bumped by `r` on the Schema tab: the schema is read again, from the database. */
+    schemaAsk: 0,
+    /** The connection `r` asked a refresh of: its next read passes `--refresh`, once. */
+    schemaFresh: null as string | null,
   }
 }
 

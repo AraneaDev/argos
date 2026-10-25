@@ -20,6 +20,48 @@ export type ConnectionView = {
   schemaCapturedAt: string | null
 }
 
+/** A change the schema check found, as the CLI's `src/schema/diff.ts` names it. */
+export type SchemaChange =
+  | { kind: 'table-added' | 'table-dropped'; table: string }
+  | { kind: 'column-added'; table: string; column: string; type: string }
+  | { kind: 'column-dropped'; table: string; column: string }
+  | { kind: 'column-changed'; table: string; column: string; from: string; to: string }
+
+export type ColumnInfo = {
+  name: string
+  type: string
+  nullable: boolean
+  default: unknown
+  max_length?: number | null
+  precision?: number | null
+  scale?: number | null
+  comment?: string
+  key?: string
+  extra?: string
+}
+
+export type ForeignKey = { column: string; references: { table: string; column: string } }
+
+export type TableInfo = {
+  name: string
+  type: string
+  comment?: string
+  columns: ColumnInfo[]
+  primary_key?: string[]
+  foreign_keys?: ForeignKey[]
+  row_estimate?: number | null
+}
+
+/** One connection's schema, as `argos schema <db>` prints it. */
+export type SchemaView = {
+  database: string
+  type: string
+  capturedAt: string | null
+  tables: TableInfo[]
+  views: TableInfo[]
+  lastChange: SchemaChange[] | null
+}
+
 /** The pane's tabs, in hotkey order. */
 export type PaneTab = 'queries' | 'schema' | 'editor' | 'connections'
 
@@ -33,6 +75,10 @@ export interface View {
   marker: Record<PaneTab, number>
   scroll: Record<string, number>
   db: string | null
+  /** The Schema tab's table filter: names holding this text are listed ('' lists all). */
+  filter: string
+  /** Whether the filter's field is open. */
+  filtering: boolean
 }
 
 /**
@@ -48,6 +94,19 @@ export type ConnectionsState = {
   failure: string | null
 }
 
+/**
+ * The schema of the connection `db` as `argos schema` last printed it: `ask`
+ * is the read it answers (a refresh asks again), `answer` the last schema
+ * read for `db`, `failure` why the latest read gave none.
+ */
+export type SchemaState = {
+  db: string
+  ask: number
+  phase: 'loading' | 'done'
+  answer: SchemaView | null
+  failure: string | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     argos: {
@@ -56,6 +115,10 @@ declare module 'claude-code' {
       connections: ConnectionsState | null
       /** The config.ini the CLI reads, as the install wrote it; null until read, or when the plugin was not installed by the CLI. */
       config: string | null
+      /** Null until the Schema tab first read a schema. */
+      schema: SchemaState | null
+      /** The SQL in the Editor tab. */
+      draft: string
     }
   }
 }

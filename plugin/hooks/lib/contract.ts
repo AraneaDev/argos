@@ -5,40 +5,13 @@
  * only; `parse.ts` checks an answer against them.
  */
 
+import type { SchemaChange } from '../../types'
+
 export type Source = 'claude' | 'pane'
 export type Outcome = 'ok' | 'error' | 'blocked'
 
-/** A change the schema check found, as `src/schema/diff.ts` names it. */
-export type SchemaChange =
-  | { kind: 'table-added' | 'table-dropped'; table: string }
-  | { kind: 'column-added'; table: string; column: string; type: string }
-  | { kind: 'column-dropped'; table: string; column: string }
-  | { kind: 'column-changed'; table: string; column: string; from: string; to: string }
-
-export type ColumnInfo = {
-  name: string
-  type: string
-  nullable: boolean
-  default: unknown
-  max_length?: number | null
-  precision?: number | null
-  scale?: number | null
-  comment?: string
-  key?: string
-  extra?: string
-}
-
-export type ForeignKey = { column: string; references: { table: string; column: string } }
-
-export type TableInfo = {
-  name: string
-  type: string
-  comment?: string
-  columns: ColumnInfo[]
-  primary_key?: string[]
-  foreign_keys?: ForeignKey[]
-  row_estimate?: number | null
-}
+/** The schema shapes are declared in the mod's state contract, which must stand alone. */
+export type { ColumnInfo, ForeignKey, SchemaChange, SchemaView, TableInfo } from '../../types'
 
 /** One query in the journal: Claude's or the pane's. */
 export type JournalEntry = {
@@ -82,16 +55,6 @@ export type Pin = {
  * the session state holds it.
  */
 export type { ConnectionView } from '../../types'
-
-/** One connection's schema, as `argos schema <db>` prints it. */
-export type SchemaView = {
-  database: string
-  type: string
-  capturedAt: string | null
-  tables: TableInfo[]
-  views: TableInfo[]
-  lastChange: SchemaChange[] | null
-}
 
 /** What `argos unpin` prints. */
 export type Unpinned = { removed: boolean }

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { ConnectionsState } from '../../types'
-import { reloadConnections, request } from './loaders'
+import { readFileSync } from 'node:fs'
+
+import type { ConnectionsState, SchemaState, View } from '../../types'
+import { refreshSchema, reloadConnections, request } from './loaders'
 import { mod, reset } from './state'
 import { ENV, fakePort } from './__tests__/fake-port'
 
@@ -73,5 +75,72 @@ describe('the connections loader', () => {
     await reloadConnections(port.io)
     await port.advance()
     expect(port.runs).toHaveLength(0)
+  })
+})
+
+const SCHEMA_TEXT = readFileSync(new URL('../../../tests/fixtures/pane-contract/schema.json', import.meta.url), 'utf8')
+const withDb = (db: string | null) => ({ ...(fakePort().values.get('view') as View), db })
+
+describe('the schema loader', () => {
+  it('reads the schema of the connection in use, keyed by it, on a timer', async () => {
+    const port = fakePort({ cells: { view: withDb('demo') }, run: () => ({ exitCode: 0, stdout: SCHEMA_TEXT }) })
+    await request(port.io, 'schema')
+    expect((port.values.get('schema') as SchemaState).phase).toBe('loading')
+    expect(port.runs).toHaveLength(0)
+    await port.advance()
+    expect(port.runs[0]!.argv.slice(2, 4)).toEqual(['schema', 'demo'])
+    expect(port.runs[0]!.argv).not.toContain('--refresh')
+    expect(port.values.get('schema')).toMatchObject({ db: 'demo', phase: 'done', failure: null })
+    await request(port.io, 'schema')
+    await port.advance()
+    expect(port.runs).toHaveLength(1)
+  })
+
+  it('reads nothing until a connection is in use', async () => {
+    const port = fakePort({ run: () => ({ exitCode: 0, stdout: SCHEMA_TEXT }) })
+    await request(port.io, 'schema')
+    await port.advance()
+    expect(port.runs).toHaveLength(0)
+  })
+
+  it("never shows one connection's schema while another reads, and drops an answer that lands late", async () => {
+    const answers = [deferred(), deferred()]
+    let n = 0
+    const port = fakePort({ cells: { view: withDb('a') }, run: () => answers[n++]!.promise })
+    await request(port.io, 'schema')
+    await port.advance()
+    answers[0]!.settle(SCHEMA_TEXT)
+    await port.advance()
+    await port.io.state.view.update(v => ({ ...v, db: 'b' }))
+    await request(port.io, 'schema')
+    expect((port.values.get('schema') as SchemaState).answer).toBeNull()
+    await port.advance()
+    answers[1]!.settle(SCHEMA_TEXT.replace('"demo"', '"other"'))
+    await port.advance()
+    expect(port.values.get('schema')).toMatchObject({ db: 'b' })
+    expect((port.values.get('schema') as SchemaState).answer?.database).toBe('other')
+  })
+
+  it('keeps the schema on show and stores why when a read fails', async () => {
+    let fail = false
+    const port = fakePort({ cells: { view: withDb('demo') }, run: () => (fail ? { exitCode: 1, stdout: '{"error":"database is locked"}' } : { exitCode: 0, stdout: SCHEMA_TEXT }) })
+    await request(port.io, 'schema')
+    await port.advance()
+    fail = true
+    await refreshSchema(port.io)
+    await port.advance()
+    const s = port.values.get('schema') as SchemaState
+    expect(s.failure).toBe('database is locked')
+    expect(s.answer?.database).toBe('demo')
+    expect(port.runs[1]!.argv).toContain('--refresh')
+  })
+
+  it('names the first connection as the one in use when none is, and reads it if the Schema tab is open', async () => {
+    const port = fakePort({ cells: { view: { ...withDb(null), tab: 'schema' } }, run: argv => ({ exitCode: 0, stdout: argv[2] === 'connections' ? JSON.stringify([conn('first'), conn('second')]) : SCHEMA_TEXT }) })
+    await reloadConnections(port.io)
+    await port.advance()
+    await port.advance()
+    expect((port.values.get('view') as View).db).toBe('first')
+    expect(port.runs.map(r => r.argv.slice(2, 4))).toEqual([['connections', '--config'], ['schema', 'first']])
   })
 })

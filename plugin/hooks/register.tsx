@@ -7,9 +7,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { focusLanded, focusMoved, handlersOf } from './mod/actions'
+import { focusLanded, focusMoved, handlersOf, wheelScrolled } from './mod/actions'
 import type { Port } from './mod/port'
-import { drawPane } from './mod/render'
+import { drawPane, failurePane } from './mod/render'
 import { endTurn, registerCommand, retryRegister, runCommand, startUp } from './mod/session'
 import { cellChange, INITIAL, mod, PANE, reset } from './mod/state'
 
@@ -17,6 +17,8 @@ import { cellChange, INITIAL, mod, PANE, reset } from './mod/state'
 const view = atom({ plugin: 'argos', key: 'view' } as const, INITIAL.view)
 const connections = atom({ plugin: 'argos', key: 'connections' } as const, INITIAL.connections)
 const config = atom({ plugin: 'argos', key: 'config' } as const, INITIAL.config)
+const schema = atom({ plugin: 'argos', key: 'schema' } as const, INITIAL.schema)
+const draft = atom({ plugin: 'argos', key: 'draft' } as const, INITIAL.draft)
 
 /**
  * The engine as the mod's modules reach it, from this dispatch's `$`. The
@@ -50,6 +52,8 @@ function portOf($: EngineInterface): Port {
       view: { read: () => read($, view), update: change => update($, view, cellChange('view', change)) },
       connections: { read: () => read($, connections), update: change => update($, connections, change) },
       config: { read: () => read($, config), update: change => update($, config, change) },
+      schema: { read: () => read($, schema), update: change => update($, schema, change) },
+      draft: { read: () => read($, draft), update: change => update($, draft, change) },
     },
   }
 }
@@ -93,8 +97,16 @@ export const register: Register = (on, options) => {
     return landed
   }).catch((_$, e, next) => next(e))
 
+  // The wheel over a list longer than its window scrolls that list, the marker left where it is; anywhere else the page scrolls.
+  on('ui.scroll', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
+    if (e.origin.kind !== 'person' || e.pointer === undefined) return next(e)
+    // At a list's end, or over none, the page takes the wheel, as a browser hands it on.
+    return (await wheelScrolled(portOf($), mod.drawn.rows, mod.drawn.offset, e.pointer, e.by).catch(() => false)) ? {} : next(e)
+  })
+
+  // Nothing in drawing throws into the session: a draw that fails anyway is one dim line saying why.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const io = portOf($)
     return drawPane(io, $.ui.resolve(e), e.surface, e.props, handlersOf(io))
-  })
+  }).catch(($, e) => failurePane(handlersOf(portOf($)), $.ui.resolve(e), e.props?.bodyColumns ?? 40, e.surface === 'terminal', 'the draw failed'))
 }

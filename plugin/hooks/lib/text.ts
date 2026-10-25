@@ -144,11 +144,11 @@ export function wrapWords(text: string, columns: number): string[] {
   return lines
 }
 
-/** How long ago, in its largest whole unit: `12s`, `5m`, `3h`, `2d`. */
+/** How long ago, in its largest whole unit, cut down and never rounded up (so never `60m` or `24h`): `12s`, `5m`, `3h`, `2d`. */
 export function formatAge(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000))
+  const s = Math.max(0, Math.floor(ms / 1000))
   if (s < 60) return `${s}s`
-  if (s < 3600) return `${Math.round(s / 60)}m`
-  if (s < 86_400) return `${Math.round(s / 3600)}h`
-  return `${Math.round(s / 86_400)}d`
+  if (s < 3600) return `${Math.floor(s / 60)}m`
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`
+  return `${Math.floor(s / 86_400)}d`
 }

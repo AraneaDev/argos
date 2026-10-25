@@ -181,10 +181,22 @@ async function paneModel(io: Port, terminal: boolean): Promise<PaneModel> {
   return {
     config: await io.state.config.read(),
     connections: await io.state.connections.read(),
+    schema: await io.state.schema.read(),
     view: await io.state.view.read(),
     now: await io.clock.now(),
     terminal,
   }
+}
+
+/** The pane when it could not be drawn: one dim line saying why. */
+export function failurePane(act: Handlers, ui: Elements[RenderSurface], columns: number, terminal: boolean, err: unknown): RenderElement {
+  const { Box } = ui
+  const why = err instanceof Error ? err.message : String(err)
+  return (
+    <Box key="pane" flexDirection="column">
+      {drawRow(act, ui, dimRow('failure', `argos: the pane could not be drawn (${why})`, Math.max(1, columns)), Math.max(1, columns), terminal)}
+    </Box>
+  )
 }
 
 /**
@@ -201,12 +213,7 @@ export async function drawPane(io: Port, ui: Elements[RenderSurface], surface: R
   try {
     laidOut = paneLayout(await paneModel(io, terminal), columns, paneHeight(props.scroll))
   } catch (err) {
-    const why = err instanceof Error ? err.message : String(err)
-    return (
-      <Box key="pane" flexDirection="column">
-        {drawRow(act, ui, dimRow('failure', `argos: the pane could not be drawn (${why})`, columns), columns, terminal)}
-      </Box>
-    )
+    return failurePane(act, ui, columns, terminal, err)
   }
   const height = paneHeight(props.scroll)
   const offset = Math.max(0, props.scroll?.offset ?? 0)

@@ -64,6 +64,19 @@ function world(on: On, options: { env?: string | null; answers?: Record<string, 
   return { clock, runs, opened, closed, registered }
 }
 
+const column = (name: string, type: string, key = '') => ({ name, type, nullable: true, default: null, key })
+const SCHEMA = JSON.stringify({
+  database: 'demo',
+  type: 'sqlite',
+  capturedAt: '2000-01-01T00:00:00.000Z',
+  tables: [
+    { name: 'posts', type: 'table', columns: [column('id', 'INTEGER', 'PRI'), column('user_id', 'INTEGER')], primary_key: ['id'], foreign_keys: [{ column: 'user_id', references: { table: 'users', column: 'id' } }], row_estimate: null },
+    { name: 'users', type: 'table', columns: [column('id', 'INTEGER', 'PRI')], primary_key: ['id'], foreign_keys: [], row_estimate: null },
+  ],
+  views: [],
+  lastChange: null,
+})
+
 const START = { cwd: '/work', surface: 'terminal', isInteractive: true } as const
 
 const PANE_PROPS = {
@@ -218,5 +231,53 @@ describe('the pane', () => {
       for (const row of await ui.findAll({ type: 'Box' })) if (row.props.flexDirection === 'row') expect(Number(row.props.width), `${bodyColumns} ${String(row.key)}`).toBeLessThanOrEqual(bodyColumns)
       await ui.unmount()
     }
+  })
+})
+
+describe('the Schema tab', () => {
+  test('reads the schema of the first connection and draws its tables, columns and relations', async ($, on) => {
+    const w = world(on, { answers: { schema: { exitCode: 0, stdout: SCHEMA } } })
+    await $.session.start(START)
+    await slash($)
+    await w.clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab:schema' })
+    await w.clock.settle()
+    expect(w.runs.filter(r => r[2] === 'schema').map(r => r[3])).toEqual(['demo'])
+    const text = await paneText(ui)
+    expect(text).toContain('posts')
+    expect(text).toContain('users')
+    expect(text).toContain('→ users.id')
+    expect(text).toContain('Relations')
+    await ui.press({ key: 'tab:connections' })
+    await ui.press({ key: 'tab:schema' })
+    await w.clock.settle()
+    expect(w.runs.filter(r => r[2] === 'schema')).toHaveLength(1)
+  })
+
+  test('stays within its width at every size', async ($, on) => {
+    const w = world(on, { answers: { schema: { exitCode: 0, stdout: SCHEMA } } })
+    await $.session.start(START)
+    await slash($)
+    await w.clock.settle()
+    for (const bodyColumns of [40, 60, 100, 160]) {
+      const ui = await mountPane($, 'terminal', bodyColumns)
+      await ui.press({ key: 'tab:schema' })
+      await w.clock.settle()
+      expect(await paneText(ui), String(bodyColumns)).toContain('posts')
+      for (const row of await ui.findAll({ type: 'Box' })) if (row.props.flexDirection === 'row') expect(Number(row.props.width), `${bodyColumns} ${String(row.key)}`).toBeLessThanOrEqual(bodyColumns)
+      await ui.unmount()
+    }
+  })
+
+  test('says why when the CLI fails, and keeps the pane up', async ($, on) => {
+    const w = world(on, { answers: { schema: { exitCode: 1, stdout: '{"error":"no such connection: demo"}' } } })
+    await $.session.start(START)
+    await slash($)
+    await w.clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab:schema' })
+    await w.clock.settle()
+    expect(await paneText(ui)).toContain('no such connection: demo')
   })
 })

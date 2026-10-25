@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import type { View } from '../../types'
-import type { ConnectionView } from './contract'
+import type { ConnectionView, SchemaView } from './contract'
 import { INITIAL_VIEW, paneLayout, paneRows, withScrollsKept } from './layout'
 import type { PaneModel } from './layout'
 import { rowWidth } from './rows'
@@ -14,6 +14,7 @@ const NOW = Date.parse('2000-01-01T03:00:00.000Z')
 const model = (over: Partial<PaneModel> = {}, view: Partial<View> = {}): PaneModel => ({
   config: '/home/tim/work/config.ini',
   connections: { ask: 1, phase: 'done', answer: CONNECTIONS, failure: null },
+  schema: null,
   view: { ...INITIAL_VIEW, tab: 'connections', ...view },
   now: NOW,
   terminal: true,
@@ -109,5 +110,57 @@ describe('the windows the wheel scrolled', () => {
     expect(withScrollsKept(before, { ...before, db: 'x' }).scroll).toEqual({ history: 4 })
     expect(withScrollsKept(before, { ...before, tab: 'schema' }).scroll).toEqual({})
     expect(withScrollsKept(before, { ...before, marker: { ...before.marker, queries: 2 } }).scroll).toEqual({})
+  })
+})
+
+const SCHEMA = JSON.parse(readFileSync(new URL('../../../tests/fixtures/pane-contract/schema.json', import.meta.url), 'utf8')) as SchemaView
+const schemaModel = (over: Partial<PaneModel> = {}, view: Partial<View> = {}): PaneModel =>
+  model({ schema: { db: 'demo', ask: 0, phase: 'done', answer: SCHEMA, failure: null }, ...over }, { tab: 'schema', db: 'demo', ...view })
+
+describe('the Schema tab', () => {
+  it('draws the tables, the selected table and its relations, with the keys for them', () => {
+    const text = all(paneRows(schemaModel(), 100, 40))
+    expect(text).toContain('Tables')
+    expect(text).toContain('posts')
+    expect(text).toContain('→ users.id')
+    expect(text).toContain('Relations')
+    for (const key of ['q: query', 'c: copy CREATE', 'f: filter', 'r: refresh', 'n: next connection']) expect(text, key).toContain(key)
+  })
+
+  it('follows the marker to the next table', () => {
+    const text = all(paneRows(schemaModel({}, { marker: { ...INITIAL_VIEW.marker, schema: 1 } }), 100, 40))
+    expect(text).toMatch(/── ≡ users/)
+    expect(text).toContain('1 in · 0 out')
+  })
+
+  it('says the schema is being read, and the pill follows', () => {
+    const loading = schemaModel({ schema: { db: 'demo', ask: 0, phase: 'loading', answer: null, failure: null } })
+    const text = all(paneRows(loading, 100, 40))
+    expect(text).toContain('reading the schema of demo…')
+    expect(text).toContain('reading…')
+    expect(text).not.toContain('q: query')
+  })
+
+  it('shows the age of the capture in the pill, warning when more than a day old', () => {
+    expect(all(paneRows(schemaModel({ now: Date.parse('2000-01-01T03:00:00.000Z') }), 100, 40))).toContain('captured 3h ago')
+    const old = paneLayout(schemaModel({ now: Date.parse('2000-01-03T03:00:00.000Z') }), 100, 40)
+    const pill = old.body.flatMap(r => r.segments).find(sg => sg.text.includes('captured 2d ago'))
+    expect(pill?.bg).toBe('warning')
+  })
+
+  it("puts a failure under the header, keeping the last schema", () => {
+    const failed = schemaModel({ schema: { db: 'demo', ask: 1, phase: 'done', answer: SCHEMA, failure: 'database is locked' } })
+    const text = all(paneRows(failed, 100, 40))
+    expect(text).toContain('database is locked')
+    expect(text).toContain('posts')
+  })
+
+  it('has nothing to read without a connection', () => {
+    const none = schemaModel({ connections: { ask: 1, phase: 'done', answer: [], failure: null }, schema: null }, { db: null })
+    expect(all(paneRows(none, 100, 40))).toContain('no connections to read a schema from')
+  })
+
+  it('stays within the width at every tier', () => {
+    for (const columns of [40, 60, 79, 80, 100, 130, 131, 160]) for (const r of paneRows(schemaModel(), columns, 40)) expect(rowWidth(r), `${columns} ${r.key}`).toBeLessThanOrEqual(columns)
   })
 })

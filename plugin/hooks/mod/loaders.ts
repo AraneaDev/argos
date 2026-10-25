@@ -3,9 +3,9 @@
  * all started through one keyed loader. Each runs on a timer, never inside a
  * render, and stores its answer only while it is still the one wanted.
  */
-import type { ConnectionsState } from '../../types'
-import type { ConnectionView } from '../lib/contract'
-import { parseConnections } from '../lib/parse'
+import type { ConnectionsState, SchemaState } from '../../types'
+import type { ConnectionView, SchemaView } from '../lib/contract'
+import { parseConnections, parseSchema } from '../lib/parse'
 import { cliEnv, runCli } from './cli'
 import type { CliAnswer } from './cli'
 import type { Cell, Port } from './port'
@@ -36,6 +36,8 @@ export type Loader<S, W, P> = {
   flight?: { key: (want: W) => string; same: (current: S | null, want: W) => boolean }
   debounceMs?: number
   prepare?: (io: Port, want: W) => Promise<void>
+  /** Runs once the answer is stored, whatever it was. */
+  after?: (io: Port) => Promise<void>
 }
 
 /** Every read the pane draws from that is keyed to what it shows, by name. Each runs on a timer, never in a render. */
@@ -59,7 +61,39 @@ export const LOADERS = {
       const env = await cliEnv(io)
       await io.state.config.update(() => (env.ok ? env.value.config : null))
     },
+    // The first connection is the one the Schema and Editor tabs work on until another is picked; the Schema tab, if open, reads it.
+    after: async io => {
+      const list = (await io.state.connections.read())?.answer
+      const first = list?.[0]?.name
+      if (first === undefined) return
+      const view = await io.state.view.update(v => (v.db !== null && list!.some(c => c.name === v.db) ? v : { ...v, db: first }))
+      if (view.tab === 'schema') await request(io, 'schema')
+    },
   } satisfies Loader<ConnectionsState, { ask: number }, ConnectionView[]>,
+  /**
+   * The schema of the connection the Schema tab works on, read from the
+   * CLI's cache; `r` asks again from the database (`--refresh`, once). The
+   * schema of another connection is never shown while this one reads.
+   */
+  schema: {
+    cell: io => io.state.schema,
+    want: async io => {
+      const db = (await io.state.view.read()).db
+      return db === null ? null : { db, ask: mod.loads.schemaAsk, fresh: mod.loads.schemaFresh === db }
+    },
+    holds: (s, w) => s !== null && s.db === w.db && s.ask === w.ask,
+    loading: (s, w): SchemaState => ({ db: w.db, ask: w.ask, phase: 'loading', answer: s?.db === w.db ? s.answer : null, failure: null }),
+    args: async (_io, w) => {
+      if (w.fresh) mod.loads.schemaFresh = null
+      return ['schema', w.db, ...(w.fresh ? ['--refresh'] : [])]
+    },
+    parse: parseSchema,
+    // A refresh reads the database: it may take longer than a cached read.
+    timeoutMs: 120_000,
+    landed: (s, w, answer): SchemaState | null =>
+      s === null || s.db !== w.db || s.ask !== w.ask ? s : answer.ok ? { db: w.db, ask: w.ask, phase: 'done', answer: answer.value, failure: null } : { db: w.db, ask: w.ask, phase: 'done', answer: s.answer, failure: answer.reason },
+    flight: { key: w => `schema:${w.db}:${w.ask}`, same: (s, w) => s !== null && s.db === w.db && s.ask === w.ask },
+  } satisfies Loader<SchemaState, { db: string; ask: number; fresh: boolean }, SchemaView>,
 }
 
 /** The name of a read in {@link LOADERS}. */
@@ -115,6 +149,7 @@ async function load(io: Port, loader: AnyLoader, want: unknown, flight: string |
     await loader.prepare?.(io, want)
     const answer = await runCli(io, await loader.args(io, want), loader.parse, loader.timeoutMs)
     await loader.cell(io).update(c => loader.landed(c, want, answer))
+    await loader.after?.(io)
   } finally {
     // A lost write leaves the loading line; the next request asks again.
     if (flight !== undefined) mod.loads.fetching.delete(flight)
@@ -125,4 +160,16 @@ async function load(io: Port, loader: AnyLoader, want: unknown, flight: string |
 export async function reloadConnections(io: Port): Promise<void> {
   mod.loads.connectionsAsk++
   await request(io, 'connections')
+}
+
+/** Reads the schema of the connection the Schema tab works on, unless it already holds it. */
+export const requestSchema = (io: Port): Promise<void> => request(io, 'schema')
+
+/** `r`: the schema of the connection read again, from the database. */
+export async function refreshSchema(io: Port): Promise<void> {
+  const db = (await io.state.view.read()).db
+  if (db === null) return
+  mod.loads.schemaFresh = db
+  mod.loads.schemaAsk++
+  await request(io, 'schema')
 }
