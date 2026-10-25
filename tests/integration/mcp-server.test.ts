@@ -2,6 +2,17 @@ import { SQLMCPServer, resolveConfigPathFromArgv } from '../../src/classes/SQLMC
 import { TestConfigFixtures } from '../fixtures/test-configs.js';
 import { SampleQueries } from '../fixtures/sample-queries.js';
 import type { MCPRequest } from '../../src/types/mcp.js';
+
+// The MCP SDK routes tools/list and tools/call to these two methods and wraps the
+// JSON-RPC envelope itself; this does the routing for tests.
+async function handle(server: SQLMCPServer, request: MCPRequest): Promise<{ result: any }> {
+  const params = request.params as { name: string; arguments?: Record<string, unknown> };
+  const result =
+    request.method === 'tools/list'
+      ? server.listTools()
+      : await server.callTool(params.name, params.arguments);
+  return { result };
+}
 import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
@@ -106,15 +117,13 @@ describe('SQLMCPServer Integration Tests', () => {
         params: {},
       };
 
-      const response = await server.handleRequest(request);
+      const response = await handle(server, request);
 
       // Assert response is not null/undefined
       expect(response).toBeDefined();
       if (!response) {
         fail('Expected response but got null/undefined');
       }
-
-      expect(response.id).toBe(1);
       expect(response.result).toBeDefined();
       expect((response.result as any).tools).toBeDefined();
       expect(Array.isArray((response.result as any).tools)).toBe(true);
@@ -141,14 +150,12 @@ describe('SQLMCPServer Integration Tests', () => {
         },
       };
 
-      const response = await server.handleRequest(request);
+      const response = await handle(server, request);
 
       expect(response).toBeDefined();
       if (!response) {
         fail('Expected response but got null/undefined');
       }
-
-      expect(response.id).toBe(2);
       expect(response.result).toBeDefined();
       expect((response.result as any).content).toBeDefined();
       expect(Array.isArray((response.result as any).content)).toBe(true);
@@ -166,14 +173,12 @@ describe('SQLMCPServer Integration Tests', () => {
         },
       };
 
-      const response = await server.handleRequest(request);
+      const response = await handle(server, request);
 
       expect(response).toBeDefined();
       if (!response) {
         fail('Expected response but got null/undefined');
       }
-
-      expect(response.id).toBe(6);
       expect((response as any).result).toBeDefined();
       expect((response as any).result.isError).toBe(true);
       expect((response as any).result.content[0].text).toContain('Unknown tool');
@@ -239,7 +244,7 @@ describe('SQLMCPServer Integration Tests', () => {
         },
       };
 
-      const response = await server.handleRequest(request);
+      const response = await handle(server, request);
 
       expect(response).toBeDefined();
       if (!response) {
@@ -265,7 +270,7 @@ describe('SQLMCPServer Integration Tests', () => {
         },
       };
 
-      const response = await server.handleRequest(request);
+      const response = await handle(server, request);
 
       expect(response).toBeDefined();
       if (!response) {
@@ -322,7 +327,7 @@ describe('SQLMCPServer Integration Tests', () => {
         },
       };
 
-      const response = await server.handleRequest(request);
+      const response = await handle(server, request);
 
       expect(response).toBeDefined();
       if (!response) {
@@ -430,7 +435,7 @@ ssh_private_key=/home/user/.ssh/id_rsa
     });
   });
 
-  describe('handleRequest Edge Cases', () => {
+  describe('Tool request edge cases', () => {
     beforeEach(async () => {
       await server.initialize(tempConfigPath);
 
@@ -467,31 +472,6 @@ ssh_private_key=/home/user/.ssh/id_rsa
       (server as any).sshTunnelManager = mockSSHTunnelManager;
     });
 
-    test('should return null for unknown methods', async () => {
-      const request: MCPRequest = {
-        jsonrpc: '2.0',
-        id: 10,
-        method: 'unknown/method',
-        params: {},
-      };
-
-      const response = await server.handleRequest(request);
-      expect(response).toBeNull();
-    });
-
-    test('should handle missing id in request', async () => {
-      const request: MCPRequest = {
-        jsonrpc: '2.0',
-        id: undefined as any,
-        method: 'tools/list',
-        params: {},
-      };
-
-      const response = await server.handleRequest(request);
-      expect(response).toBeDefined();
-      expect(response?.id).toBe(0); // falls back to 0
-    });
-
     test('should handle tools/call when dispatcher is not initialized', async () => {
       // Reset dispatcher to null
       (server as any).dispatchToolCall = null;
@@ -506,10 +486,9 @@ ssh_private_key=/home/user/.ssh/id_rsa
         },
       };
 
-      const response = await server.handleRequest(request);
-      expect(response).toBeDefined();
-      expect(response?.error).toBeDefined();
-      expect(response?.error?.message).toContain('Server not initialized');
+      const response = await handle(server, request);
+      expect(response.result.isError).toBe(true);
+      expect(response.result.content[0].text).toContain('Server not initialized');
     });
 
     test('should handle tools/call with missing arguments', async () => {
@@ -523,10 +502,10 @@ ssh_private_key=/home/user/.ssh/id_rsa
         },
       };
 
-      const response = await server.handleRequest(request);
+      const response = await handle(server, request);
       expect(response).toBeDefined();
       // Should return a result (may be error) but not crash
-      expect(response?.id).toBe(12);
+      expect(response.result.content.length).toBeGreaterThan(0);
     });
 
     test('should handle list_tools returning all expected tools', async () => {
@@ -537,7 +516,7 @@ ssh_private_key=/home/user/.ssh/id_rsa
         params: {},
       };
 
-      const response = await server.handleRequest(request);
+      const response = await handle(server, request);
       expect(response).toBeDefined();
       const tools = (response?.result as any).tools;
       expect(tools.length).toBeGreaterThan(0);

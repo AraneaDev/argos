@@ -17,12 +17,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-import type {
-  ParsedServerConfig,
-  TestConnectionResult,
-  MCPRequest,
-  MCPResponse,
-} from '../types/index.js';
+import type { ParsedServerConfig, TestConnectionResult } from '../types/index.js';
 
 import { SERVER_VERSION, SERVER_NAME } from '../types/index.js';
 
@@ -266,64 +261,6 @@ export class SQLMCPServer extends EventEmitter {
   }
 
   /**
-   * Handle a raw JSON-RPC request (used for testing)
-   */
-  public async handleRequest(request: MCPRequest): Promise<MCPResponse | null> {
-    const { method, params, id } = request;
-
-    try {
-      if (method === 'tools/list') {
-        return {
-          jsonrpc: '2.0',
-          id: id || 0,
-          result: { tools: getToolDefinitions() },
-        };
-      }
-
-      if (method === 'tools/call') {
-        const { name, arguments: args } = params as {
-          name: string;
-          arguments: Record<string, unknown>;
-        };
-
-        if (!this.dispatchToolCall) {
-          throw new Error('Server not initialized');
-        }
-
-        try {
-          const result = await this.dispatchToolCall(name, args || {});
-          return {
-            jsonrpc: '2.0',
-            id: id || 0,
-            result: {
-              content: result.content.map((c) => ({ type: 'text' as const, text: c.text || '' })),
-              isError: result.isError || false,
-            },
-          };
-        } catch (error) {
-          const errorMessage = sanitizeError(error);
-          return {
-            jsonrpc: '2.0',
-            id: id || 0,
-            result: {
-              content: [{ type: 'text' as const, text: ` Error in ${name}: ${errorMessage}` }],
-              isError: true,
-            },
-          };
-        }
-      }
-
-      return null;
-    } catch (error) {
-      return {
-        jsonrpc: '2.0',
-        id: id || 0,
-        error: { code: -32603, message: error instanceof Error ? error.message : 'Internal error' },
-      };
-    }
-  }
-
-  /**
    * Test database connection (public API used by index.ts testConnection path)
    */
   public async testConnection(database: string): Promise<TestConnectionResult> {
@@ -414,53 +351,66 @@ export class SQLMCPServer extends EventEmitter {
   }
 
   private registerMCPHandlers(): void {
-    this.mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
-      this.logger.info('Handling tools/list request');
-      return { tools: getToolDefinitions() };
-    });
+    this.mcpServer.setRequestHandler(ListToolsRequestSchema, async () => this.listTools());
+    this.mcpServer.setRequestHandler(CallToolRequestSchema, async (request) =>
+      this.callTool(request.params.name, request.params.arguments)
+    );
+  }
 
-    this.mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-      this.logger.info(`Handling tool call: ${name}`, { args: safeToolArgs(args) });
+  /**
+   * The tools/list response.
+   */
+  public listTools(): { tools: ReturnType<typeof getToolDefinitions> } {
+    this.logger.info('Handling tools/list request');
+    return { tools: getToolDefinitions() };
+  }
 
-      try {
-        if (!args || typeof args !== 'object') {
-          throw new Error(
-            `Invalid arguments provided for tool '${name}'. Expected object, got ${typeof args}`
-          );
-        }
+  /**
+   * Run one tools/call request; errors come back as an isError result, never thrown.
+   */
+  public async callTool(
+    name: string,
+    args: Record<string, unknown> | undefined
+  ): Promise<{ content: Array<{ type: 'text'; text: string }>; isError: boolean }> {
+    this.logger.info(`Handling tool call: ${name}`, { args: safeToolArgs(args) });
 
-        if (!this.dispatchToolCall) {
-          throw new Error('Server not initialized');
-        }
-
-        const result = await this.dispatchToolCall(name, args as Record<string, unknown>);
-        return {
-          content: result.content.map((c) => ({ type: 'text' as const, text: c.text || '' })),
-          isError: result.isError || false,
-        };
-      } catch (error) {
-        this.logger.error(`Error in tool call ${name}`, { error, args: safeToolArgs(args) });
-        const errorMessage = sanitizeError(error);
-        const troubleshooting = [
-          '**Troubleshooting:**',
-          '- Ensure all required arguments are provided',
-          '- Check that the database name exists in your configuration',
-          '- Verify your database connection is working',
-          '- Review the server logs for more details',
-        ].join('\n');
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: ` Error in ${name}: ${errorMessage}\n\n${troubleshooting}`,
-            },
-          ],
-          isError: true,
-        };
+    try {
+      if (!args || typeof args !== 'object') {
+        throw new Error(
+          `Invalid arguments provided for tool '${name}'. Expected object, got ${typeof args}`
+        );
       }
-    });
+
+      if (!this.dispatchToolCall) {
+        throw new Error('Server not initialized');
+      }
+
+      const result = await this.dispatchToolCall(name, args as Record<string, unknown>);
+      return {
+        content: result.content.map((c) => ({ type: 'text' as const, text: c.text || '' })),
+        isError: result.isError || false,
+      };
+    } catch (error) {
+      this.logger.error(`Error in tool call ${name}`, { error, args: safeToolArgs(args) });
+      const errorMessage = sanitizeError(error);
+      const troubleshooting = [
+        '**Troubleshooting:**',
+        '- Ensure all required arguments are provided',
+        '- Check that the database name exists in your configuration',
+        '- Verify your database connection is working',
+        '- Review the server logs for more details',
+      ].join('\n');
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: ` Error in ${name}: ${errorMessage}\n\n${troubleshooting}`,
+          },
+        ],
+        isError: true,
+      };
+    }
   }
 
   private loadConfig(configPath?: string): void {

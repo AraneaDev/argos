@@ -682,11 +682,10 @@ describe('SQLMCPServer Integration', () => {
  }
  };
 
- const response = await server.handleRequest(mcpRequest);
+ const result = await server.callTool(mcpRequest.params.name, mcpRequest.params.arguments);
 
- expect(response).toBeValidMCPResponse();
- expect(response.result).toBeDefined();
- expect(response.result.content[0].text).toContain('test_value');
+ expect(result.isError).toBe(false);
+ expect(result.content[0].text).toContain('test_value');
  });
 
  test('should reject unsafe queries', async () => {
@@ -703,10 +702,10 @@ describe('SQLMCPServer Integration', () => {
  }
  };
 
- const response = await server.handleRequest(mcpRequest);
+ const result = await server.callTool(mcpRequest.params.name, mcpRequest.params.arguments);
 
- expect(response.error).toBeDefined();
- expect(response.error.message).toContain('DROP');
+ expect(result.isError).toBe(true);
+ expect(result.content[0].text).toContain('DROP');
  });
 });
 ```

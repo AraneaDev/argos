@@ -47,8 +47,9 @@ export class SQLMCPServer extends EventEmitter {
  run(): Promise<void>;
  cleanup(): Promise<void>;
  
- // Request handling
- handleRequest(request: MCPRequest): Promise<MCPResponse | null>;
+ // MCP handlers (registered with the SDK for tools/list and tools/call)
+ listTools(): { tools: MCPTool[] };
+ callTool(name: string, args: Record<string, unknown> | undefined): Promise<{ content: Array<{ type: 'text'; text: string }>; isError: boolean }>;
  
  // Database operations
  testConnection(database: string): Promise<TestConnectionResult>;
