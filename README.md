@@ -117,6 +117,8 @@ own read-only queries. After `npm run build`, install it with
 `argos install-plugin` (a preview) and `argos install-plugin --execute`, then
 type `/argos` in Claude Code. See [the pane guide](docs/claude-code/pane.md).
 
+![Claude Code with the Argos pane: /argos opens it on Connections, Claude is asked which 10 customers spent the most in shop and its query lands in Queries with its result grid, the Schema tab shows orders with its primary and foreign keys and relations, and the Editor refuses DELETE FROM orders](docs/images/claude-code/hero.gif)
+
 ## Use cases
 
 ### **Data Analytics & Business Intelligence**

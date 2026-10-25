@@ -70,6 +70,8 @@ arrows in the footer) move the selection down and up a list.
 
 ### Queries
 
+![The Queries tab: counts across the top, a pinned query, the history of Claude's queries and yours with a refused DELETE, and the selected query's SQL and its ten-row result beside the list](../images/claude-code/queries.png)
+
 History is read from the journal and covers all sessions; older entries load as
 you reach the end of the list. Entries are marked by who ran them: Claude, or
 you from the pane. Claude's queries appear the moment they finish.
@@ -85,6 +87,8 @@ you from the pane. Claude's queries appear the moment they finish.
 
 ### Schema
 
+![The Schema tab on shop: the tables with orders selected, its columns with the primary key and the foreign key to customers, and its relations in and out](../images/claude-code/schema.png)
+
 Pick a connection and walk its tables. A schema is read once and kept; the pill
 in the header says how old it is.
 
@@ -97,6 +101,8 @@ in the header says how old it is.
 | `f` | Filter the tables by name. Enter keeps the filter and closes the field; `f` again clears it |
 
 ### Editor
+
+![The Editor tab: a SELECT on shop typed in the field, run read-only, and its result below](../images/claude-code/editor.png)
 
 Type SQL and press Enter to run it. The result shows below the field, the first
 200 rows. A refused query shows the reason in red.
@@ -111,6 +117,8 @@ Type SQL and press Enter to run it. The result shows below the field, the first
 | `s` | Send to Claude |
 
 ### Connections
+
+![The Connections tab: counts across the top and a card each for shop (SQLite, full access) and analytics (PostgreSQL, SELECT-only)](../images/claude-code/connections.png)
 
 One card per database from `config.ini`: type, host, whether it uses an SSH
 tunnel or SSL, whether it is SELECT-only, and how old its captured schema is.
