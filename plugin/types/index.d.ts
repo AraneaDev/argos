@@ -62,6 +62,43 @@ export type SchemaView = {
   lastChange: SchemaChange[] | null
 }
 
+/** One query in the journal (the CLI's `JournalEntry`, src/pane/contract.ts): Claude's or the pane's. */
+export type JournalEntry = {
+  id: string
+  at: string
+  source: 'claude' | 'pane'
+  database: string
+  tool: 'sql_query' | 'sql_batch_query' | 'sql_analyze_performance' | 'pane_query'
+  sql: string
+  batchId?: string
+  durationMs: number | null
+  rowCount: number | null
+  outcome: 'ok' | 'error' | 'blocked'
+  reason?: string
+  schemaChange?: SchemaChange[]
+  spool: string | null
+}
+
+/** A page of a spooled result, as `argos result <id>` prints it. */
+export type SpoolPage = {
+  id: string
+  fields: string[]
+  rows: unknown[][]
+  total: number
+  offset: number
+  truncated: boolean
+}
+
+/** A saved query, as `argos pins` lists it. */
+export type Pin = {
+  id: string
+  name: string | null
+  database: string
+  sql: string
+  createdAt: string
+  lastJournalId: string | null
+}
+
 /** The pane's tabs, in hotkey order. */
 export type PaneTab = 'queries' | 'schema' | 'editor' | 'connections'
 
@@ -107,6 +144,37 @@ export type SchemaState = {
   failure: string | null
 }
 
+/**
+ * The journal as `argos history` last listed it, newest first: `ask` is the
+ * read it answers (a tool call of Claude's, a rerun or a scroll to older
+ * entries asks again), `answer` every entry read so far (kept while a later
+ * read runs or fails), `more` whether older entries remain to be paged in.
+ */
+export type HistoryState = {
+  ask: number
+  phase: 'loading' | 'done'
+  answer: JournalEntry[] | null
+  more: boolean
+  failure: string | null
+}
+
+/** The pins as `argos pins` last listed them. */
+export type PinsState = {
+  ask: number
+  phase: 'loading' | 'done'
+  answer: Pin[] | null
+  failure: string | null
+}
+
+/** The page `offset` of the result of journal entry `id`, as `argos result` last printed it. */
+export type ResultState = {
+  id: string
+  offset: number
+  phase: 'loading' | 'done'
+  page: SpoolPage | null
+  failure: string | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     argos: {
@@ -119,6 +187,12 @@ declare module 'claude-code' {
       schema: SchemaState | null
       /** The SQL in the Editor tab. */
       draft: string
+      /** Null until the Queries tab first read the journal. */
+      history: HistoryState | null
+      /** Null until the Queries tab first read the pins. */
+      pins: PinsState | null
+      /** The result of the entry the Queries tab has selected; null until one was read. */
+      result: ResultState | null
     }
   }
 }

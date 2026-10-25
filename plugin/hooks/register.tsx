@@ -8,6 +8,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { focusLanded, focusMoved, handlersOf, wheelScrolled } from './mod/actions'
+import { isQueryTool, liveFeed } from './mod/loaders'
 import type { Port } from './mod/port'
 import { drawPane, failurePane } from './mod/render'
 import { endTurn, registerCommand, retryRegister, runCommand, startUp } from './mod/session'
@@ -19,6 +20,9 @@ const connections = atom({ plugin: 'argos', key: 'connections' } as const, INITI
 const config = atom({ plugin: 'argos', key: 'config' } as const, INITIAL.config)
 const schema = atom({ plugin: 'argos', key: 'schema' } as const, INITIAL.schema)
 const draft = atom({ plugin: 'argos', key: 'draft' } as const, INITIAL.draft)
+const history = atom({ plugin: 'argos', key: 'history' } as const, INITIAL.history)
+const pins = atom({ plugin: 'argos', key: 'pins' } as const, INITIAL.pins)
+const result = atom({ plugin: 'argos', key: 'result' } as const, INITIAL.result)
 
 /**
  * The engine as the mod's modules reach it, from this dispatch's `$`. The
@@ -54,6 +58,9 @@ function portOf($: EngineInterface): Port {
       config: { read: () => read($, config), update: change => update($, config, change) },
       schema: { read: () => read($, schema), update: change => update($, schema, change) },
       draft: { read: () => read($, draft), update: change => update($, draft, change) },
+      history: { read: () => read($, history), update: change => update($, history, change) },
+      pins: { read: () => read($, pins), update: change => update($, pins, change) },
+      result: { read: () => read($, result), update: change => update($, result, change) },
     },
   }
 }
@@ -83,6 +90,14 @@ export const register: Register = (on, options) => {
 
   // runCommand says its own failures; a hook that fails anyway answers rather than leave /argos unanswered.
   on('command.run', { command: 'argos' }, async ($, e) => ({ text: await runCommand(portOf($), e.args) })).catch(() => ({ text: 'argos: the command failed' }))
+
+  // Claude ran a query: the journal is read again so the pane shows it at once. The one unmatched tool.call handler of the module;
+  // it filters at runtime, adds nothing to the model's context and does not depend on `_meta` reaching the hook.
+  on('tool.call', async ($, e, next) => {
+    const ran = await next(e)
+    if (isQueryTool(e.tool, options.serverName)) await liveFeed(portOf($)).catch(() => undefined)
+    return ran
+  })
 
   // Tab or a click landing on a tab's hidden twin moves onto the tab; landing on a listed row moves the marker with it.
   on('ui.focus', { requestId: PANE }, async ($, e, next) => {

@@ -45,7 +45,7 @@ describe('the /argos command', () => {
     expect(await runCommand(port.io, '')).toBe('Argos pane opened.')
     expect(port.opened).toEqual(['argos'])
     await port.advance()
-    expect(port.runs.map(r => r.argv[2])).toEqual(['connections'])
+    expect(port.runs.map(r => r.argv[2]).sort()).toEqual(['connections', 'history', 'pins'])
     expect(await runCommand(port.io, '  ')).toBe('Argos pane closed.')
     expect(port.closed).toEqual(['argos'])
   })

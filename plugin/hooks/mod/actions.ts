@@ -7,15 +7,19 @@
 import type { RenderSurface } from 'claude-code'
 
 import type { PaneTab, View } from '../../types'
-import { wheelMove } from '../lib/cards'
+import { wheelMove, wheelTarget } from '../lib/cards'
 import { TABS } from '../lib/chrome'
-import { walkable } from '../lib/layout'
+import { pageAs, PAGE_FORMATS } from '../lib/grid'
+import { resultOf, schemaFor, walkable } from '../lib/layout'
+import { pinOf } from '../lib/queries-view'
 import { filteredList, sketchOf, sqlOf } from '../lib/schema-view'
-import type { TableInfo } from '../lib/contract'
+import type { JournalEntry, TableInfo } from '../lib/contract'
+import { parseJournalEntry, parsePin, parseUnpinned } from '../lib/parse'
 import type { Row } from '../lib/types'
-import { refreshSchema, requestSchema } from './loaders'
+import { runCli } from './cli'
+import { moreHistory, refreshSchema, RESULT_PAGE as RESULT_PAGE_ROWS, reloadPins, reloadQueries, request, requestQueries, requestSchema, selectedEntry, showResultPage } from './loaders'
 import type { Port } from './port'
-import { focusField } from './state'
+import { focusField, mod } from './state'
 
 /**
  * What the pane's elements do: a press (a Button, by its id, from the surface
@@ -34,21 +38,29 @@ type Press = (io: Port, rest: string, surface: RenderSurface | undefined, id: st
 /** The open tab's marker moved to `to` (kept within its list); on Connections the marked connection is the one the other tabs use. */
 async function mark(io: Port, to: (v: View, length: number) => number): Promise<void> {
   const connections = await io.state.connections.read()
-  const schema = await io.state.schema.read()
-  await io.state.view.update(v => {
-    const length = walkable(v.tab, connections, schema, v.filter)
+  const history = await io.state.history.read()
+  const before = await io.state.view.read()
+  const schema = schemaFor(await io.state.schema.read(), before.db)
+  const moved = await io.state.view.update(v => {
+    const length = walkable(v.tab, connections, schema, v.filter, history)
     if (length === 0) return v
     const at = Math.min(Math.max(0, to(v, length)), length - 1)
     const db = v.tab === 'connections' ? (connections?.answer?.[at]?.name ?? v.db) : v.db
     return { ...v, marker: { ...v.marker, [v.tab]: at }, db }
   })
+  if (moved.tab !== 'queries') return
+  // The Queries marker walks the journal: its entry's result is read, and the list pages in as the marker nears its end.
+  const list = history?.answer ?? []
+  mod.loads.selectedId = list[moved.marker.queries]?.id ?? null
+  await request(io, 'result')
+  if (moved.marker.queries >= list.length - 5) await moreHistory(io)
 }
 
 /** The schema table the marker is on, with the engine it is in; null when none shows. */
 async function markedTable(io: Port): Promise<{ table: TableInfo; engine: string } | null> {
-  const schema = (await io.state.schema.read())?.answer
-  if (schema === null || schema === undefined) return null
   const view = await io.state.view.read()
+  const schema = schemaFor(await io.state.schema.read(), view.db)?.answer
+  if (schema === null || schema === undefined) return null
   const table = filteredList(schema, view.filter)[view.marker.schema]
   return table === undefined ? null : { table, engine: schema.type }
 }
@@ -88,6 +100,105 @@ async function toggleFilter(io: Port): Promise<void> {
   if (!open) focusField(io, 'filter')
 }
 
+/** What the `send` key does until it is wired. */
+const SEND_STUB = undefined
+
+/** How long a repeat press of `c` still counts as asking for the next format, in milliseconds. */
+const COPY_CYCLE_MS = 2000
+
+/** A rerun may take as long as a query may. */
+const RERUN_TIMEOUT_MS = 120_000
+
+/** `r`: the selected entry's SQL, run again on its connection as the person (the CLI's `query`); the journal then lists it as the newest. */
+async function rerun(io: Port): Promise<void> {
+  const entry = await selectedEntry(io)
+  if (entry === null || mod.queries.rerunning) return
+  mod.queries.rerunning = true
+  try {
+    const ran = await runCli(io, ['query', entry.database, '--sql', entry.sql], parseJournalEntry, RERUN_TIMEOUT_MS)
+    if (!ran.ok) {
+      await io.ui.toast(ran.reason)
+      return
+    }
+    mod.loads.selectNewest = true
+    await reloadQueries(io)
+    await io.ui.toast(rerunSaid(ran.value))
+  } finally {
+    mod.queries.rerunning = false
+  }
+}
+
+/** What a rerun's toast says: how it ended. */
+function rerunSaid(entry: JournalEntry): string {
+  if (entry.outcome === 'blocked') return `Blocked by the read-only check: ${entry.reason ?? 'not a SELECT'}`
+  if (entry.outcome === 'error') return `Query failed: ${entry.reason ?? 'unknown error'}`
+  return `Ran on ${entry.database}${entry.rowCount === null ? '' : `: ${entry.rowCount} ${entry.rowCount === 1 ? 'row' : 'rows'}`}`
+}
+
+/** `e`: the selected entry's SQL in the Editor, on its connection. */
+async function editEntry(io: Port): Promise<void> {
+  const entry = await selectedEntry(io)
+  if (entry === null) return
+  await io.state.draft.update(() => entry.sql)
+  await io.state.view.update(v => ({ ...v, tab: 'editor', db: entry.database, filtering: false }))
+}
+
+/** `p`: pins the selected entry's query, or unpins it when it is pinned. */
+async function togglePin(io: Port): Promise<void> {
+  const entry = await selectedEntry(io)
+  if (entry === null) return
+  const pinned = pinOf((await io.state.pins.read())?.answer ?? [], entry)
+  const done = pinned === undefined ? await runCli(io, ['pin', entry.id], parsePin) : await runCli(io, ['unpin', pinned.id], parseUnpinned)
+  if (!done.ok) {
+    await io.ui.toast(done.reason)
+    return
+  }
+  await reloadPins(io)
+  await io.ui.toast(pinned === undefined ? 'Pinned' : 'Unpinned')
+}
+
+/** `c`: the result page on show to the clipboard as markdown; again within two seconds, CSV, then JSON. With no result, the SQL. */
+async function copyResult(io: Port, _rest: string, surface: RenderSurface | undefined): Promise<void> {
+  const entry = await selectedEntry(io)
+  if (entry === null) return
+  const page = resultOf(await io.state.result.read(), entry).page
+  const where = surface === undefined ? {} : { surface }
+  if (page === null) {
+    const copied = await io.ui.copy({ text: entry.sql, ...where })
+    await io.ui.toast(copied.isCopied ? 'Copied the SQL' : `Could not copy: ${copied.reason ?? 'the surface refused'}`)
+    return
+  }
+  const now = await io.clock.now()
+  const last = mod.queries.copy
+  const format = last !== null && now - last.at <= COPY_CYCLE_MS ? (last.format + 1) % PAGE_FORMATS.length : 0
+  mod.queries.copy = { at: now, format }
+  const name = PAGE_FORMATS[format]!
+  const copied = await io.ui.copy({ text: pageAs(page, name), ...where })
+  await io.ui.toast(copied.isCopied ? `Copied ${page.rows.length} ${page.rows.length === 1 ? 'row' : 'rows'} as ${name}` : `Could not copy: ${copied.reason ?? 'the surface refused'}`)
+}
+
+/** A press on a pin: the entry it was last run as is selected, when the history holds it. */
+async function openPin(io: Port, rest: string): Promise<void> {
+  const pin = (await io.state.pins.read())?.answer?.[Number(rest)]
+  const list = (await io.state.history.read())?.answer ?? []
+  const at = pin?.lastJournalId == null ? -1 : list.findIndex(e => e.id === pin.lastJournalId)
+  if (at >= 0) await mark(io, () => at)
+}
+
+/** `m` and `b`: the next or the earlier page of the result's rows; the wheel starts again at the top of it. */
+async function resultPage(io: Port, direction: 1 | -1): Promise<void> {
+  const entry = await selectedEntry(io)
+  const page = entry === null ? null : resultOf(await io.state.result.read(), entry).page
+  if (page === null) return
+  const to = direction === 1 ? page.offset + page.rows.length : page.offset - RESULT_PAGE_ROWS
+  if (direction === 1 && to >= page.total) return
+  await io.state.view.update(v => {
+    const { result: _, ...scroll } = v.scroll
+    return { ...v, scroll }
+  })
+  await showResultPage(io, to)
+}
+
 /**
  * What a press on the pane does, by the pressed element's id: an id that
  * names an action outright (`down`), or the part of one before its first
@@ -102,6 +213,7 @@ export const PRESSES: ReadonlyMap<string, Press> = new Map<string, Press>([
       if (!TABS.some(t => t.id === tab)) return
       await io.state.view.update(v => ({ ...v, tab, filtering: false }))
       if (tab === 'schema') await requestSchema(io)
+      if (tab === 'queries') await requestQueries(io)
     },
   ],
   ['row:', (io, rest) => (/^\d+$/.test(rest) ? mark(io, () => Number(rest)) : undefined)],
@@ -114,6 +226,15 @@ export const PRESSES: ReadonlyMap<string, Press> = new Map<string, Press>([
   ['copy-create', copyCreate],
   ['filter', toggleFilter],
   ['refresh', refreshSchema],
+  ['rerun', rerun],
+  ['edit', editEntry],
+  ['pin', togglePin],
+  ['pinned:', openPin],
+  ['copy', copyResult],
+  // Send to Claude is Task 13's: the key is drawn on the person's own queries and does nothing yet.
+  ['send', () => SEND_STUB],
+  ['more-rows', io => resultPage(io, 1)],
+  ['back-rows', io => resultPage(io, -1)],
 ])
 
 /** Ids that do what another does: a tab's hidden hotkey twin. */
@@ -163,6 +284,9 @@ export async function wheelScrolled(io: Port, rows: readonly Row[], offset: numb
   const moved = wheelMove(rows, offset, pointer, by)
   if (moved === null) return false
   await io.state.view.update(v => ({ ...v, scroll: { ...v.scroll, [moved.key]: moved.start } }))
+  // The history paged to its last entry reads the older page.
+  const span = wheelTarget(rows, offset + pointer.row, pointer.column)
+  if (span?.key === 'history' && moved.start + span.shown >= span.length) await moreHistory(io)
   return true
 }
 

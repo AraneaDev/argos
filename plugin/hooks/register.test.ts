@@ -9,7 +9,8 @@ const CONNECTIONS = [
   { name: 'shop', type: 'postgresql', host: 'db.internal', ssh: true, ssl: true, selectOnly: false, mcpConfigurable: true, schemaCapturedAt: '2000-01-01T00:00:00.000Z' },
 ]
 
-type Answer = { exitCode: number; stdout: string; stderr?: string } | { throws: string }
+type Fixed = { exitCode: number; stdout: string; stderr?: string } | { throws: string }
+type Answer = Fixed | (() => Fixed)
 
 /**
  * Stands in for the engine beneath the mod: the install's argos.env.json
@@ -25,7 +26,7 @@ function world(on: On, options: { env?: string | null; answers?: Record<string, 
   const registered: string[] = []
   const panes = new Set<string>()
   const env = options.env === undefined ? JSON.stringify(ENV) : options.env
-  const answers: Record<string, Answer> = { connections: { exitCode: 0, stdout: JSON.stringify(CONNECTIONS) }, ...options.answers }
+  const answers: Record<string, Answer> = { connections: { exitCode: 0, stdout: JSON.stringify(CONNECTIONS) }, history: { exitCode: 0, stdout: '[]' }, pins: { exitCode: 0, stdout: '[]' }, ...options.answers }
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('turn.complete', (_$, e) => ({ text: e.answer }))
   on('command.register', (_$, e) => {
@@ -42,7 +43,8 @@ function world(on: On, options: { env?: string | null; answers?: Record<string, 
     expect(e.argv[0], `a process the test world does not stand in for: ${e.argv.join(' ')}`).toBe(ENV.node)
     expect(e.argv[1]).toBe(ENV.cli)
     expect(e.argv.slice(-2)).toEqual(['--config', ENV.config])
-    const answer = answers[String(e.argv[2])]
+    const given = answers[String(e.argv[2])]
+    const answer = typeof given === 'function' ? given() : given
     expect(answer, `a subcommand the world does not answer: ${e.argv[2]}`).toBeDefined()
     // A command that cannot start: the engine refuses the call, and `$.process.run` rejects.
     if (answer === undefined || 'throws' in answer) return { deny: answer?.throws ?? 'no answer' }
@@ -61,7 +63,18 @@ function world(on: On, options: { env?: string | null; answers?: Record<string, 
   on('ui.panes', () => ({ value: [...panes].map(id => ({ id, title: 'Argos', isShown: true, isFocused: false, isPlaced: true })) }))
   on('ui.log', () => ({ value: undefined }))
   on('ui.focus', () => ({}))
-  return { clock, runs, opened, closed, registered }
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const toasts: string[] = []
+  const copied: string[] = []
+  on('ui.toast', (_$, e) => {
+    toasts.push(String(e.text))
+    return { value: undefined }
+  })
+  on('ui.copy', (_$, e) => {
+    copied.push(String(e.text))
+    return { value: { isCopied: true } }
+  })
+  return { clock, toasts, copied, runs, opened, closed, registered }
 }
 
 const column = (name: string, type: string, key = '') => ({ name, type, nullable: true, default: null, key })
@@ -279,5 +292,84 @@ describe('the Schema tab', () => {
     await ui.press({ key: 'tab:schema' })
     await w.clock.settle()
     expect(await paneText(ui)).toContain('no such connection: demo')
+  })
+})
+
+const entry = (id: string, over: Record<string, unknown> = {}) => ({ id, at: '2000-01-01T00:00:00.000Z', source: 'claude', database: 'demo', tool: 'sql_query', sql: `SELECT ${id} FROM users`, durationMs: 4, rowCount: 2, outcome: 'ok', spool: id, ...over })
+const PAGE = JSON.stringify({ id: 'e1', fields: ['id', 'name'], rows: [[1, 'ada'], [2, null]], total: 2, offset: 0, truncated: false })
+
+describe('the Queries tab', () => {
+  test('draws the journal and the selected entry\'s result, and a query of Claude\'s refreshes it at once', async ($, on) => {
+    let journal = [entry('e1'), entry('e2', { source: 'pane', tool: 'pane_query' })]
+    const w = world(on, { answers: { history: () => ({ exitCode: 0, stdout: JSON.stringify(journal) }), result: { exitCode: 0, stdout: PAGE } } })
+    await $.session.start(START)
+    await slash($)
+    await w.clock.settle()
+    const ui = await mountPane($, 'terminal', 140)
+    await w.clock.settle()
+    let text = await paneText(ui)
+    expect(text).toContain('SELECT e1 FROM users')
+    expect(text).toContain('✻')
+    expect(text).toContain('❯')
+    expect(text).toContain('ada')
+    expect(text).toContain('NULL')
+    expect(w.runs.filter(r => r[2] === 'history')).toHaveLength(1)
+    journal = [entry('e3'), ...journal]
+    await $.tool.call({ tool: 'mcp__argos__sql_query', database: 'demo', query: 'SELECT 1' })
+    await w.clock.settle()
+    expect(w.runs.filter(r => r[2] === 'history')).toHaveLength(2)
+    text = await paneText(ui)
+    expect(text).toContain('SELECT e3 FROM users')
+    // Another tool, even of the same server, reads nothing.
+    await $.tool.call({ tool: 'mcp__argos__sql_list_databases' })
+    await $.tool.call({ tool: 'Bash', command: 'ls' })
+    await w.clock.settle()
+    expect(w.runs.filter(r => r[2] === 'history')).toHaveLength(2)
+  })
+
+  test('a query before the pane was ever opened reads nothing', async ($, on) => {
+    const w = world(on)
+    await $.session.start(START)
+    await $.tool.call({ tool: 'mcp__argos__sql_query', database: 'demo', query: 'SELECT 1' })
+    await w.clock.settle()
+    expect(w.runs).toHaveLength(0)
+  })
+
+  test('stays within its width at every size', async ($, on) => {
+    const journal = [entry('e1'), entry('e2', { outcome: 'blocked', reason: 'Multiple SQL statements', spool: null })]
+    const w = world(on, { answers: { history: { exitCode: 0, stdout: JSON.stringify(journal) }, result: { exitCode: 0, stdout: PAGE } } })
+    await $.session.start(START)
+    await slash($)
+    await w.clock.settle()
+    for (const bodyColumns of [40, 60, 100, 160]) {
+      const ui = await mountPane($, 'terminal', bodyColumns)
+      await w.clock.settle()
+      expect(await paneText(ui), String(bodyColumns)).toContain('SELECT e1')
+      for (const row of await ui.findAll({ type: 'Box' })) if (row.props.flexDirection === 'row') expect(Number(row.props.width), `${bodyColumns} ${String(row.key)}`).toBeLessThanOrEqual(bodyColumns)
+      await ui.unmount()
+    }
+  })
+})
+
+describe('typing in a field', () => {
+  test('letters that are hotkeys go into the Schema filter and fire nothing', async ($, on) => {
+    const w = world(on, { answers: { schema: { exitCode: 0, stdout: SCHEMA }, history: { exitCode: 0, stdout: '[]' }, pins: { exitCode: 0, stdout: '[]' } } })
+    await $.session.start(START)
+    await slash($)
+    await w.clock.settle()
+    const ui = await mountPane($)
+    await ui.press({ key: 'tab:schema' })
+    await w.clock.settle()
+    await ui.press({ key: 'filter' })
+    await w.clock.settle()
+    const runs = w.runs.length
+    await ui.input({ key: 'field:filter', text: 'nqrcf', kind: 'change' })
+    await w.clock.settle()
+    expect(w.runs).toHaveLength(runs)
+    expect(w.copied).toHaveLength(0)
+    expect(w.toasts).toHaveLength(0)
+    const field = await ui.find({ type: 'Input', key: 'field:filter' })
+    expect(field?.props.value).toBe('nqrcf')
+    expect((await ui.find({ key: 'tab:schema-bg' })) !== undefined).toBe(true)
   })
 })

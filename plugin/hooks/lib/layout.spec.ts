@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import type { View } from '../../types'
-import type { ConnectionView, SchemaView } from './contract'
+import type { ConnectionView, JournalEntry, SchemaView } from './contract'
 import { INITIAL_VIEW, paneLayout, paneRows, withScrollsKept } from './layout'
 import type { PaneModel } from './layout'
 import { rowWidth } from './rows'
@@ -15,7 +15,11 @@ const model = (over: Partial<PaneModel> = {}, view: Partial<View> = {}): PaneMod
   config: '/home/tim/work/config.ini',
   connections: { ask: 1, phase: 'done', answer: CONNECTIONS, failure: null },
   schema: null,
+  history: null,
+  pins: null,
+  result: null,
   view: { ...INITIAL_VIEW, tab: 'connections', ...view },
+  since: null,
   now: NOW,
   terminal: true,
   ...over,
@@ -107,7 +111,8 @@ describe('the chrome on every tab', () => {
 describe('the windows the wheel scrolled', () => {
   it('are kept while the view stands, and let go once the tab or the marker moves', () => {
     const before: View = { ...INITIAL_VIEW, scroll: { history: 4 } }
-    expect(withScrollsKept(before, { ...before, db: 'x' }).scroll).toEqual({ history: 4 })
+    expect(withScrollsKept(before, { ...before }).scroll).toEqual({ history: 4 })
+    expect(withScrollsKept(before, { ...before, db: 'x' }).scroll).toEqual({})
     expect(withScrollsKept(before, { ...before, tab: 'schema' }).scroll).toEqual({})
     expect(withScrollsKept(before, { ...before, marker: { ...before.marker, queries: 2 } }).scroll).toEqual({})
   })
@@ -162,5 +167,59 @@ describe('the Schema tab', () => {
 
   it('stays within the width at every tier', () => {
     for (const columns of [40, 60, 79, 80, 100, 130, 131, 160]) for (const r of paneRows(schemaModel(), columns, 40)) expect(rowWidth(r), `${columns} ${r.key}`).toBeLessThanOrEqual(columns)
+  })
+})
+
+const E = (id: string, over: Partial<JournalEntry> = {}): JournalEntry => ({ id, at: '2000-01-01T02:59:00.000Z', source: 'claude', database: 'demo', tool: 'sql_query', sql: `SELECT ${id}`, durationMs: 3, rowCount: 1, outcome: 'ok', spool: id, ...over })
+const queriesModel = (marker: number, over: Partial<PaneModel> = {}): PaneModel =>
+  model({ history: { ask: 1, phase: 'done', answer: [E('e1'), E('e2', { source: 'pane', tool: 'pane_query' })], more: false, failure: null }, pins: { ask: 1, phase: 'done', answer: [], failure: null }, ...over }, { tab: 'queries', marker: { ...INITIAL_VIEW.marker, queries: marker } })
+const keysOf = (m: PaneModel) => lines(paneLayout(m, 120, 40).footer).join('\n')
+
+describe('the Queries tab', () => {
+  it('offers rerun, edit, pin and copy on any entry, and send only on the person\'s own', () => {
+    const claude = keysOf(queriesModel(0))
+    for (const key of ['r: rerun', 'e: open in Editor', 'p: pin', 'c: copy']) expect(claude).toContain(key)
+    expect(claude).not.toContain('s: send')
+    expect(keysOf(queriesModel(1))).toContain('s: send')
+  })
+
+  it('offers unpin on a pinned entry, and the result\'s pages when there are more rows', () => {
+    const pins = { ask: 1, phase: 'done' as const, answer: [{ id: 'p1', name: null, database: 'demo', sql: 'SELECT e1', createdAt: '', lastJournalId: 'e1' }], failure: null }
+    expect(keysOf(queriesModel(0, { pins }))).toContain('p: unpin')
+    const page = { id: 'e1', fields: ['n'], rows: [[1]], total: 5, offset: 0, truncated: false }
+    const paged = queriesModel(0, { result: { id: 'e1', offset: 0, phase: 'done', page, failure: null } })
+    expect(keysOf(paged)).toContain('m: more rows')
+    expect(keysOf(paged)).not.toContain('earlier rows')
+  })
+
+  it('draws the journal, the pill says reading until it lands, and a read that failed says why', () => {
+    expect(all(paneRows(queriesModel(0), 120, 40))).toContain('SELECT e1')
+    expect(all(paneRows(model({ history: null }, { tab: 'queries' }), 120, 40))).toContain('reading…')
+    const failed = model({ history: { ask: 1, phase: 'done', answer: null, more: false, failure: 'journal unreadable' } }, { tab: 'queries' })
+    expect(all(paneRows(failed, 120, 40))).toContain('journal unreadable')
+    expect(all(paneRows(failed, 120, 40))).toContain('unavailable')
+  })
+
+  it('draws the result of the selected entry only', () => {
+    const page = { id: 'e2', fields: ['n'], rows: [[7]], total: 1, offset: 0, truncated: false }
+    const stale = queriesModel(0, { result: { id: 'e2', offset: 0, phase: 'done', page, failure: null } })
+    expect(all(paneRows(stale, 120, 40))).toContain('reading the result…')
+    expect(all(paneRows(queriesModel(1, { result: { id: 'e2', offset: 0, phase: 'done', page, failure: null } }), 120, 40))).toContain('1–1 of 1')
+  })
+
+  it('says the result is no longer kept when the spool was evicted', () => {
+    const gone = queriesModel(0, { result: { id: 'e1', offset: 0, phase: 'done', page: null, failure: "No spooled result for 'e1'" } })
+    expect(all(paneRows(gone, 120, 40))).toContain('result no longer kept — r to rerun')
+  })
+})
+
+describe('a schema read for another connection', () => {
+  it('is no answer for the connection now picked', () => {
+    const stale = schemaModel({}, { db: 'shop' })
+    const text = all(paneRows(stale, 120, 40))
+    expect(text).not.toContain('posts')
+    expect(text).toContain('reading the schema of shop…')
+    expect(all(paneRows(schemaModel(), 120, 40))).toContain('captured')
+    expect(all(paneRows(stale, 120, 40))).toContain('reading…')
   })
 })

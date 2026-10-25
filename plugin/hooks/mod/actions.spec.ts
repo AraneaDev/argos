@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { readFileSync } from 'node:fs'
 
-import type { SchemaState, View } from '../../types'
-import type { SchemaView } from '../lib/contract'
+import type { HistoryState, SchemaState, View } from '../../types'
+import type { JournalEntry, SchemaView } from '../lib/contract'
 import { focusMoved, handlersOf, pressOf, wheelScrolled } from './actions'
-import { reset } from './state'
+import { mod, reset } from './state'
 import { fakePort } from './__tests__/fake-port'
 
 const conn = (name: string) => ({ name, type: 'sqlite', host: null, ssh: false, ssl: false, selectOnly: true, mcpConfigurable: false, schemaCapturedAt: null })
@@ -19,6 +19,7 @@ beforeEach(() => reset({}))
 /** Presses `id` on the pane and lets what it does settle. */
 async function press(port: ReturnType<typeof fakePort>, id: string) {
   handlersOf(port.io).press(id)
+  await port.advance()
   await port.advance()
 }
 
@@ -184,5 +185,135 @@ describe('the wheel', () => {
     expect(await wheelScrolled(port.io, rows, 0, { row: 0, column: 3 }, 3)).toBe(false)
     expect(await wheelScrolled(port.io, rows, 0, { row: 4, column: 3 }, -3)).toBe(false)
     expect(viewOf(port).scroll).toEqual({})
+  })
+})
+
+const entry = (id: string, over: Partial<JournalEntry> = {}): JournalEntry => ({ id, at: '2000-01-01T00:00:00.000Z', source: 'claude', database: 'a', tool: 'sql_query', sql: `SELECT ${id}`, durationMs: 1, rowCount: 2, outcome: 'ok', spool: id, ...over })
+const JOURNAL: HistoryState = { ask: 0, phase: 'done', answer: [entry('e1'), entry('e2', { source: 'pane', tool: 'pane_query' }), entry('e3')], more: false, failure: null }
+const PAGE = { id: 'e1', fields: ['id', 'name'], rows: [[1, 'ada'], [2, null]], total: 450, offset: 0, truncated: false }
+const onQueries = (run?: Parameters<typeof fakePort>[0] extends infer O ? (O extends { run?: infer R } ? R : never) : never, extra: Record<string, unknown> = {}) =>
+  fakePort({ ...(run === undefined ? {} : { run }), cells: { connections: LISTED, history: JOURNAL, pins: { ask: 0, phase: 'done', answer: [], failure: null }, ...extra } })
+
+describe('the Queries tab', () => {
+  it('walks the journal and reads the result of the entry it lands on', async () => {
+    const port = onQueries(() => ({ exitCode: 0, stdout: JSON.stringify(PAGE) }))
+    await press(port, 'down')
+    expect(viewOf(port).marker.queries).toBe(1)
+    expect(mod.loads.selectedId).toBe('e2')
+    await press(port, 'down')
+    await press(port, 'down')
+    expect(viewOf(port).marker.queries).toBe(2)
+    expect(port.runs.map(r => r.argv[3])).toEqual(['e2', 'e3'])
+  })
+
+  it('r runs the selected SQL again on its connection through the CLI, and selects the newest entry that lands', async () => {
+    const ran = entry('e9', { source: 'pane', tool: 'pane_query' })
+    const port = onQueries(argv => (argv[2] === 'query' ? { exitCode: 0, stdout: JSON.stringify(ran) } : { exitCode: 0, stdout: argv[2] === 'history' ? JSON.stringify([ran, entry('e1')]) : '[]' }))
+    port.values.set('view', { ...viewOf(port), marker: { ...viewOf(port).marker, queries: 2 } })
+    await press(port, 'rerun')
+    await port.advance()
+    expect(port.runs[0]!.argv.slice(2, 6)).toEqual(['query', 'a', '--sql', 'SELECT e3'])
+    expect(viewOf(port).marker.queries).toBe(0)
+  })
+
+  it('r on a refused rerun says why and reads nothing more', async () => {
+    const toasts: string[] = []
+    const port = onQueries(() => ({ exitCode: 1, stdout: '{"error":"no such connection: a"}' }))
+    ;(port.io.ui as { toast: unknown }).toast = async (t: string) => void toasts.push(t)
+    await press(port, 'rerun')
+    expect(toasts).toEqual(['no such connection: a'])
+    expect(port.runs).toHaveLength(1)
+  })
+
+  it('e puts the SQL in the Editor, on its connection', async () => {
+    const port = onQueries()
+    await press(port, 'down')
+    await press(port, 'edit')
+    expect(port.values.get('draft')).toBe('SELECT e2')
+    expect(viewOf(port)).toMatchObject({ tab: 'editor', db: 'a' })
+  })
+
+  it('p pins an entry through the CLI and reads the pins again; on a pinned one it unpins', async () => {
+    const pinned = { id: 'p1', name: null, database: 'a', sql: 'SELECT e1', createdAt: '2000-01-01T00:00:00.000Z', lastJournalId: 'e1' }
+    const port = onQueries(argv => (argv[2] === 'pin' ? { exitCode: 0, stdout: JSON.stringify(pinned) } : argv[2] === 'unpin' ? { exitCode: 0, stdout: '{"removed":true}' } : { exitCode: 0, stdout: argv[2] === 'pins' ? JSON.stringify([pinned]) : JSON.stringify(PAGE) }))
+    await press(port, 'pin')
+    expect(port.runs.find(r => r.argv[2] === 'pin')!.argv.slice(2, 4)).toEqual(['pin', 'e1'])
+    expect((port.values.get('pins') as { answer: unknown[] }).answer).toHaveLength(1)
+    await press(port, 'pin')
+    expect(port.runs.find(r => r.argv[2] === 'unpin')!.argv.slice(2, 4)).toEqual(['unpin', 'p1'])
+  })
+
+  it('c copies the result as markdown, then CSV, then JSON on repeats within 2 s, and starts over after a pause', async () => {
+    const port = onQueries(undefined, { result: { id: 'e1', offset: 0, phase: 'done', page: PAGE, failure: null } })
+    const copied: string[] = []
+    const toasts: string[] = []
+    ;(port.io.ui as { copy: unknown }).copy = async (args: { text: string }) => (copied.push(args.text), { isCopied: true })
+    ;(port.io.ui as { toast: unknown }).toast = async (t: string) => void toasts.push(t)
+    let now = 0
+    ;(port.io.clock as { now: unknown }).now = async () => now
+    for (const at of [0, 500, 1000, 1500]) {
+      now = at
+      await press(port, 'copy')
+    }
+    expect(copied[0]).toContain('| id | name |')
+    expect(copied[1]).toBe('id,name\n1,ada\n2,')
+    expect(JSON.parse(copied[2]!)).toEqual([{ id: 1, name: 'ada' }, { id: 2, name: null }])
+    expect(copied[3]).toContain('| id | name |')
+    expect(toasts.map(t => t.replace(/^Copied 2 rows as /, ''))).toEqual(['markdown', 'CSV', 'JSON', 'markdown'])
+    now = 10_000
+    await press(port, 'copy')
+    now = 20_000
+    await press(port, 'copy')
+    expect(toasts.slice(-2)).toEqual(['Copied 2 rows as markdown', 'Copied 2 rows as markdown'])
+  })
+
+  it('c with no result copies the SQL', async () => {
+    const port = onQueries(undefined, { history: { ...JOURNAL, answer: [entry('e1', { spool: null })] } })
+    const copied: string[] = []
+    ;(port.io.ui as { copy: unknown }).copy = async (args: { text: string }) => (copied.push(args.text), { isCopied: true })
+    await press(port, 'copy')
+    expect(copied).toEqual(['SELECT e1'])
+  })
+
+  it('s is a stub for now: it does nothing', async () => {
+    const port = onQueries()
+    const before = structuredClone(Object.fromEntries(port.values))
+    await press(port, 'send')
+    expect(Object.fromEntries(port.values)).toEqual(before)
+    expect(port.runs).toHaveLength(0)
+  })
+
+  it('m reads the next page of rows, b the earlier one, and neither goes past either end', async () => {
+    const port = onQueries(argv => ({ exitCode: 0, stdout: JSON.stringify({ ...PAGE, offset: Number(argv[argv.indexOf('--offset') + 1]) }) }), { result: { id: 'e1', offset: 0, phase: 'done', page: { ...PAGE, rows: Array.from({ length: 200 }, (_, i) => [i, 'x']) }, failure: null } })
+    port.values.set('view', { ...viewOf(port), scroll: { result: 40 } })
+    await press(port, 'more-rows')
+    expect(port.runs[0]!.argv.slice(2, 8)).toEqual(['result', 'e1', '--offset', '200', '--limit', '200'])
+    expect(viewOf(port).scroll).toEqual({})
+    port.values.set('result', { id: 'e1', offset: 400, phase: 'done', page: { ...PAGE, offset: 400, rows: Array.from({ length: 50 }, () => [0, 'x']) }, failure: null })
+    await press(port, 'more-rows')
+    expect(port.runs).toHaveLength(1)
+    await press(port, 'back-rows')
+    expect(port.runs[1]!.argv.slice(4, 6)).toEqual(['--offset', '200'])
+  })
+
+  it('a press on a pin selects the entry it was last run as', async () => {
+    const pins = { ask: 0, phase: 'done', answer: [{ id: 'p1', name: 'n', database: 'a', sql: 'SELECT e3', createdAt: '', lastJournalId: 'e3' }], failure: null }
+    const port = onQueries(undefined, { pins })
+    await press(port, 'pinned:0')
+    expect(viewOf(port).marker.queries).toBe(2)
+  })
+
+  it('reads the older page when the marker comes within five entries of the end of a list that has more', async () => {
+    const port = onQueries(() => ({ exitCode: 0, stdout: '[]' }), { history: { ...JOURNAL, more: true } })
+    await press(port, 'down')
+    expect(port.runs.some(r => r.argv.includes('--before') && r.argv.includes('e3'))).toBe(true)
+  })
+
+  it('the wheel to the end of the history reads the older page', async () => {
+    const port = onQueries(() => ({ exitCode: 0, stdout: '[]' }), { history: { ...JOURNAL, more: true } })
+    const rows = [{ key: 'r', segments: [{ text: 'x' }], lists: [{ key: 'history', from: 0, to: 40, start: 0, shown: 2, length: 3 }] }]
+    expect(await wheelScrolled(port.io, rows, 0, { row: 0, column: 3 }, 1)).toBe(true)
+    await port.advance()
+    expect(port.runs.some(r => r.argv.includes('--before'))).toBe(true)
   })
 })

@@ -24,6 +24,9 @@ export const INITIAL: CellValues = {
   config: null,
   schema: null,
   draft: '',
+  history: null,
+  pins: null,
+  result: null,
 }
 
 /**
@@ -81,6 +84,8 @@ export function initialSession() {
   return {
     /** Set when the mod is turned off for the session: nothing reads, nothing registers. */
     disabled: false,
+    /** When this session began, in milliseconds on the mod's clock; null until start-up read it. The queries since are "this session". */
+    startedAt: null as number | null,
   }
 }
 
@@ -101,6 +106,28 @@ export function initialLoads() {
     schemaAsk: 0,
     /** The connection `r` asked a refresh of: its next read passes `--refresh`, once. */
     schemaFresh: null as string | null,
+    /** Bumped by every read of the journal's newest entries (an open, a query of Claude's, a rerun) and every page of older ones. */
+    historyAsk: 0,
+    /** The oldest entry the page being asked for follows (`--before`); null for the newest page. */
+    historyBefore: null as string | null,
+    /** Bumped by every read of the pins. */
+    pinsAsk: 0,
+    /** Set when Claude ran a query or the person reran one: the entry that lands selects the newest. */
+    selectNewest: false,
+    /** The id of the history entry the marker is on, so new entries arriving above it do not move the selection. */
+    selectedId: null as string | null,
+    /** The page of the selected entry's result being read: its first row. Starts over with each entry. */
+    result: { id: null as string | null, offset: 0 },
+  }
+}
+
+/** The Queries tab's own state: what the keys do between presses. */
+export function initialQueries() {
+  return {
+    /** A rerun is running: a second press waits for it. */
+    rerunning: false,
+    /** The last copy of a result: when, and the format (an index of the formats) — a repeat press within two seconds takes the next format. */
+    copy: null as { at: number; format: number } | null,
   }
 }
 
@@ -119,6 +146,7 @@ function initialSlices() {
     registration: initialRegistration(),
     loads: initialLoads(),
     cli: initialCli(),
+    queries: initialQueries(),
   }
 }
 

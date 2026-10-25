@@ -4,7 +4,7 @@
  */
 import type { UiPane } from 'claude-code'
 
-import { reloadConnections } from './loaders'
+import { reloadConnections, reloadQueries } from './loaders'
 import type { Port } from './port'
 import { mod, PANE } from './state'
 
@@ -55,6 +55,7 @@ export function retryRegister(io: Port, attempt: number, gen = mod.generations.r
 
 /** Start-up: the pane opens at once when the person asked for that (`openPaneOnStart`). */
 export async function startUp(io: Port, openOnStart: boolean): Promise<void> {
+  mod.session.startedAt = await io.clock.now()
   if (openOnStart) await openPane(io)
 }
 
@@ -65,6 +66,7 @@ export async function startUp(io: Port, openOnStart: boolean): Promise<void> {
  */
 export async function openPane(io: Port): Promise<void> {
   await reloadConnections(io)
+  await reloadQueries(io)
   await io.ui.open({ id: PANE, title: 'Argos' }).catch(() => undefined)
 }
 

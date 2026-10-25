@@ -20,7 +20,7 @@ describe('a pane that cannot be drawn', () => {
   it('draws one dim failure line when the state cannot be read, and does not throw', async () => {
     const port = fakePort()
     const real = port.io.state
-    ;(port.io as { state: unknown }).state = { config: real.config, connections: real.connections, schema: real.schema, view: { read: () => Promise.reject(new Error('torn down')), update: real.view.update } }
+    ;(port.io as { state: unknown }).state = { config: real.config, connections: real.connections, schema: real.schema, history: real.history, pins: real.pins, result: real.result, view: { read: () => Promise.reject(new Error('torn down')), update: real.view.update } }
     const drawn = await drawPane(port.io, ui, 'terminal', { bodyColumns: 100 }, act)
     expect(textOf(drawn)).toContain('argos: the pane could not be drawn (torn down)')
   })
@@ -38,6 +38,6 @@ describe('a pane that cannot be drawn', () => {
 
   it('draws the pane itself when nothing fails', async () => {
     const drawn = await drawPane(fakePort().io, ui, 'terminal', { bodyColumns: 100 }, act)
-    expect(textOf(drawn)).toContain('Queries')
+    expect(textOf(drawn)).toContain('History')
   })
 })

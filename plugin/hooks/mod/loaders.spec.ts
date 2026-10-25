@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { readFileSync } from 'node:fs'
 
-import type { ConnectionsState, SchemaState, View } from '../../types'
-import { refreshSchema, reloadConnections, request } from './loaders'
+import type { ConnectionsState, HistoryState, ResultState, SchemaState, View } from '../../types'
+import type { JournalEntry } from '../lib/contract'
+import { isQueryTool, liveFeed, moreHistory, refreshSchema, reloadConnections, reloadQueries, request } from './loaders'
 import { mod, reset } from './state'
 import { ENV, fakePort } from './__tests__/fake-port'
 
@@ -142,5 +143,148 @@ describe('the schema loader', () => {
     await port.advance()
     expect((port.values.get('view') as View).db).toBe('first')
     expect(port.runs.map(r => r.argv.slice(2, 4))).toEqual([['connections', '--config'], ['schema', 'first']])
+  })
+})
+
+const entry = (id: string, over: Partial<JournalEntry> = {}): JournalEntry => ({ id, at: `2000-01-01T00:00:${id.slice(1).padStart(2, '0')}.000Z`, source: 'claude', database: 'a', tool: 'sql_query', sql: `SELECT ${id}`, durationMs: 1, rowCount: 1, outcome: 'ok', spool: id, ...over })
+const historyOf = (port: ReturnType<typeof fakePort>) => port.values.get('history') as HistoryState
+const queriesView = (port: ReturnType<typeof fakePort>, tab: View['tab'] = 'queries') => port.values.set('view', { ...(port.values.get('view') as View), tab })
+
+describe('the tool filter', () => {
+  it('names the Argos server\'s query tools under whatever name it is registered', () => {
+    for (const tool of ['sql_query', 'sql_batch_query', 'sql_analyze_performance']) {
+      expect(isQueryTool(`mcp__argos__${tool}`, 'argos')).toBe(true)
+      expect(isQueryTool(`mcp__db__${tool}`, 'db')).toBe(true)
+      expect(isQueryTool(`mcp__db__${tool}`, 'argos')).toBe(false)
+    }
+    expect(isQueryTool('mcp__argos__sql_list_databases', 'argos')).toBe(false)
+    expect(isQueryTool('Bash', 'argos')).toBe(false)
+    expect(isQueryTool(undefined, 'argos')).toBe(false)
+  })
+})
+
+describe('the history loader', () => {
+  const answer = (...ids: string[]) => ({ exitCode: 0, stdout: JSON.stringify(ids.map(id => entry(id))) })
+
+  it('reads the newest page on an open, with the page size', async () => {
+    const port = fakePort({ run: () => answer('e9', 'e8') })
+    await reloadQueries(port.io)
+    expect(port.runs).toHaveLength(0)
+    await port.advance()
+    expect(port.runs.filter(r => r.argv[2] !== 'result').map(r => r.argv.slice(2, 5))).toEqual([['history', '--limit', '50'], ['pins', '--config', ENV.config]])
+    expect(historyOf(port)).toMatchObject({ phase: 'done', more: false, failure: null })
+    expect(historyOf(port).answer!.map(e => e.id)).toEqual(['e9', 'e8'])
+  })
+
+  it('reads once for a query of Claude\'s, after the pane was opened, and selects the newest when on Queries', async () => {
+    const port = fakePort({ run: argv => (argv[2] === 'history' ? answer('e5', 'e4') : { exitCode: 0, stdout: '[]' }) })
+    await liveFeed(port.io)
+    await port.advance()
+    expect(port.runs).toHaveLength(0)
+    await reloadConnections(port.io)
+    await reloadQueries(port.io)
+    await port.advance()
+    port.runs.length = 0
+    queriesView(port)
+    port.values.set('view', { ...(port.values.get('view') as View), marker: { ...(port.values.get('view') as View).marker, queries: 1 } })
+    port.values.set('history', { ...historyOf(port) })
+    await liveFeed(port.io)
+    await port.advance()
+    expect(port.runs.filter(r => r.argv[2] === 'history')).toHaveLength(1)
+    expect((port.values.get('view') as View).marker.queries).toBe(0)
+  })
+
+  it('keeps the selected entry selected when newer ones arrive while another tab is open', async () => {
+    let page = ['e5', 'e4', 'e3']
+    const port = fakePort({ run: () => answer(...page) })
+    await reloadConnections(port.io)
+    await reloadQueries(port.io)
+    await port.advance()
+    port.values.set('view', { ...(port.values.get('view') as View), tab: 'schema', marker: { queries: 1, schema: 0, editor: 0, connections: 0 } })
+    const { mod } = await import('./state')
+    mod.loads.selectedId = 'e4'
+    page = ['e7', 'e6', 'e5', 'e4', 'e3']
+    await liveFeed(port.io)
+    await port.advance()
+    expect((port.values.get('view') as View).marker.queries).toBe(3)
+    expect(historyOf(port).answer!.map(e => e.id)).toEqual(['e7', 'e6', 'e5', 'e4', 'e3'])
+  })
+
+  it('pages older entries in after the last one read, by 50, and stops when a page is short', async () => {
+    const full = Array.from({ length: 50 }, (_, i) => `e${99 - i}`)
+    const port = fakePort({ run: argv => (argv.includes('--before') ? answer('e49', 'e48') : answer(...full)) })
+    await reloadConnections(port.io)
+    await reloadQueries(port.io)
+    await port.advance()
+    expect(historyOf(port).more).toBe(true)
+    await moreHistory(port.io)
+    await port.advance()
+    const paged = port.runs.find(r => r.argv.includes('--before'))!
+    expect(paged.argv.slice(paged.argv.indexOf('--before'), paged.argv.indexOf('--before') + 2)).toEqual(['--before', 'e50'])
+    expect(historyOf(port).answer).toHaveLength(52)
+    expect(historyOf(port).more).toBe(false)
+    const before = port.runs.length
+    await moreHistory(port.io)
+    await port.advance()
+    expect(port.runs).toHaveLength(before)
+  })
+
+  it('keeps the older pages already read when the newest page is read again', async () => {
+    const full = Array.from({ length: 50 }, (_, i) => `e${99 - i}`)
+    let live = true
+    const port = fakePort({ run: argv => (argv.includes('--before') ? answer('e49') : live ? answer(...full) : answer('e00', ...full.slice(0, 49))) })
+    await reloadConnections(port.io)
+    await reloadQueries(port.io)
+    await port.advance()
+    await moreHistory(port.io)
+    await port.advance()
+    live = false
+    await liveFeed(port.io)
+    await port.advance()
+    expect(historyOf(port).answer!.map(e => e.id)).toEqual(['e00', ...full.slice(0, 49), 'e50', 'e49'])
+  })
+
+  it('keeps the last list and stores why when a read fails', async () => {
+    let fail = false
+    const port = fakePort({ run: () => (fail ? { exitCode: 1, stdout: '{"error":"journal unreadable"}' } : answer('e1')) })
+    await reloadQueries(port.io)
+    await port.advance()
+    fail = true
+    await reloadQueries(port.io)
+    await port.advance()
+    expect(historyOf(port)).toMatchObject({ failure: 'journal unreadable' })
+    expect(historyOf(port).answer).toHaveLength(1)
+  })
+})
+
+describe('the result loader', () => {
+  const PAGE = { id: 'e1', fields: ['n'], rows: [[1]], total: 1, offset: 0, truncated: false }
+  const seeded = (run: Parameters<typeof fakePort>[0] extends infer O ? (O extends { run?: infer R } ? R : never) : never) =>
+    fakePort({ run, cells: { history: { ask: 1, phase: 'done', answer: [entry('e1'), entry('e2', { spool: null }), entry('e3', { outcome: 'blocked', spool: null })], more: false, failure: null } } })
+
+  it('reads page 0 of the selected entry, 200 rows, only on Queries and only for an entry that kept a spool', async () => {
+    const port = seeded(() => ({ exitCode: 0, stdout: JSON.stringify(PAGE) }))
+    queriesView(port, 'schema')
+    await request(port.io, 'result')
+    await port.advance()
+    expect(port.runs).toHaveLength(0)
+    queriesView(port)
+    await request(port.io, 'result')
+    await port.advance()
+    expect(port.runs.map(r => r.argv.slice(2, 8))).toEqual([['result', 'e1', '--offset', '0', '--limit', '200']])
+    expect(port.values.get('result') as ResultState).toMatchObject({ id: 'e1', offset: 0, phase: 'done', page: PAGE })
+    for (const queries of [1, 2]) {
+      port.values.set('view', { ...(port.values.get('view') as View), marker: { queries, schema: 0, editor: 0, connections: 0 } })
+      await request(port.io, 'result')
+      await port.advance()
+    }
+    expect(port.runs).toHaveLength(1)
+  })
+
+  it('stores why when the spool is gone', async () => {
+    const port = seeded(() => ({ exitCode: 1, stdout: "{\"error\":\"No spooled result for 'e1'\"}" }))
+    await request(port.io, 'result')
+    await port.advance()
+    expect(port.values.get('result')).toMatchObject({ id: 'e1', page: null, failure: "No spooled result for 'e1'" })
   })
 })

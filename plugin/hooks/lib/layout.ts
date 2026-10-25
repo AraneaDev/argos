@@ -8,15 +8,16 @@
  * stat tiles from `tiles.ts`; each tab's cards are dispatched from
  * {@link tabArrangement}.
  */
-import type { ConnectionsState, PaneTab, SchemaState, View } from '../../types'
+import type { ConnectionsState, HistoryState, PaneTab, PinsState, ResultState, SchemaState, View } from '../../types'
 import type { Arrangement, Block, Section } from './cards'
 import { arrange, scrolledTo } from './cards'
 import { footerRows, homeShort, padded, padOf, tabRows, titleRow } from './chrome'
 import type { FooterKey, Pill } from './chrome'
-import type { ConnectionView } from './contract'
+import type { ConnectionView, JournalEntry } from './contract'
 import { CARD_ICON } from './marks'
 import { CHIP_BG, engineColour, FAINT, STAT_HUES, STATUS_COLOURS } from './palette'
 import { blank, button, clip, dimRow, rowsHeight, rowWidth, tintedRow } from './rows'
+import { pinOf, queriesArrangement, RESULT_GONE } from './queries-view'
 import { filteredList, schemaArrangement } from './schema-view'
 import { tierOf } from './table'
 import type { Tier } from './table'
@@ -32,7 +33,14 @@ export type PaneModel = {
   connections: ConnectionsState | null
   /** The schema of the connection the Schema tab works on. */
   schema: SchemaState | null
+  /** The journal, newest first, as far as it has been read. */
+  history: HistoryState | null
+  pins: PinsState | null
+  /** The result of the entry the Queries tab selected, as last read. */
+  result: ResultState | null
   view: View
+  /** When this session began, in milliseconds on the mod's clock; null when unknown. */
+  since: number | null
   /** The mod's clock, in milliseconds: what ages are counted from. */
   now: number
   /** Whether plain Buttons are drawn as text (`1: label`): the terminal. */
@@ -58,12 +66,16 @@ export const SHORT_PANE = 24
  * back to the window round the marker.
  */
 export function withScrollsKept(before: View, after: View): View {
-  const stood = before.tab === after.tab && before.marker[before.tab] === after.marker[after.tab] && before.filter === after.filter
+  const stood = before.tab === after.tab && before.db === after.db && before.marker[before.tab] === after.marker[after.tab] && before.filter === after.filter
   return stood || Object.keys(after.scroll).length === 0 ? after : { ...after, scroll: {} }
 }
 
+/** The schema on show for the connection `db`: a schema read for another connection is no answer for this one. */
+export const schemaFor = (schema: SchemaState | null, db: string | null): SchemaState | null => (schema !== null && db !== null && schema.db !== db ? null : schema)
+
 /** How many rows the marker walks on `tab`. */
-export function walkable(tab: PaneTab, connections: ConnectionsState | null, schema: SchemaState | null = null, filter = ''): number {
+export function walkable(tab: PaneTab, connections: ConnectionsState | null, schema: SchemaState | null = null, filter = '', history: HistoryState | null = null): number {
+  if (tab === 'queries') return history?.answer?.length ?? 0
   if (tab === 'schema') return schema?.answer == null ? 0 : filteredList(schema.answer, filter).length
   return tab === 'connections' ? (connections?.answer?.length ?? 0) : 0
 }
@@ -71,6 +83,12 @@ export function walkable(tab: PaneTab, connections: ConnectionsState | null, sch
 /** The header's pill: what the pane is, or that its connections are being read or could not be. */
 function pillOf(model: PaneModel): Pill {
   if (model.view.tab === 'schema') return schemaPill(model)
+  if (model.view.tab === 'queries') {
+    const h = model.history
+    if (h?.failure != null && h.answer === null) return { text: 'unavailable', tone: 'warn' }
+    if (h === null || (h.phase === 'loading' && h.answer === null)) return { text: 'reading…', tone: 'accent' }
+    return { text: 'read-only pane', tone: 'ok' }
+  }
   const c = model.connections
   if (c?.failure !== null && c?.failure !== undefined && c.answer === null) return { text: 'unavailable', tone: 'warn' }
   if (c?.phase === 'loading' && c.answer === null) return { text: 'reading…', tone: 'accent' }
@@ -79,7 +97,7 @@ function pillOf(model: PaneModel): Pill {
 
 /** The Schema tab's pill: how fresh the schema on show is, or that it is being read or could not be. */
 function schemaPill(model: PaneModel): Pill {
-  const s = model.schema
+  const s = schemaFor(model.schema, model.view.db)
   if (s === null || s.phase === 'loading') return { text: 'reading…', tone: 'accent' }
   if (s.answer === null) return { text: 'unavailable', tone: 'warn' }
   const at = s.answer.capturedAt === null ? Number.NaN : Date.parse(s.answer.capturedAt)
@@ -178,32 +196,85 @@ function tunnelOf(model: PaneModel, db: string): string | undefined {
 
 /** The Schema tab: the schema of the connection picked, or why there is none to show yet. */
 function schemaTabArrangement(model: PaneModel, selected: number, tier: Tier): Arrangement {
-  const s = model.schema
+  const s = schemaFor(model.schema, model.view.db)
   if (model.view.db === null && (model.connections?.answer?.length ?? 0) === 0) return { left: [noticeBlock('schema', 'Schema', model.connections?.answer === null ? 'reading connections…' : 'no connections to read a schema from')] }
   if (s?.answer == null) return { left: [noticeBlock('schema', 'Schema', s?.failure != null ? 'no schema to show' : `reading the schema of ${s?.db ?? model.view.db ?? 'the connection'}…`)] }
   const tunnel = tunnelOf(model, s.db)
   return schemaArrangement(s.answer, selected, tier, { filter: model.view.filter, filtering: model.view.filtering, ...(tunnel === undefined ? {} : { tunnel }) })
 }
 
-/** The open tab's cards. The Queries and Editor tabs are drawn by the tasks that bring their data. */
+/** The result page on show for `entry`: the one read for it, else why there is none. */
+export function resultOf(result: ResultState | null, entry: JournalEntry | undefined): { page: ResultState['page']; note?: string } {
+  if (entry === undefined) return { page: null }
+  if (entry.outcome !== 'ok') return { page: null, note: 'no result' }
+  if (entry.spool === null) return { page: null, note: RESULT_GONE }
+  if (result === null || result.id !== entry.id) return { page: null, note: 'reading the result…' }
+  if (result.page !== null) return { page: result.page }
+  if (result.failure === null) return { page: null, note: 'reading the result…' }
+  // The journal says the result was kept, the spool says it is gone: evicted since.
+  return { page: null, note: result.failure.startsWith('No spooled result') ? RESULT_GONE : result.failure }
+}
+
+/** The Queries tab: the journal and the selected entry's result, or why there is none to show yet. */
+function queriesTabArrangement(model: PaneModel, selected: number, tier: Tier): Arrangement {
+  const h = model.history
+  if (h?.answer == null) return { left: h?.failure != null ? [] : [noticeBlock('history', 'History', 'reading the journal…')] }
+  const entry = h.answer[selected]
+  const shown = resultOf(model.result, entry)
+  return queriesArrangement(
+    {
+      pins: model.pins?.answer ?? [],
+      history: h.answer,
+      selected,
+      result: shown.page,
+      ...(shown.note === undefined ? {} : { resultNote: shown.note }),
+      now: model.now,
+      ...(model.since === null ? {} : { since: model.since }),
+      connections: model.connections?.answer?.length ?? 0,
+    },
+    tier,
+  )
+}
+
+/** The open tab's cards. The Editor tab is drawn by the task that brings its data. */
 function tabArrangement(model: PaneModel, selected: number, tier: Tier): Arrangement {
   if (model.view.tab === 'connections') return connectionsArrangement(model, selected, tier)
   if (model.view.tab === 'schema') return schemaTabArrangement(model, selected, tier)
-  const title = model.view.tab === 'queries' ? 'Queries' : 'Editor'
-  return { left: [noticeBlock(model.view.tab, title, 'nothing to show here yet')] }
+  if (model.view.tab === 'queries') return queriesTabArrangement(model, selected, tier)
+  return { left: [noticeBlock(model.view.tab, 'Editor', 'nothing to show here yet')] }
+}
+
+/** The keys the footer offers on the Queries tab: what can be done to the selected entry. */
+function queriesKeys(model: PaneModel): FooterKey[] {
+  const list = model.history?.answer ?? []
+  const entry = list[Math.min(Math.max(0, model.view.marker.queries), Math.max(0, list.length - 1))]
+  if (entry === undefined) return []
+  const page = resultOf(model.result, entry).page
+  return [
+    ...(list.length > 1 ? [{ id: 'down', hotkey: 'j', label: '↓', move: true as const }, { id: 'up', hotkey: 'k', label: '↑', move: true as const }] : []),
+    { id: 'rerun', hotkey: 'r', label: 'rerun' },
+    { id: 'edit', hotkey: 'e', label: 'open in Editor' },
+    { id: 'pin', hotkey: 'p', label: pinOf(model.pins?.answer ?? [], entry) === undefined ? 'pin' : 'unpin' },
+    { id: 'copy', hotkey: 'c', label: 'copy' },
+    ...(entry.source === 'pane' ? [{ id: 'send', hotkey: 's', label: 'send to Claude' }] : []),
+    ...(page !== null && page.offset + page.rows.length < page.total ? [{ id: 'more-rows', hotkey: 'm', label: 'more rows' }] : []),
+    ...(page !== null && page.offset > 0 ? [{ id: 'back-rows', hotkey: 'b', label: 'earlier rows' }] : []),
+  ]
 }
 
 /** The keys the footer offers on the open tab. */
 function footerKeys(model: PaneModel): FooterKey[] {
   const { tab, filter } = model.view
-  const moves: FooterKey[] = walkable(tab, model.connections, model.schema, filter) > 1 ? [{ id: 'down', hotkey: 'j', label: '↓', move: true }, { id: 'up', hotkey: 'k', label: '↑', move: true }] : []
+  const schema = schemaFor(model.schema, model.view.db)
+  if (tab === 'queries') return queriesKeys(model)
+  const moves: FooterKey[] = walkable(tab, model.connections, schema, filter, model.history) > 1 ? [{ id: 'down', hotkey: 'j', label: '↓', move: true }, { id: 'up', hotkey: 'k', label: '↑', move: true }] : []
   if (tab !== 'schema') return moves
-  const shown = model.schema?.answer != null
+  const shown = schema?.answer != null
   return [
     ...moves,
     ...((model.connections?.answer?.length ?? 0) > 1 ? [{ id: 'next', hotkey: 'n', label: 'next connection' }] : []),
     ...(shown ? [{ id: 'query', hotkey: 'q', label: 'query' }, { id: 'copy-create', hotkey: 'c', label: 'copy CREATE' }, { id: 'filter', hotkey: 'f', label: 'filter' }] : []),
-    ...(model.schema === null ? [] : [{ id: 'refresh', hotkey: 'r', label: 'refresh' }]),
+    ...(schema === null ? [] : [{ id: 'refresh', hotkey: 'r', label: 'refresh' }]),
   ]
 }
 
@@ -226,7 +297,7 @@ export function paneLayout(model: PaneModel, columns: number, height: number): {
   const short = height <= SHORT_PANE
   const pad = padOf(tier)
   const inner = Math.max(1, width - 2 * pad)
-  const selected = Math.min(Math.max(0, model.view.marker[model.view.tab]), Math.max(0, walkable(model.view.tab, model.connections, model.schema, model.view.filter) - 1))
+  const selected = Math.min(Math.max(0, model.view.marker[model.view.tab]), Math.max(0, walkable(model.view.tab, model.connections, schemaFor(model.schema, model.view.db), model.view.filter, model.history) - 1))
   const rows: Row[] = []
   if (!short && tier !== 'narrow') rows.push(blank('head-top'))
   rows.push(padded(titleRow({ connections: model.connections?.answer ?? [], pill: pillOf(model), config: model.config }, inner, tier, width), pad, width))
@@ -234,7 +305,7 @@ export function paneLayout(model: PaneModel, columns: number, height: number): {
   rows.push(...tabRows(model.view.tab, inner, model.terminal, tier === 'narrow').map(row => padded(row, pad, width)))
   if (!short) rows.push(blank('head-end'))
   rows.push({ key: 'head-rule', segments: [{ text: '─'.repeat(width), color: FAINT }] })
-  const failure = model.connections?.failure ?? (model.view.tab === 'schema' ? (model.schema?.failure ?? null) : null)
+  const failure = model.connections?.failure ?? (model.view.tab === 'schema' ? (schemaFor(model.schema, model.view.db)?.failure ?? null) : model.view.tab === 'queries' ? (model.history?.failure ?? model.pins?.failure ?? null) : null)
   if (failure !== null) rows.push(padded(dimRow('failure', failure, inner), pad, width))
   const bar = footerRows(footerKeys(model), width)
   const footer = [...(short ? [] : [blank('gap-keys')]), ...bar]
