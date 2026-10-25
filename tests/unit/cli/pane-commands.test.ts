@@ -3,7 +3,8 @@ import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sqlite3 from 'sqlite3';
-import { runPaneCommand } from '../../../src/cli/pane-commands.js';
+import { connections, runPaneCommand } from '../../../src/cli/pane-commands.js';
+import { openCore } from '../../../src/cli/core.js';
 import { PaneStore, dataDirFor } from '../../../src/pane/store.js';
 
 const FIXTURES = join(__dirname, '..', '..', 'fixtures', 'pane-contract');
@@ -258,6 +259,21 @@ describe('pane commands', () => {
         expect((await new PaneStore(dataDirFor(qconfig)).entry(e.id))?.outcome).toBe('blocked');
       }
     );
+
+    it('opens a full-access connection read-only at the database, yet reports it as configured', async () => {
+      const core = await openCore(cfg(), qschemas);
+      try {
+        // bypass the lexical gate: the database itself must refuse the write
+        await expect(
+          core.connectionManager.executeQuery('full', "INSERT INTO t (v) VALUES ('x')")
+        ).rejects.toThrow(/readonly|read-only/i);
+        expect((await connections(core)).find((c) => c.name === 'full')?.selectOnly).toBe(false);
+        expect(core.config.databases.full!.select_only).toBe(false);
+      } finally {
+        await core.close();
+      }
+      expect(await count()).toBe(3);
+    });
 
     it('journals a failing SELECT as error', async () => {
       const out = await run('query', 'full', '--sql', 'SELECT * FROM missing_table');

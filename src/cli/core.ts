@@ -69,11 +69,18 @@ export async function openCore(args: string[], schemaPath?: string): Promise<Cor
   securityManager.initialize(config);
   await schemaManager.initialize();
   const globalTimeout = config.extension?.query_timeout ?? 30000;
-  const databases = { ...config.databases };
-  for (const name of Object.keys(databases)) {
-    if (databases[name]!.query_timeout === undefined) {
-      databases[name] = { ...databases[name]!, query_timeout: globalTimeout };
-    }
+  // The CLI never writes, so every connection it opens is read-only below the lexical
+  // gate too: select_only makes SQLite open OPEN_READONLY, read_only_session makes
+  // PostgreSQL and MySQL refuse writes for the session. These are copies — core.config
+  // keeps the real settings, which is what `connections` reports.
+  const databases: ParsedServerConfig['databases'] = {};
+  for (const [name, db] of Object.entries(config.databases)) {
+    databases[name] = {
+      ...db,
+      query_timeout: db.query_timeout ?? globalTimeout,
+      select_only: true,
+      read_only_session: true,
+    };
   }
   connectionManager.initialize(databases);
   await sshTunnelManager.initialize();

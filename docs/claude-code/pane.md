@@ -118,8 +118,24 @@ or the Editor field, the letters go into the field.
 A query you run from the pane, in the Editor or by rerun, goes through the same
 SELECT-only check Argos applies to Claude, and it applies even when the
 connection itself is configured to allow writes. Anything else is refused with
-the reason, and the refusal is recorded in the history. The pane cannot change
-your data.
+the reason, and the refusal is recorded in the history.
+
+That check reads the SQL; it cannot know what a function called from a `SELECT`
+does (`SELECT setval(...)`, `SELECT lo_unlink(...)`, a volatile function of your
+own). So the connections the pane opens are also read-only at the database,
+whatever `select_only` says in `config.ini`. What that guarantees depends on
+the engine:
+
+| Engine | Below the SELECT-only check | What it does not stop |
+|--------|-----------------------------|-----------------------|
+| SQLite | The file is opened read-only, so any write fails | Nothing: the file cannot change |
+| PostgreSQL | The session is `READ ONLY`, so writes to tables, sequences (`setval`, `nextval`) and large objects (`lo_unlink`) fail | Things that are not writes: advisory locks (`pg_advisory_lock`), signalling other sessions (`pg_cancel_backend`, `pg_terminate_backend`, which need the privilege), and anything outside the database the server lets a function do |
+| MySQL / MariaDB | The session is `READ ONLY`, so writes to tables fail | Named locks (`GET_LOCK`), writes to temporary tables, `SLEEP` |
+| SQL Server | Nothing: SQL Server has no read-only session setting | Whatever a function called from a `SELECT` does. Only the SELECT-only check applies; for a hard guarantee, connect as a login with read-only permissions |
+
+For a guarantee that holds for every engine, give the connection a database user
+that can only read. This applies to the pane only: the MCP server opens its
+connections exactly as `config.ini` says.
 
 ## Where things are kept
 
