@@ -5,6 +5,22 @@ All notable changes to the Argos-MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0](https://github.com/AraneaDev/argos/compare/v4.1.8...v5.0.0) (2026-10-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* rebrand to Argos and add a read-only Claude Code pane ([#47](https://github.com/AraneaDev/argos/issues/47))
+
+### Features
+
+* rebrand to Argos and add a read-only Claude Code pane ([#47](https://github.com/AraneaDev/argos/issues/47)) ([896dcbf](https://github.com/AraneaDev/argos/commit/896dcbfdda46d02377b270a95713860ec4ff5ff3))
+
+
+### Fixes
+
+* ignore release configuration changes ([#43](https://github.com/AraneaDev/argos/issues/43)) ([cfc67e5](https://github.com/AraneaDev/argos/commit/cfc67e50068deaa5332c79a2b810d79d0b6f4c53))
+
 ## [4.1.8](https://github.com/AraneaDev/Argos-MCP/compare/v4.1.7...v4.1.8) (2026-09-16)
 
 
