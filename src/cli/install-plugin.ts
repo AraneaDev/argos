@@ -59,7 +59,11 @@ export async function installPlugin(opts: InstallOptions): Promise<InstallResult
   writeFileSync(
     join(outDir, '.claude-plugin', 'marketplace.json'),
     JSON.stringify(
-      { name: 'argos', plugins: [{ name: 'argos', source: './plugins/argos' }] },
+      {
+        name: 'argos',
+        owner: { name: 'AraneaDev', url: 'https://github.com/AraneaDev' },
+        plugins: [{ name: 'argos', source: './plugins/argos' }],
+      },
       null,
       2
     )

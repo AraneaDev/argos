@@ -56,6 +56,8 @@ describe('installPlugin', () => {
       JSON.parse(readFileSync(join(root, '.plugin', '.claude-plugin', 'marketplace.json'), 'utf8'))
     ).toEqual({
       name: 'argos',
+      // `claude plugin marketplace add` rejects a marketplace without an owner object.
+      owner: { name: 'AraneaDev', url: 'https://github.com/AraneaDev' },
       plugins: [{ name: 'argos', source: './plugins/argos' }],
     });
     expect(JSON.parse(readFileSync(join(dest, 'hooks', 'argos.env.json'), 'utf8'))).toEqual({
