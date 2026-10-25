@@ -289,21 +289,25 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
   ): Promise<void> {
     const pgClient = connection as PgClient;
 
+    // pg_constraint pairs conkey/confkey by position, so composite foreign keys
+    // yield exactly their own column pairs and same-named constraints on
+    // different tables never mix (information_schema cannot guarantee either).
     const keysResult = await pgClient.query(`
  SELECT
- tc.constraint_type,
- kcu.table_name,
- kcu.column_name,
- ccu.table_name AS foreign_table_name,
- ccu.column_name AS foreign_column_name
- FROM information_schema.table_constraints tc
- JOIN information_schema.key_column_usage kcu
- ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
- LEFT JOIN information_schema.constraint_column_usage ccu
- ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
- AND tc.constraint_type = 'FOREIGN KEY'
- WHERE tc.table_schema = 'public' AND tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY')
- ORDER BY kcu.table_name, kcu.ordinal_position
+ CASE con.contype WHEN 'p' THEN 'PRIMARY KEY' ELSE 'FOREIGN KEY' END AS constraint_type,
+ cl.relname AS table_name,
+ att.attname AS column_name,
+ fcl.relname AS foreign_table_name,
+ fatt.attname AS foreign_column_name
+ FROM pg_constraint con
+ JOIN pg_class cl ON cl.oid = con.conrelid
+ JOIN pg_namespace n ON n.oid = cl.relnamespace
+ CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS k(attnum, fattnum, ord)
+ JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = k.attnum
+ LEFT JOIN pg_class fcl ON fcl.oid = con.confrelid
+ LEFT JOIN pg_attribute fatt ON fatt.attrelid = con.confrelid AND fatt.attnum = k.fattnum
+ WHERE n.nspname = 'public' AND con.contype IN ('p', 'f')
+ ORDER BY cl.relname, con.oid, k.ord
  `);
 
     const estimatesResult = await pgClient.query(`

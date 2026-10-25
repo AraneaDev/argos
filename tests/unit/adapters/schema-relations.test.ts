@@ -56,7 +56,7 @@ describe('schema capture keys, relations and row estimates', () => {
 
     const route = (reltuples: unknown) =>
       mockPgQuery.mockImplementation(async (sql: string) => {
-        if (sql.includes('table_constraints')) {
+        if (sql.includes('pg_constraint')) {
           return {
             rows: [
               { constraint_type: 'PRIMARY KEY', table_name: 'orders', column_name: 'id' },
@@ -82,6 +82,54 @@ describe('schema capture keys, relations and row estimates', () => {
     it('captures primary key, foreign key and reltuples', async () => {
       route(1234);
       expectOrders(await adapter.captureSchema(connection), 1234);
+    });
+
+    it('reads keys from pg_constraint with positional column pairing', async () => {
+      route(1);
+      await adapter.captureSchema(connection);
+      const keysSql = mockPgQuery.mock.calls
+        .map((c) => c[0] as string)
+        .find((sql) => sql.includes('pg_constraint'));
+      expect(keysSql).toContain('unnest(con.conkey, con.confkey) WITH ORDINALITY');
+      expect(keysSql).not.toContain('constraint_column_usage');
+    });
+
+    it('keeps a composite FK to its own column pairs and separates same-named constraints', async () => {
+      mockPgQuery.mockImplementation(async (sql: string) => {
+        if (sql.includes('pg_constraint')) {
+          const fk = (table: string, column: string, ref: string, refColumn: string) => ({
+            constraint_type: 'FOREIGN KEY',
+            table_name: table,
+            column_name: column,
+            foreign_table_name: ref,
+            foreign_column_name: refColumn,
+          });
+          return {
+            rows: [
+              fk('a', 'x', 'p', 'k1'),
+              fk('a', 'y', 'p', 'k2'),
+              // same constraint name (fk_p) on another table
+              fk('b', 'z', 'q', 'id'),
+            ],
+          };
+        }
+        if (sql.includes('reltuples')) return { rows: [] };
+        if (sql.includes('information_schema.columns')) return { rows: [col('x'), col('y')] };
+        return {
+          rows: [
+            { table_name: 'a', table_type: 'BASE TABLE', table_comment: '' },
+            { table_name: 'b', table_type: 'BASE TABLE', table_comment: '' },
+          ],
+        };
+      });
+      const schema = await adapter.captureSchema(connection);
+      expect(schema.tables.a.foreign_keys).toEqual([
+        { column: 'x', references: { table: 'p', column: 'k1' } },
+        { column: 'y', references: { table: 'p', column: 'k2' } },
+      ]);
+      expect(schema.tables.b.foreign_keys).toEqual([
+        { column: 'z', references: { table: 'q', column: 'id' } },
+      ]);
     });
 
     it('turns a never-analyzed reltuples of -1 into null', async () => {
