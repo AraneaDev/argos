@@ -806,7 +806,9 @@ export class EnhancedSSHTunnelManager extends EventEmitter implements ISSHTunnel
           connectOptions.passphrase = config.passphrase;
         }
       } catch (error) {
-        throw new Error(`Failed to read SSH private key: ${(error as Error).message}`);
+        throw new Error(`Failed to read SSH private key: ${(error as Error).message}`, {
+          cause: error,
+        });
       }
     }
 

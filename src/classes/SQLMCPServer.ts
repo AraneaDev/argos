@@ -510,7 +510,7 @@ export class SQLMCPServer extends EventEmitter {
       }
     } catch (error) {
       this.logger.error('Failed to load configuration', { error, configPath: finalConfigPath });
-      throw new Error(`Failed to load config.ini: ${getErrorMessage(error)}`);
+      throw new Error(`Failed to load config.ini: ${getErrorMessage(error)}`, { cause: error });
     }
   }
 
