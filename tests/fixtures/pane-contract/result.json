@@ -1,0 +1,16 @@
+{
+  "id": "<id>",
+  "fields": [
+    "id",
+    "v"
+  ],
+  "rows": [
+    [
+      2,
+      "b"
+    ]
+  ],
+  "total": 3,
+  "offset": 1,
+  "truncated": false
+}

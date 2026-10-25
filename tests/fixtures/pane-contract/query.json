@@ -1,0 +1,12 @@
+{
+  "id": "<id>",
+  "at": "2000-01-01T00:00:00.000Z",
+  "source": "pane",
+  "database": "full",
+  "tool": "pane_query",
+  "sql": "SELECT id, v FROM t ORDER BY id",
+  "durationMs": 0,
+  "rowCount": 3,
+  "outcome": "ok",
+  "spool": "<id>.json"
+}

@@ -244,6 +244,19 @@ export class PaneStore {
     return created;
   }
 
+  /** Point every pin with this exact database and SQL at its newest journal entry. */
+  async touchPins(database: string, sql: string, journalId: string): Promise<void> {
+    const pins = await this.pins();
+    let changed = false;
+    for (const p of pins) {
+      if (p.database === database && p.sql === sql) {
+        p.lastJournalId = journalId;
+        changed = true;
+      }
+    }
+    if (changed) await this.savePins(pins);
+  }
+
   /**
    *
    */
