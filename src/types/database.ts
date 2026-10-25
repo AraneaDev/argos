@@ -31,12 +31,7 @@ export enum DatabaseType {
 
 // For backward compatibility, also export as type
 export type DatabaseTypeString =
-  | 'mysql'
-  | 'postgresql'
-  | 'postgres'
-  | 'sqlite'
-  | 'mssql'
-  | 'sqlserver';
+  'mysql' | 'postgresql' | 'postgres' | 'sqlite' | 'mssql' | 'sqlserver';
 
 /**
  * Authentication modes supported by the SQL Server adapter.

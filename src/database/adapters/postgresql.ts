@@ -384,20 +384,18 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
 
     const columnsResult = await (connection as PgClient).query(columnsQuery, [tableName]);
 
-    return columnsResult.rows.map(
-      (col): ColumnInfo => ({
-        name: col.column_name,
-        type: col.data_type,
-        nullable: col.is_nullable === 'YES',
-        default: col.column_default,
-        max_length: col.character_maximum_length,
-        precision: col.numeric_precision,
-        scale: col.numeric_scale,
-        comment: col.column_comment || '',
-        key: '', // PostgreSQL doesn't have a direct equivalent to MySQL's COLUMN_KEY
-        extra: '', // PostgreSQL doesn't have a direct equivalent to MySQL's EXTRA
-      })
-    );
+    return columnsResult.rows.map((col): ColumnInfo => ({
+      name: col.column_name,
+      type: col.data_type,
+      nullable: col.is_nullable === 'YES',
+      default: col.column_default,
+      max_length: col.character_maximum_length,
+      precision: col.numeric_precision,
+      scale: col.numeric_scale,
+      comment: col.column_comment || '',
+      key: '', // PostgreSQL doesn't have a direct equivalent to MySQL's COLUMN_KEY
+      extra: '', // PostgreSQL doesn't have a direct equivalent to MySQL's EXTRA
+    }));
   }
 
   // ============================================================================
