@@ -10,6 +10,7 @@ import {
 } from '../../../src/tools/handlers/query-handlers.js';
 import type { ToolHandlerContext } from '../../../src/tools/handlers/types.js';
 import type { ParsedServerConfig, DatabaseConfig } from '../../../src/types/index.js';
+import { SchemaWatch } from '../../../src/schema/watch.js';
 import { SecurityViolationError } from '../../../src/types/index.js';
 import { ValidationError, ConfigurationError } from '../../../src/utils/error-handler.js';
 
@@ -48,6 +49,7 @@ function createMockContext(
       refreshSchema: jest.fn(),
       generateSchemaContext: jest.fn(),
     } as any,
+    schemaWatch: { check: jest.fn().mockResolvedValue([]) } as any,
     sshTunnelManager: {
       hasTunnel: jest.fn().mockReturnValue(false),
       closeTunnel: jest.fn(),
@@ -70,6 +72,98 @@ function createMockContext(
 }
 
 describe('query-handlers', () => {
+  describe('schema change reporting', () => {
+    const changes = [
+      { kind: 'column-added', table: 'orders', column: 'shipped_at', type: 'timestamptz' },
+    ];
+    const dbs = { db: { type: 'postgresql', select_only: true } as DatabaseConfig };
+
+    it('appends the change line and sets _meta.argos.schemaChange on sql_query', async () => {
+      const ctx = createMockContext(dbs);
+      (ctx.schemaWatch.check as jest.Mock).mockResolvedValue(changes);
+      (ctx.connectionManager.executeQuery as jest.Mock).mockResolvedValue({
+        rows: [{ col1: 'v' }],
+        rowCount: 1,
+        fields: [],
+      });
+      const r = await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1' });
+      expect(
+        r.content[0].text.endsWith(
+          '\nSchema changed since last look: orders + shipped_at (timestamptz).'
+        )
+      ).toBe(true);
+      expect(r._meta).toEqual({
+        progressToken: null,
+        argos: { journalId: null, spool: null, schemaChange: changes },
+      });
+    });
+
+    it('checks once per batch and reports on sql_batch_query', async () => {
+      const ctx = createMockContext(dbs);
+      (ctx.schemaWatch.check as jest.Mock).mockResolvedValue(changes);
+      (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+        results: [],
+        successCount: 0,
+        failureCount: 0,
+        totalExecutionTime: 1,
+      });
+      const r = await handleBatchQuery(ctx, {
+        database: 'db',
+        queries: [{ query: 'SELECT 1' }, { query: 'SELECT 2' }],
+      });
+      expect(ctx.schemaWatch.check).toHaveBeenCalledTimes(1);
+      expect(r._meta.argos?.schemaChange).toEqual(changes);
+      expect(r.content[0].text).toContain('Schema changed since last look');
+    });
+
+    it('reports on sql_analyze_performance', async () => {
+      const ctx = createMockContext(dbs);
+      (ctx.schemaWatch.check as jest.Mock).mockResolvedValue(changes);
+      (ctx.connectionManager.analyzePerformance as jest.Mock).mockResolvedValue({
+        executionTime: 1,
+        explainTime: 1,
+        rowCount: 1,
+        columnCount: 1,
+        executionPlan: 'plan\n',
+        recommendations: 'none',
+      });
+      const r = await handleAnalyzePerformance(ctx, { database: 'db', query: 'SELECT 1' });
+      expect(r._meta.argos?.schemaChange).toEqual(changes);
+    });
+
+    it('leaves the response untouched when nothing changed', async () => {
+      const ctx = createMockContext(dbs);
+      (ctx.connectionManager.executeQuery as jest.Mock).mockResolvedValue({
+        rows: [],
+        rowCount: 0,
+        fields: [],
+      });
+      const r = await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1' });
+      expect(r._meta).toEqual({ progressToken: null });
+      expect(r.content[0].text).not.toContain('Schema changed');
+    });
+
+    it('still runs the query when the fingerprint query throws', async () => {
+      const ctx = createMockContext(dbs);
+      ctx.schemaWatch = new SchemaWatch(
+        {
+          isConnected: () => true,
+          schemaFingerprint: jest.fn().mockRejectedValue(new Error('boom')),
+        } as any,
+        { getSchema: () => ({ fingerprint: 'old' }) } as any
+      );
+      (ctx.connectionManager.executeQuery as jest.Mock).mockResolvedValue({
+        rows: [{ col1: 'v' }],
+        rowCount: 1,
+        fields: [],
+      });
+      const r = await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1' });
+      expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+      expect(r.isError).toBeUndefined();
+      expect(r.content[0].text).not.toContain('Schema changed');
+    });
+  });
+
   describe('handleSqlQuery', () => {
     it('should execute a query successfully', async () => {
       const ctx = createMockContext({

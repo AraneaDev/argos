@@ -30,6 +30,7 @@ import { MetricsManager } from './MetricsManager.js';
 import { QueryCache } from './QueryCache.js';
 import { ConnectionManager } from './ConnectionManager.js';
 import { SecurityManager } from './SecurityManager.js';
+import { SchemaWatch } from '../schema/watch.js';
 import { SchemaManager } from './SchemaManager.js';
 import { EnhancedSSHTunnelManager } from './EnhancedSSHTunnelManager.js';
 import { Logger } from '../utils/logger.js';
@@ -101,6 +102,7 @@ export class SQLMCPServer extends EventEmitter {
   private readonly connectionManager: ConnectionManager;
   private readonly securityManager: SecurityManager;
   private readonly schemaManager: SchemaManager;
+  private readonly schemaWatch: SchemaWatch;
   private readonly sshTunnelManager: EnhancedSSHTunnelManager;
   private readonly logger: Logger;
   private mcpServer: Server;
@@ -135,6 +137,7 @@ export class SQLMCPServer extends EventEmitter {
       this.queryCache
     );
     this.schemaManager = new SchemaManager(this.connectionManager, join(PROJECT_ROOT, 'schemas'));
+    this.schemaWatch = new SchemaWatch(this.connectionManager, this.schemaManager);
 
     this.setupEventListeners();
     this.registerMCPHandlers();
@@ -163,6 +166,9 @@ export class SQLMCPServer extends EventEmitter {
         },
         get schemaManager() {
           return server.schemaManager;
+        },
+        get schemaWatch() {
+          return server.schemaWatch;
         },
         get sshTunnelManager() {
           return server.sshTunnelManager;

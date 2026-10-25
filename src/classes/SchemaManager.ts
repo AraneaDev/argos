@@ -111,6 +111,7 @@ export class SchemaManager extends EventEmitter {
 
       // Capture schema using the adapter
       const schema = await adapter.captureSchema(connectionInfo.connection);
+      schema.fingerprint = await this.tryFingerprint(dbName);
 
       // Cache the schema
       this.schemas.set(dbName, schema);
@@ -131,6 +132,29 @@ export class SchemaManager extends EventEmitter {
     } catch (error) {
       this.logger.error(`Failed to capture schema for '${dbName}'`, error as Error);
       throw error;
+    }
+  }
+
+  /**
+   * Store a fingerprint on an already cached schema (e.g. one cached before fingerprints existed)
+   */
+  async setFingerprint(dbName: string, fingerprint: string): Promise<void> {
+    const schema = this.schemas.get(dbName);
+    if (!schema) return;
+    schema.fingerprint = fingerprint;
+    await this.saveSchema(dbName, schema);
+  }
+
+  /** Fingerprint for a freshly captured schema; a failure leaves it undefined */
+  private async tryFingerprint(dbName: string): Promise<string | undefined> {
+    try {
+      return await this.connectionManager.schemaFingerprint(dbName);
+    } catch (error) {
+      this.logger.warning('Failed to fingerprint schema', {
+        database: dbName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
     }
   }
 
@@ -161,6 +185,7 @@ export class SchemaManager extends EventEmitter {
 
       // Re-capture schema
       const schema = await adapter.captureSchema(connectionInfo.connection);
+      schema.fingerprint = await this.tryFingerprint(dbName);
 
       // Cache the new schema
       this.schemas.set(dbName, schema);

@@ -21,9 +21,21 @@ import {
   sanitizeMessage,
   ValidationError,
 } from '../../utils/error-handler.js';
+import { formatSchemaChanges, type SchemaChange } from '../../schema/diff.js';
 import type { ToolHandlerContext } from './types.js';
 import { requireDbConfig } from './types.js';
 
+/** Append the schema-change line and structured `_meta.argos` when something changed. */
+function withSchemaChanges(response: MCPToolResponse, changes: SchemaChange[]): MCPToolResponse {
+  if (changes.length === 0) return response;
+  response.content[0].text += `\n${formatSchemaChanges(changes)}`;
+  response._meta.argos = { journalId: null, spool: null, schemaChange: changes };
+  return response;
+}
+
+/**
+ *
+ */
 export async function handleSqlQuery(
   ctx: ToolHandlerContext,
   args: SQLQueryArgs
@@ -58,6 +70,8 @@ export async function handleSqlQuery(
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
 
+    const schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+
     const result = await ctx.connectionManager.executeQuery(database, query, params);
 
     // Capture schema if not cached
@@ -85,7 +99,7 @@ export async function handleSqlQuery(
       responseText += 'No results returned.\n';
     }
 
-    return createToolResponse(responseText);
+    return withSchemaChanges(createToolResponse(responseText), schemaChanges);
   } catch (error) {
     // Sanitize before returning to the client — raw driver errors can leak data,
     // schema, or connection details. SecurityViolationError messages are preserved.
@@ -103,6 +117,9 @@ export async function handleSqlQuery(
   }
 }
 
+/**
+ *
+ */
 export async function handleBatchQuery(
   ctx: ToolHandlerContext,
   args: SQLBatchQueryArgs
@@ -149,6 +166,8 @@ export async function handleBatchQuery(
     if (dbConfig.ssh_host) {
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
+
+    const schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
 
     const result = await ctx.connectionManager.executeBatch(
       database,
@@ -202,7 +221,7 @@ export async function handleBatchQuery(
       responseText += ` Query: \`${queryResult.query?.substring(0, 100)}${queryResult.query && queryResult.query.length > 100 ? '...' : ''}\`\n\n`;
     }
 
-    return createToolResponse(responseText);
+    return withSchemaChanges(createToolResponse(responseText), schemaChanges);
   } catch (error) {
     const errorMessage = sanitizeError(error);
     let responseText = ` **Batch Query Failed** (${database})\n\n`;
@@ -218,6 +237,9 @@ export async function handleBatchQuery(
   }
 }
 
+/**
+ *
+ */
 export async function handleAnalyzePerformance(
   ctx: ToolHandlerContext,
   args: SQLAnalyzePerformanceArgs
@@ -246,6 +268,8 @@ export async function handleAnalyzePerformance(
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
 
+    const schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+
     const analysis = await ctx.connectionManager.analyzePerformance(database, query);
 
     let responseText = ` **Query Performance Analysis** (${database})\n\n`;
@@ -265,7 +289,7 @@ export async function handleAnalyzePerformance(
     responseText += ` **Performance Recommendations:**\n`;
     responseText += analysis.recommendations;
 
-    return createToolResponse(responseText);
+    return withSchemaChanges(createToolResponse(responseText), schemaChanges);
   } catch (error) {
     const errorMessage = sanitizeError(error);
     return createToolResponse(
