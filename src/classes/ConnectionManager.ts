@@ -9,8 +9,6 @@ import type {
   ConnectionInfo,
   DatabaseConnection,
   SSHTunnelInfo,
-  TestConnectionResult,
-  DatabaseListItem,
   QueryResult,
   BatchResult,
 } from '../types/index.js';
@@ -173,48 +171,10 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /**
-   * Check if database is registered
-   */
-  public hasDatabase(name: string): boolean {
-    return name in this.databases;
-  }
-
-  /**
-   * Get list of registered database names
-   */
-  public getDatabaseNames(): string[] {
-    return Object.keys(this.databases);
-  }
-
-  /**
    * Get database configuration
    */
   public getDatabaseConfig(name: string): DatabaseConfig | undefined {
     return this.databases[name];
-  }
-
-  /**
-   * Close all connections
-   */
-  public closeAll(): Promise<void> {
-    return this.closeAllConnections();
-  }
-
-  /**
-   * Check if connection is healthy
-   */
-  public async isConnectionHealthy(name: string): Promise<boolean> {
-    if (!this.isConnected(name)) {
-      return false;
-    }
-
-    try {
-      await this.executeQuery(name, 'SELECT 1 as health_check');
-      return true;
-    } catch (error) {
-      this.logger.warning(`Health check failed for '${name}'`, { error: (error as Error).message });
-      return false;
-    }
   }
 
   // ============================================================================
@@ -414,13 +374,6 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /**
-   * Get existing connection (synchronous)
-   */
-  getExistingConnection(dbName: string): ConnectionInfo | undefined {
-    return this.connections.get(dbName);
-  }
-
-  /**
    * Get database adapter
    */
   getAdapter(dbName: string): DatabaseAdapter | undefined {
@@ -529,148 +482,6 @@ export class ConnectionManager extends EventEmitter {
     }
   }
 
-  /**
-   * Test connection to a database
-   */
-  async testConnection(dbName: string, config?: DatabaseConfig): Promise<TestConnectionResult> {
-    // Use provided config or get from registered databases
-    const actualConfig = config || this.databases[dbName];
-
-    if (!actualConfig) {
-      return {
-        success: false,
-        database: dbName,
-        error: `Database ${dbName} is not registered`,
-        ssh_tunnel: false,
-        select_only_mode: false,
-        schema_captured: false,
-      };
-    }
-
-    let tempAdapter: DatabaseAdapter | undefined;
-    let tempConnection: DatabaseConnection | undefined;
-    const sshTunnelCreated = !!(actualConfig.ssh_host && actualConfig.type !== 'sqlite');
-
-    try {
-      // Validate configuration
-      const validation = AdapterFactory.validateConfig(actualConfig);
-      if (!validation.isValid) {
-        return {
-          success: false,
-          database: dbName,
-          error: `Invalid configuration: ${validation.errors.join(', ')}`,
-          ssh_tunnel: false,
-          select_only_mode: actualConfig.select_only === true,
-          schema_captured: false,
-        };
-      }
-
-      // Set up SSH tunnel if needed for testing
-      let testConfig = { ...actualConfig };
-      let tunnelInfo: SSHTunnelInfo | undefined;
-
-      if (sshTunnelCreated) {
-        try {
-          tunnelInfo = await this.sshTunnelManager.createTunnel(`${dbName}_test`, {
-            sshConfig: {
-              host: actualConfig.ssh_host!,
-              port:
-                typeof actualConfig.ssh_port === 'number'
-                  ? actualConfig.ssh_port
-                  : parseInt(String(actualConfig.ssh_port || 22), 10),
-              username: actualConfig.ssh_username!,
-              password: actualConfig.ssh_password,
-              privateKey: actualConfig.ssh_private_key,
-              passphrase: actualConfig.ssh_passphrase,
-            },
-            forwardConfig: {
-              sourceHost: '127.0.0.1',
-              sourcePort: 0,
-              destinationHost: actualConfig.host!,
-              destinationPort:
-                typeof actualConfig.port === 'number'
-                  ? actualConfig.port
-                  : parseInt(String(actualConfig.port!), 10),
-            },
-          });
-
-          testConfig = {
-            ...actualConfig,
-            host: tunnelInfo.localHost,
-            port: tunnelInfo.localPort,
-          };
-        } catch (error) {
-          return {
-            success: false,
-            database: dbName,
-            error: `SSH tunnel failed: ${(error as Error).message}`,
-            ssh_tunnel: false,
-            select_only_mode: actualConfig.select_only === true,
-            schema_captured: false,
-          };
-        }
-      }
-
-      // Create adapter and test connection
-      tempAdapter = this.createAdapter(testConfig);
-      tempConnection = await tempAdapter.connect();
-
-      // Test with a simple query
-      await tempAdapter.executeQuery(tempConnection, 'SELECT 1 as test');
-
-      // Try to capture basic schema info
-      let schemaInfo;
-      try {
-        const schema = await tempAdapter.captureSchema(tempConnection);
-        schemaInfo = schema.summary;
-      } catch (error) {
-        this.logger.warning(`Could not capture schema during connection test for '${dbName}'`, {
-          error: (error as Error).message,
-        });
-      }
-
-      return {
-        success: true,
-        database: dbName,
-        message: 'Connection test successful',
-        ssh_tunnel: sshTunnelCreated,
-        select_only_mode: actualConfig.select_only === true,
-        schema_captured: !!schemaInfo,
-        schema_info: schemaInfo,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        database: dbName,
-        error: (error as Error).message,
-        ssh_tunnel: sshTunnelCreated,
-        select_only_mode: actualConfig.select_only === true,
-        schema_captured: false,
-      };
-    } finally {
-      // Clean up test connection and tunnel
-      if (tempConnection && tempAdapter) {
-        try {
-          await tempAdapter.disconnect(tempConnection);
-        } catch (error) {
-          this.logger.error(`Error cleaning up test connection for '${dbName}'`, {
-            error: (error as Error).message,
-          });
-        }
-      }
-
-      if (sshTunnelCreated) {
-        try {
-          await this.sshTunnelManager.closeTunnel(`${dbName}_test`);
-        } catch (error) {
-          this.logger.error(`Error cleaning up test SSH tunnel for '${dbName}'`, {
-            error: (error as Error).message,
-          });
-        }
-      }
-    }
-  }
-
   // ============================================================================
   // Information and Statistics
   // ============================================================================
@@ -703,36 +514,6 @@ export class ConnectionManager extends EventEmitter {
       inactive: totalRegistered - active,
       withSSH,
     };
-  }
-
-  /**
-   * Get connection statistics (alias for backwards compatibility)
-   */
-  getConnectionStatistics(): {
-    total: number;
-    active: number;
-    inactive: number;
-    withSSH: number;
-  } {
-    return this.getConnectionStats();
-  }
-
-  /**
-   * Create database list items with connection status
-   */
-  createDatabaseListItems(configs: Record<string, DatabaseConfig>): DatabaseListItem[] {
-    return Object.entries(configs).map(([dbName, config]) => ({
-      name: dbName,
-      type: config.type,
-      host: config.host || config.file,
-      database: config.database,
-      ssh_enabled: !!config.ssh_host,
-      ssl_enabled: config.ssl === true,
-      select_only_mode: config.select_only === true,
-      mcp_configurable: !!config.mcp_configurable,
-      schema_cached: false, // This will be determined by SchemaManager
-      schema_info: undefined, // This will be populated by SchemaManager
-    }));
   }
 
   // ============================================================================

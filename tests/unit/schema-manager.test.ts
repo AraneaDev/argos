@@ -46,7 +46,6 @@ const mockConnectionManager = {
   unregisterDatabase: jest.fn(),
   getDatabases: jest.fn(),
   isConnected: jest.fn(),
-  testConnection: jest.fn(),
   disconnect: jest.fn(),
   shutdown: jest.fn(),
 } as unknown as ConnectionManager;

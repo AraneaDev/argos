@@ -67,13 +67,7 @@ describe('SQLMCPServer Integration Tests', () => {
         initialize: jest.fn(),
         registerDatabase: jest.fn(),
         getConnection: jest.fn().mockResolvedValue({ id: 'mock-connection' }),
-        testConnection: jest.fn().mockResolvedValue({
-          success: true,
-          info: { database_version: 'Mock Database 1.0.0' },
-        }),
         closeAllConnections: jest.fn().mockResolvedValue(undefined),
-        hasDatabase: jest.fn().mockReturnValue(true),
-        getDatabaseNames: jest.fn().mockReturnValue(['primary', 'analytics']),
         executeQuery: jest.fn().mockResolvedValue({
           rows: [{ id: 1, name: 'test' }],
           rowCount: 1,
@@ -196,11 +190,7 @@ describe('SQLMCPServer Integration Tests', () => {
         initialize: jest.fn(),
         registerDatabase: jest.fn(),
         getConnection: jest.fn().mockResolvedValue({ id: 'mock-connection' }),
-        testConnection: jest.fn().mockResolvedValue({ success: true }),
-        closeAll: jest.fn().mockResolvedValue(undefined),
         closeAllConnections: jest.fn().mockResolvedValue(undefined),
-        hasDatabase: jest.fn().mockReturnValue(true),
-        getDatabaseNames: jest.fn().mockReturnValue(['primary']),
         getAdapter: jest.fn(),
         executeQuery: jest.fn().mockResolvedValue({
           rows: [
@@ -312,10 +302,7 @@ describe('SQLMCPServer Integration Tests', () => {
         initialize: jest.fn(),
         registerDatabase: jest.fn(),
         getConnection: jest.fn().mockRejectedValue(new Error('Connection failed')),
-        testConnection: jest.fn().mockResolvedValue({ success: false, error: 'Connection failed' }),
         closeAllConnections: jest.fn().mockResolvedValue(undefined),
-        hasDatabase: jest.fn().mockReturnValue(true),
-        getDatabaseNames: jest.fn().mockReturnValue(['primary']),
         executeQuery: jest
           .fn()
           .mockRejectedValue(new Error("No active connection found for database 'primary'")),
@@ -451,10 +438,7 @@ ssh_private_key=/home/user/.ssh/id_rsa
         initialize: jest.fn(),
         registerDatabase: jest.fn(),
         getConnection: jest.fn().mockResolvedValue({ id: 'mock-connection' }),
-        testConnection: jest.fn().mockResolvedValue({ success: true }),
         closeAllConnections: jest.fn().mockResolvedValue(undefined),
-        hasDatabase: jest.fn().mockReturnValue(true),
-        getDatabaseNames: jest.fn().mockReturnValue(['primary']),
         executeQuery: jest.fn().mockResolvedValue({
           rows: [{ id: 1 }],
           rowCount: 1,
@@ -587,8 +571,6 @@ ssh_private_key=/home/user/.ssh/id_rsa
         registerDatabase: jest.fn(),
         getConnection: jest.fn().mockResolvedValue({ id: 'mock' }),
         closeAllConnections: jest.fn().mockResolvedValue(undefined),
-        hasDatabase: jest.fn().mockReturnValue(true),
-        getDatabaseNames: jest.fn().mockReturnValue(['primary']),
       };
       (server as any).connectionManager = mockConnectionManager;
 
@@ -623,8 +605,6 @@ ssh_private_key=/home/user/.ssh/id_rsa
         registerDatabase: jest.fn(),
         getConnection: jest.fn().mockResolvedValue({ id: 'mock' }),
         closeAllConnections: jest.fn().mockResolvedValue(undefined),
-        hasDatabase: jest.fn().mockReturnValue(true),
-        getDatabaseNames: jest.fn().mockReturnValue(['primary']),
       };
       (server as any).connectionManager = mockConnectionManager;
 
@@ -657,8 +637,6 @@ ssh_private_key=/home/user/.ssh/id_rsa
         registerDatabase: jest.fn(),
         getConnection: jest.fn().mockRejectedValue(new Error('Connection failed')),
         closeAllConnections: jest.fn().mockResolvedValue(undefined),
-        hasDatabase: jest.fn().mockReturnValue(true),
-        getDatabaseNames: jest.fn().mockReturnValue(['primary']),
       };
       (server as any).connectionManager = mockConnectionManager;
 
@@ -708,7 +686,6 @@ ssh_private_key=/tmp/fake_key
         registerDatabase: jest.fn(),
         getConnection: jest.fn().mockResolvedValue({ id: 'mock' }),
         closeAllConnections: jest.fn().mockResolvedValue(undefined),
-        hasDatabase: jest.fn().mockReturnValue(true),
       };
       (sshServer as any).connectionManager = mockConnectionManager;
 
