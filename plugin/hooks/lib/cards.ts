@@ -55,9 +55,6 @@ export type Section = {
  */
 export const GLYPHS: Readonly<Record<string, string>> = CARD_ICON
 
-/** The cells a card's top edge spends on its frame, glyph and gaps beside the title and the note. */
-export const NOTE_ROOM = 12
-
 /** The frame's ink: the faintest theme key, so the cards order the pane without competing with it. */
 export const FRAME = FAINT
 /** The columns between two cards side by side. */

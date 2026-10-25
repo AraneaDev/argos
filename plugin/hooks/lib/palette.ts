@@ -30,11 +30,9 @@ export const SELECTED_BG = 'userMessageBackground'
 /** The ground a row changed by the latest scan is lit on for a moment: a cool tint, apart from the marked row's and the footer bar's. */
 export const FLASH_BG = 'memoryBackgroundColor'
 export const CHIP_BG = 'userMessageBackground'
-export const CARD_BG = 'userMessageBackground'
 export const ON_FILL = 'inverseText'
 
 export const STATUS_COLOURS = { ok: 'success', warn: 'warning', alert: 'error' } as const
-export type Tone = keyof typeof STATUS_COLOURS
 
 /** A card's title: the orange Claude Code marks itself with, so the cards read as part of the screen around them. */
 export const TITLE = 'claude'
@@ -76,15 +74,6 @@ export type Engine = keyof typeof ENGINE_COLOURS
 /** An engine's chip colour, or undefined for a name that is no engine (the chip is then drawn neutral). */
 export function engineColour(engine: string | null | undefined): string | undefined {
   return typeof engine === 'string' && Object.hasOwn(ENGINE_COLOURS, engine) ? ENGINE_COLOURS[engine as Engine] : undefined
-}
-
-/** Cool to hot, the order {@link heat} steps through. */
-const HEAT = [ACCENT, STATUS_COLOURS.ok, STATUS_COLOURS.warn, STATUS_COLOURS.alert] as const
-
-/** Bucket `bucket` of `of`, shaded cool to hot: the first in the accent, the last in the error colour. */
-export function heat(bucket: number, of: number): string {
-  if (of <= 1) return HEAT[0]
-  return HEAT[Math.round((Math.max(0, Math.min(bucket, of - 1)) * (HEAT.length - 1)) / (of - 1))]!
 }
 
 /**

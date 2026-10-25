@@ -6,14 +6,8 @@
 import { boundaryColour, boundaryLabel, FAINT, NO_HUES } from './palette'
 import type { Hues } from './palette'
 import { PLACE } from './marks'
-import { cells, fit } from './text'
+import { fit } from './text'
 import type { Segment } from './types'
-
-/** The colour a boundary's things are drawn in, or dim for none. */
-export const boundaryStyle = (boundary: string | null, hues: Hues = NO_HUES): Pick<Segment, 'color' | 'dim'> => {
-  const colour = boundaryColour(boundary, hues)
-  return colour ? { color: colour } : { dim: true }
-}
 
 /** The swatch a boundary chip starts with: one cell in the boundary's colour. */
 export const SWATCH = PLACE.swatch.glyph
@@ -30,6 +24,3 @@ export function chip(boundary: string | null, hues: Hues = NO_HUES, width = Numb
   const label = boundaryLabel(boundary, hues)
   return [{ text: SWATCH, color: colour ?? FAINT }, { text: ` ${fit(label, Math.max(0, width - 2))}`, ...tone }]
 }
-
-/** How many cells {@link chip} takes for `boundary` uncut: its swatch, a space and its label. */
-export const chipWidth = (boundary: string | null, hues: Hues = NO_HUES): number => (boundary === null ? 0 : 2 + cells(boundaryLabel(boundary, hues)))

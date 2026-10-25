@@ -6,7 +6,7 @@
  * self-fitting table is in `table.ts`, boundary chips in `chips.ts`.
  */
 import { ACCENT, SECONDARY, SELECTED_BG } from './palette'
-import { cells, fit, grouped, spaces } from './text'
+import { cells, fit, spaces } from './text'
 import type { Row, Segment } from './types'
 
 export const rowWidth = (row: Row): number => row.segments.reduce((n, s) => n + cells(s.text), 0)
@@ -128,19 +128,3 @@ export function wrapGroups(key: string, groups: Segment[][], columns: number, ga
 
 export const blank = (key: string): Row => ({ key, segments: [{ text: ' ' }] })
 export const dimRow = (key: string, text: string, columns: number): Row => ({ key, segments: [{ text: fit(text, columns), dim: true }] })
-
-/**
- * The `+N not listed` under a list that holds fewer than its count: none when
- * it holds them all. With a `kind` it says what was left out, its count in
- * groups of three: `+1,204 more hubs not listed`; `indent` is the cells
- * before the `+`.
- */
-export const notListedRow = (key: string, count: number, shown: number, columns: number, options: { kind?: string; indent?: number } = {}): Row[] => {
-  if (count <= shown) return []
-  const left = count - shown
-  const said = options.kind === undefined ? `+${left}` : `+${grouped(left)} more ${options.kind}`
-  return [dimRow(key, `${spaces(options.indent ?? 3)}${said} not listed`, columns)]
-}
-
-/** The marker's index in a list `length` long (`local`, its place counted from the list's first item), or -1 when it is not in the list. */
-export const inList = (local: number, length: number): number => (local >= 0 && local < length ? local : -1)

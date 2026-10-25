@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ACCENT, ENGINE_COLOURS, ENGINE_HUES, FAINT, HEADING, SECONDARY, STAT_HUES, STATUS_COLOURS, TITLE, boundaryColour, boundaryLabel, engineColour, heat } from './palette'
-import { THEMES } from './themes'
+import { ACCENT, ENGINE_COLOURS, ENGINE_HUES, FAINT, HEADING, SECONDARY, STAT_HUES, STATUS_COLOURS, TITLE, boundaryColour, boundaryLabel, engineColour } from './palette'
+import { THEMES } from './__tests__/themes'
 
 describe('engineColour', () => {
   it('gives each of the four engines a chip hue of its own, none a status colour', () => {
@@ -38,14 +38,6 @@ describe('theme keys', () => {
 describe('the livelier look', () => {
   it('titles cards in the orange Claude Code marks itself with', () => {
     expect(TITLE).toBe('claude')
-  })
-
-  it('shades buckets cool to hot: the first in the suggestion blue, the last in the error colour, never cooler further on', () => {
-    expect(heat(0, 5)).toBe(ACCENT)
-    expect(heat(4, 5)).toBe(STATUS_COLOURS.alert)
-    const order = [ACCENT, STATUS_COLOURS.ok, STATUS_COLOURS.warn, STATUS_COLOURS.alert]
-    for (let i = 1; i < 9; i++) expect(order.indexOf(heat(i, 9))).toBeGreaterThanOrEqual(order.indexOf(heat(i - 1, 9)))
-    expect(heat(0, 1)).toBe(ACCENT)
   })
 })
 
