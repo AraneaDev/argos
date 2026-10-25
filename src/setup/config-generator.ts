@@ -120,7 +120,7 @@ export class ConfigGenerator {
   ): GeneratedConfigFile {
     const now = new Date();
     const version = metadata?.version || '2.0.0';
-    const description = metadata?.description || 'Argos-MCP Configuration';
+    const description = metadata?.description || 'Argos Configuration';
 
     let content = '';
 
@@ -130,7 +130,7 @@ export class ConfigGenerator {
     content += `# Version: ${version}\n`;
     content += '#\n';
     content += '# This configuration file defines database connections and settings\n';
-    content += '# for the Argos-MCP.\n';
+    content += '# for Argos.\n';
     content += '#\n';
     content += '# Sections:\n';
     content += '# [database.*] - Database connection configurations\n';
@@ -210,7 +210,7 @@ export class ConfigGenerator {
 
     return this.generateConfigFile(sampleConfig, {
       version: '2.0.0',
-      description: 'Sample Argos-MCP Configuration',
+      description: 'Sample Argos Configuration',
       generated: new Date(),
     });
   }
@@ -227,15 +227,15 @@ export class ConfigGenerator {
     switch (templateType) {
       case 'production':
         config = this.createProductionTemplate();
-        description = 'Production-ready Argos-MCP Configuration Template';
+        description = 'Production-ready Argos Configuration Template';
         break;
       case 'development':
         config = this.createDevelopmentTemplate();
-        description = 'Development Argos-MCP Configuration Template';
+        description = 'Development Argos Configuration Template';
         break;
       case 'minimal':
         config = this.createMinimalTemplate();
-        description = 'Minimal Argos-MCP Configuration Template';
+        description = 'Minimal Argos Configuration Template';
         break;
     }
 

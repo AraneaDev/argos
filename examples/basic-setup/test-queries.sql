@@ -1,4 +1,4 @@
--- Sample Test Queries for Argos-MCP
+-- Sample Test Queries for Argos
 -- Use these queries to test your database connections and functionality
 
 -- =============================================================================

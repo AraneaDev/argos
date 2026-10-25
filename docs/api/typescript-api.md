@@ -1,6 +1,6 @@
 # TypeScript API Reference
 
-This document provides comprehensive TypeScript API documentation for the Argos-MCP. It covers all interfaces, types, classes, and functions available for developers working with or extending the server.
+This document provides comprehensive TypeScript API documentation for the Argos. It covers all interfaces, types, classes, and functions available for developers working with or extending the server.
 
 ## What this covers
 
@@ -739,7 +739,7 @@ Server and protocol version constants.
 ```typescript
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 export const SERVER_VERSION = '2.3.1';
-export const SERVER_NAME = 'argos-mcp';
+export const SERVER_NAME = 'argos';
 ```
 
 ### Enum Arrays
@@ -899,7 +899,7 @@ async function handleDatabaseOperation() {
  console.log('Connection error:', error.message);
  console.log('Database:', error.details?.database);
  } else if (error instanceof SQLMCPError) {
- console.log('Argos-MCP Error:', error.code, error.message);
+ console.log('Argos Error:', error.code, error.message);
  } else {
  console.log('Unknown error:', error);
  }
@@ -907,4 +907,4 @@ async function handleDatabaseOperation() {
 }
 ```
 
-This comprehensive TypeScript API reference provides developers with all the types, interfaces, and classes needed to work with or extend the Argos-MCP effectively.
+This comprehensive TypeScript API reference provides developers with all the types, interfaces, and classes needed to work with or extend the Argos effectively.

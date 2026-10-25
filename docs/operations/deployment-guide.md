@@ -1,4 +1,4 @@
-# Argos-MCP Deployment Guide
+# Argos Deployment Guide
 
 ## What deploying this means
 
@@ -19,15 +19,16 @@ connects to whatever endpoint you point it at.
 ## Installing
 
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git /opt/argos
+git clone https://github.com/AraneaDev/argos.git /opt/argos
 cd /opt/argos
 npm ci
 npm run build
 ```
 
 `npm run build` type-checks first, so a build that succeeds has already been
-type-checked. It produces `dist/index.js` (the server) and `dist/setup.js` (the
-configuration wizard), both executable.
+type-checked. It produces `dist/cli.js`, the `argos` command (`argos serve` for the server,
+`argos setup` for the configuration wizard), plus the deprecated `argos-mcp` and
+`argos-setup` aliases, all executable.
 
 ## Configuration
 
@@ -57,7 +58,7 @@ reading a configuration you forgot was there.
 
 ```bash
 claude mcp add argos --scope user -- \
-  node /opt/argos/dist/index.js --config "$HOME/.config/argos/config.ini"
+  node /opt/argos/dist/cli.js serve --config "$HOME/.config/argos/config.ini"
 ```
 
 Confirm it connected:
@@ -76,8 +77,8 @@ databases. Keep environments apart by registering them separately rather than by
 switching a flag:
 
 ```bash
-claude mcp add argos-staging    --scope user -- node /opt/argos/dist/index.js --config /etc/argos/staging.ini
-claude mcp add argos-production --scope user -- node /opt/argos/dist/index.js --config /etc/argos/production.ini
+claude mcp add argos-staging    --scope user -- node /opt/argos/dist/cli.js serve --config /etc/argos/staging.ini
+claude mcp add argos-production --scope user -- node /opt/argos/dist/cli.js serve --config /etc/argos/production.ini
 ```
 
 Each appears under its own name, so a query addressed to one cannot reach the
@@ -131,7 +132,7 @@ To roll back, check out the previous tag and rebuild.
 |------|-----|
 | `config.ini` | Credentials and security settings. Not reproducible. |
 | SSH private keys it references | Same. |
-| `~/.argos-mcp/audit/` | Query history, if you are keeping it for review. |
+| `~/.argos/audit/` | Query history, if you are keeping it for review. |
 
 The schema cache under `schemas/` is derived and rebuilds itself on demand.
 `dist/` is a build artefact.
@@ -140,7 +141,7 @@ The schema cache under `schemas/` is derived and rebuilds itself on demand.
 
 ```bash
 # The build produced both entry points
-test -x /opt/argos/dist/index.js && test -f /opt/argos/dist/setup.js && echo ok
+test -x /opt/argos/dist/cli.js && echo ok
 
 # The configuration is owner-only
 stat -c '%a %n' ~/.config/argos/config.ini   # expect 600
@@ -151,11 +152,11 @@ claude mcp list
 
 Then ask the model to run `sql_list_databases`, and `sql_test_connection` for
 each database. A failure there names the database and the reason, and the detail
-is in `argos-mcp.log`.
+is in `argos.log`.
 
 ## Troubleshooting a deployment
 
-Startup problems surface in `argos-mcp.log` in the process's working directory,
+Startup problems surface in `argos.log` in the process's working directory,
 not on the console: stdout is the JSON-RPC channel, so the server never writes
 diagnostics there.
 

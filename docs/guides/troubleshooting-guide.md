@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-This comprehensive guide helps you diagnose and resolve common issues with the Argos-MCP.
+This comprehensive guide helps you diagnose and resolve common issues with the Argos.
 
 ## Quick Diagnostic Checklist
 
@@ -17,14 +17,14 @@ This comprehensive guide helps you diagnose and resolve common issues with the A
 npm start
 
 # View recent log entries
-tail -f argos-mcp.log
+tail -f argos.log
 
 # Check for specific error patterns
-grep -i error argos-mcp.log
+grep -i error argos.log
 ```
 
 The server never logs to the console: stdout carries the JSON-RPC stream, and
-anything written there breaks the protocol. `argos-mcp.log` in the repository
+anything written there breaks the protocol. `argos.log` in the repository
 root is the only place its own output goes.
 
 ## Server Startup Issues
@@ -360,7 +360,7 @@ Claude Code shows no SQL-related tools available
  "mcpServers": {
  "sql-database": {
  "command": "node",
- "args": ["/absolute/path/to/your/Argos-MCP/dist/index.js"],
+ "args": ["/absolute/path/to/your/argos/dist/cli.js", "serve"],
  "env": {}
  }
  }
@@ -370,8 +370,8 @@ Claude Code shows no SQL-related tools available
 2. **Verify absolute paths**:
  ```bash
  # Get absolute path to your installation
- pwd # From your Argos-MCP directory
- ls -la dist/index.js # Verify file exists
+ pwd # From your Argos directory
+ ls -la dist/cli.js # Verify file exists
  ```
 
 3. **Check if server is running**:
@@ -393,7 +393,7 @@ Claude Code error: "Failed to connect to MCP server"
  # Server should start and show:
  npm start
  # Expected output:
- # Argos-MCP running on stdio
+ # Argos running on stdio
  # Connection established: database_name
  ```
 
@@ -405,7 +405,7 @@ Claude Code error: "Failed to connect to MCP server"
 
 3. **Check file permissions**:
  ```bash
- chmod +x dist/index.js
+ chmod +x dist/cli.js
  ```
 
 ### Issue: Tools appear but queries fail
@@ -545,7 +545,7 @@ Server consuming excessive memory
 2. **Monitor query patterns**:
  ```bash
  # Check for queries returning large datasets
- grep "rows returned" argos-mcp.log
+ grep "rows returned" argos.log
  ```
 
 ## Security Issues
@@ -611,18 +611,18 @@ Server consuming excessive memory
 ### Enable Debug Logging
 
 There is no general verbosity switch: the server logs at INFO to
-`argos-mcp.log`, and that file is already the full picture of what it did.
+`argos.log`, and that file is already the full picture of what it did.
 
 One extra trace is available, for the SSH handshake — algorithm negotiation,
 host-key exchange and authentication steps. It is off by default because it is
 verbose:
 
 ```bash
-# Adds the ssh2 handshake trace to argos-mcp.log, prefixed [DEBUG]
+# Adds the ssh2 handshake trace to argos.log, prefixed [DEBUG]
 SSH_DEBUG=true npm start
 
 # Then read it back
-grep '\[DEBUG\]' argos-mcp.log
+grep '\[DEBUG\]' argos.log
 ```
 
 Do not pipe the server's stdout to a file: that stream is the JSON-RPC channel,
@@ -655,17 +655,17 @@ When reporting issues, include:
 4. **Steps to reproduce** the issue
 
 ### Common Log Locations
-- **Server log**: `./argos-mcp.log` in the repository root, owner-readable only
-- **Previous run**: `./argos-mcp.log.1` — the log is rotated on every start, so
+- **Server log**: `./argos.log` in the repository root, owner-readable only
+- **Previous run**: `./argos.log.1` — the log is rotated on every start, so
   the run before the current one is still there
 - **Setup wizard**: `./setup.log`
-- **Audit records**: `~/.argos-mcp/audit/<database>.log`, one line per query with
+- **Audit records**: `~/.argos/audit/<database>.log`, one line per query with
   a hash of the SQL rather than the SQL itself. Installations upgraded from a
   pre-rebrand version will find their earlier records in `~/.sql-ts/audit`.
 
 ### Community Support
-- **GitHub Issues**: [Report bugs and issues](https://github.com/AraneaDev/Argos-MCP/issues)
-- **GitHub Discussions**: [Ask questions and get help](https://github.com/AraneaDev/Argos-MCP/discussions)
+- **GitHub Issues**: [Report bugs and issues](https://github.com/AraneaDev/argos/issues)
+- **GitHub Discussions**: [Ask questions and get help](https://github.com/AraneaDev/argos/discussions)
 - **Documentation**: [Browse all documentation](../README.md)
 
 ---

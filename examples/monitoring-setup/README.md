@@ -1,6 +1,6 @@
 # Monitoring and Observability Setup
 
-This directory contains comprehensive examples for monitoring, logging, and observability of Argos-MCP deployments. Learn how to set up production-grade monitoring, alerting, and performance tracking.
+This directory contains comprehensive examples for monitoring, logging, and observability of Argos deployments. Learn how to set up production-grade monitoring, alerting, and performance tracking.
 
 ## Directory Structure
 
@@ -9,7 +9,7 @@ monitoring-setup/
 |-- README.md # This file
 |-- prometheus/ # Prometheus monitoring setup
 | |-- prometheus.yml # Prometheus configuration
-| |-- argos-mcp-rules.yml # Alerting rules
+| |-- argos-rules.yml # Alerting rules
 | |-- docker-compose.yml # Prometheus stack
 | \-- README.md # Prometheus setup guide
 |-- grafana/ # Grafana dashboards and config
@@ -46,7 +46,7 @@ monitoring-setup/
 |-- kubernetes-monitoring/ # Kubernetes monitoring manifests
 | |-- prometheus-operator.yml # Prometheus operator setup
 | |-- grafana-deployment.yml # Grafana deployment
-| |-- service-monitor.yml # Argos-MCP monitoring
+| |-- service-monitor.yml # Argos monitoring
 | \-- README.md # Kubernetes monitoring guide
 \-- troubleshooting.md # Monitoring troubleshooting guide
 ```
@@ -122,7 +122,7 @@ node health-checks/monitoring-agent.js
 - Prometheus server for metrics storage
 - Alertmanager for alert routing
 - Node Exporter for system metrics
-- Custom exporters for Argos-MCP metrics
+- Custom exporters for Argos metrics
 
 **Key Metrics**:
 ```
@@ -176,7 +176,7 @@ global:
  evaluation_interval: 15s
 
 scrape_configs:
- - job_name: 'argos-mcp'
+ - job_name: 'argos'
  static_configs:
  - targets: ['localhost:3001']
  metrics_path: '/metrics'
@@ -208,7 +208,7 @@ const logger = winston.createLogger({
  winston.format.errors({ stack: true }),
  winston.format.json()
  ),
- defaultMeta: { service: 'argos-mcp' },
+ defaultMeta: { service: 'argos' },
  transports: [
  new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
  new winston.transports.File({ filename: 'logs/combined.log' }),
@@ -312,10 +312,10 @@ const logger = winston.createLogger({
 3. Check resource utilization trends
 4. Review recent configuration changes
 
-## Integration with Argos-MCP
+## Integration with Argos
 
 ### Built-in Monitoring Support
-Argos-MCP includes built-in monitoring capabilities:
+Argos includes built-in monitoring capabilities:
 
 ```javascript
 // Enable metrics endpoint

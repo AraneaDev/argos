@@ -68,7 +68,7 @@ import path from 'path';
 import { tmpdir } from 'os';
 
 // Ensure temp directory exists for test files
-const testTempDir = path.join(tmpdir(), 'argos-mcp-tests');
+const testTempDir = path.join(tmpdir(), 'argos-tests');
 if (!fs.existsSync(testTempDir)) {
   fs.mkdirSync(testTempDir, { recursive: true });
 }

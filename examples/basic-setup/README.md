@@ -1,6 +1,6 @@
 # Basic Setup Examples
 
-This directory contains simple, minimal examples for getting started with Argos-MCP quickly. These examples are perfect for new users who want to get up and running in minutes.
+This directory contains simple, minimal examples for getting started with Argos quickly. These examples are perfect for new users who want to get up and running in minutes.
 
 ## Directory Structure
 
@@ -110,7 +110,7 @@ After getting basic setup working:
 
 - **Documentation**: [docs/README.md](../../docs/README.md)
 - **Troubleshooting**: [docs/guides/troubleshooting-guide.md](../../docs/guides/troubleshooting-guide.md)
-- **Issues**: [GitHub Issues](https://github.com/AraneaDev/Argos-MCP/issues)
+- **Issues**: [GitHub Issues](https://github.com/AraneaDev/argos/issues)
 
 ## File Descriptions
 

@@ -1,7 +1,7 @@
 /**
  * Database Adapter Template
  * 
- * Use this template to create custom database adapters for Argos-MCP.
+ * Use this template to create custom database adapters for Argos.
  * Replace all instances of "Template" with your database name.
  * 
  * Example: TemplateAdapter -> OracleAdapter, RedisAdapter, etc.

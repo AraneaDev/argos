@@ -319,8 +319,8 @@ This will log:
 
 Check specific port availability:
 ```bash
-# Using the Argos-MCP tools (if available)
-argos-mcp --check-port 3307
+# Using the Argos tools (if available)
+argos serve --check-port 3307
 
 # Using system tools
 netstat -tulpn | grep :3307

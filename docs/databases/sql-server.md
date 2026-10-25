@@ -1,10 +1,10 @@
 # SQL Server Database Configuration Guide
 
-This guide covers Microsoft SQL Server setup, configuration, and optimization for the Argos-MCP.
+This guide covers Microsoft SQL Server setup, configuration, and optimization for the Argos.
 
 ## Overview
 
-The Argos-MCP provides comprehensive SQL Server support through the `mssql` driver, offering enterprise-grade connectivity, connection pooling, and advanced features for Microsoft SQL Server environments.
+The Argos provides comprehensive SQL Server support through the `mssql` driver, offering enterprise-grade connectivity, connection pooling, and advanced features for Microsoft SQL Server environments.
 
 **Supported Versions:**
 - SQL Server 2016, 2017, 2019, 2022

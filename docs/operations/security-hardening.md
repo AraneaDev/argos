@@ -1,10 +1,10 @@
 # Security Hardening Guide
 
-This guide provides comprehensive security recommendations for deploying the Argos-MCP in production environments. Follow these guidelines to ensure your deployment is secure and resilient against threats.
+This guide provides comprehensive security recommendations for deploying the Argos in production environments. Follow these guidelines to ensure your deployment is secure and resilient against threats.
 
 ## Security Architecture Overview
 
-The Argos-MCP implements defense-in-depth security with multiple layers:
+The Argos implements defense-in-depth security with multiple layers:
 
 1. **Network Security** - Encrypted connections and network isolation
 2. **Authentication & Authorization** - Database user permissions and access control
@@ -207,21 +207,21 @@ chmod 600 config.ini
 chown app_user:app_group config.ini
 
 # Create secure directory structure
-sudo mkdir -p /opt/argos-mcp/{config,logs,keys}
-sudo chown -R app_user:app_group /opt/argos-mcp
-sudo chmod 750 /opt/argos-mcp
-sudo chmod 700 /opt/argos-mcp/keys
+sudo mkdir -p /opt/argos/{config,logs,keys}
+sudo chown -R app_user:app_group /opt/argos
+sudo chmod 750 /opt/argos
+sudo chmod 700 /opt/argos/keys
 ```
 
 #### 2. SSH Key Security
 ```bash
 # Generate dedicated SSH key for the service
-ssh-keygen -t ed25519 -f /opt/argos-mcp/keys/tunnel_key -C "claude-mcp-tunnel"
+ssh-keygen -t ed25519 -f /opt/argos/keys/tunnel_key -C "claude-mcp-tunnel"
 
 # Set secure permissions
-chmod 600 /opt/argos-mcp/keys/tunnel_key
-chmod 644 /opt/argos-mcp/keys/tunnel_key.pub
-chown app_user:app_group /opt/argos-mcp/keys/*
+chmod 600 /opt/argos/keys/tunnel_key
+chmod 644 /opt/argos/keys/tunnel_key.pub
+chown app_user:app_group /opt/argos/keys/*
 
 # Add public key to bastion host
 # On bastion host:
@@ -310,8 +310,8 @@ writes to two places, both created owner-only:
 
 | What | Where | Mode |
 |------|-------|------|
-| Server log | `argos-mcp.log` in the install directory, previous run rotated to `argos-mcp.log.1` | `0600` |
-| Audit records | `~/.argos-mcp/audit/<database>.log` | `0600` in a `0700` directory |
+| Server log | `argos.log` in the install directory, previous run rotated to `argos.log.1` | `0600` |
+| Audit records | `~/.argos/audit/<database>.log` | `0600` in a `0700` directory |
 
 Each audit line carries a timestamp, the database, a hash of the statement, the
 duration and the outcome. The SQL itself is never written, so the file records
@@ -322,8 +322,8 @@ anything else there breaks the protocol.
 
 ```bash
 # Confirm the permissions are what they should be
-ls -l argos-mcp.log
-ls -ld ~/.argos-mcp/audit
+ls -l argos.log
+ls -ld ~/.argos/audit
 ```
 
 #### 2. Database Query Logging
@@ -440,7 +440,7 @@ netstat -an > /secure/incident-logs/network.txt
 ```bash
 # Rotate credentials
 # Generate new SSH keys
-ssh-keygen -t ed25519 -f /opt/argos-mcp/keys/tunnel_key_new
+ssh-keygen -t ed25519 -f /opt/argos/keys/tunnel_key_new
 
 # Change database passwords
 ALTER USER claude_readonly WITH PASSWORD 'NewSecurePassword123!@#';
@@ -537,7 +537,7 @@ npm audit fix
 - Query logging and monitoring
 - Regular access review
 
-By following these security hardening guidelines, you can significantly reduce the attack surface and improve the security posture of your Argos-MCP deployment. Remember that security is an ongoing process that requires regular maintenance, monitoring, and updates.
+By following these security hardening guidelines, you can significantly reduce the attack surface and improve the security posture of your Argos deployment. Remember that security is an ongoing process that requires regular maintenance, monitoring, and updates.
 
 ---
 

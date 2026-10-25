@@ -1,6 +1,6 @@
-# Argos-MCP Documentation Hub
+# Argos Documentation Hub
 
-Welcome to the comprehensive documentation for the Argos-MCP - a high-performance, secure TypeScript implementation for connecting Claude Code to your databases.
+Welcome to the comprehensive documentation for the Argos - a high-performance, secure TypeScript implementation for connecting Claude Code to your databases.
 
 ## Documentation Map
 

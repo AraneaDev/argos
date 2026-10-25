@@ -1,6 +1,6 @@
 # JSON Schemas Reference
 
-This document provides comprehensive JSON schema definitions for all request and response formats used in the Argos-MCP.
+This document provides comprehensive JSON schema definitions for all request and response formats used in the Argos.
 
 ## Table of Contents
 
@@ -1207,4 +1207,4 @@ describe('MCP Request Validation', () => {
 });
 ```
 
-This comprehensive JSON schema reference ensures consistent data structures and enables robust validation throughout the Argos-MCP ecosystem.
+This comprehensive JSON schema reference ensures consistent data structures and enables robust validation throughout the Argos ecosystem.

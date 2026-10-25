@@ -1,18 +1,18 @@
 <div align="center">
 
-# Argos-MCP
+# Argos
 
 **A hundred eyes on your databases, and none of them blink.**
 
-[![Release](https://img.shields.io/github/v/release/AraneaDev/Argos-MCP?label=release)](https://github.com/AraneaDev/Argos-MCP/releases)
+[![Release](https://img.shields.io/github/v/release/AraneaDev/argos?label=release)](https://github.com/AraneaDev/argos/releases)
 [![Tool page](https://img.shields.io/badge/tool%20page-aranea--development.nl-0b7285)](https://aranea-development.nl/en/tools/argos-mcp)
-[![CI](https://img.shields.io/github/actions/workflow/status/AraneaDev/Argos-MCP/ci.yml?label=CI)](https://github.com/AraneaDev/Argos-MCP/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FAraneaDev%2FArgos-MCP%2Fgh-pages%2Fcoverage.json)](https://github.com/AraneaDev/Argos-MCP/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/AraneaDev/Argos-MCP?label=license&color=yellow)](./LICENSE)
-[![Language](https://img.shields.io/github/languages/top/AraneaDev/Argos-MCP)](https://github.com/AraneaDev/Argos-MCP)
-[![Last commit](https://img.shields.io/github/last-commit/AraneaDev/Argos-MCP?label=last%20commit)](https://github.com/AraneaDev/Argos-MCP/commits/main)
+[![CI](https://img.shields.io/github/actions/workflow/status/AraneaDev/argos/ci.yml?label=CI)](https://github.com/AraneaDev/argos/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FAraneaDev%2Fargos%2Fgh-pages%2Fcoverage.json)](https://github.com/AraneaDev/argos/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/AraneaDev/argos?label=license&color=yellow)](./LICENSE)
+[![Language](https://img.shields.io/github/languages/top/AraneaDev/argos)](https://github.com/AraneaDev/argos)
+[![Last commit](https://img.shields.io/github/last-commit/AraneaDev/argos?label=last%20commit)](https://github.com/AraneaDev/argos/commits/main)
 [![Conventional Commits](https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/)
-[![MCP Observatory](https://mcpobservatory.com/servers/github:AraneaDev/Argos-MCP/badge.svg)](https://mcpobservatory.com/servers/github:AraneaDev/Argos-MCP/security)
+[![MCP Observatory](https://mcpobservatory.com/servers/github:AraneaDev/argos/badge.svg)](https://mcpobservatory.com/servers/github:AraneaDev/argos/security)
 [![Status](https://img.shields.io/badge/status-in%20development-orange)](#quick-start)
 
 </div>
@@ -21,22 +21,22 @@
 > Hera to guard Io. Only some of his eyes slept at a time, so he was never fully asleep and
 > nothing passed him unseen. *Panoptes* means "all-seeing".
 
-**TL;DR:** Argos-MCP lets Claude Code query PostgreSQL, MySQL, SQLite, and SQL Server through
+**TL;DR:** Argos lets Claude Code query PostgreSQL, MySQL, SQLite, and SQL Server through
 one MCP server. It routes each request through validation, access controls, connection adapters,
 and an audit record before it reaches the database.
 
 The result is multi-database access with strong security defaults, per-query auditing, and
 support for SSH tunnels. Every query is watched, and nothing reaches your data unlogged.
 
-> **Status:** pre-release. Argos-MCP is **not yet published to npm**, and the publish step in
+> **Status:** pre-release. Argos is **not yet published to npm**, and the publish step in
 > the release workflow is deliberately dormant. The source is public on
-> [GitHub](https://github.com/AraneaDev/Argos-MCP), so install from source (see
+> [GitHub](https://github.com/AraneaDev/argos), so install from source (see
 > [Quick start](#quick-start)). Any `npm install -g argos-mcp` command you find elsewhere will
 > not resolve yet.
 
 ---
 
-## Why Argos-MCP?
+## Why Argos?
 
 ### **Security First**
 - **SELECT-Only Mode** - Production-safe read-only database access
@@ -72,8 +72,8 @@ and a completed `az login`; nothing else does.
 
 ### 1. Build
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git
-cd Argos-MCP
+git clone https://github.com/AraneaDev/argos.git
+cd Argos
 npm install
 npm run build
 ```
@@ -87,7 +87,7 @@ Interactive wizard for adding database connections, security settings, and SSH t
 ### 3. Register with Claude Code
 ```bash
 claude mcp add argos --scope user -- \
-  node "$(pwd)/dist/index.js" --config "$HOME/.config/argos/config.ini"
+  node "$(pwd)/dist/cli.js" serve --config "$HOME/.config/argos/config.ini"
 ```
 
 Scopes:
@@ -319,7 +319,7 @@ evidence that such a regime asks for:
 
 ## Dynamic database management
 
-Argos-MCP supports runtime database management through dedicated MCP tools. This allows you to add, update, and remove database connections without restarting the server.
+Argos supports runtime database management through dedicated MCP tools. This allows you to add, update, and remove database connections without restarting the server.
 
 ### Available MCP Tools
 
@@ -356,17 +356,40 @@ execution plan with dialect-specific advice when something is slow.
 
 | Command | Description |
 |---------|-------------|
-| `argos-mcp` | Start the Argos MCP server on stdio (this is what Claude Code invokes) |
-| `argos-setup` | Run the interactive configuration wizard |
+| `argos serve` | Start the Argos MCP server on stdio (this is what Claude Code invokes) |
+| `argos setup` | Run the interactive configuration wizard |
+| `argos help` | Show usage (also what plain `argos` does) |
+| `argos version` | Show the version |
 
-Both are exposed as `bin` entries, so `npm link` (or a global install) makes them available on your `PATH`. Registration with Claude Code is handled by `claude mcp add`, see [Quick start](#quick-start).
+`argos` is exposed as a `bin` entry, so `npm link` (or a global install) puts it on your `PATH`. Registration with Claude Code is handled by `claude mcp add`, see [Quick start](#quick-start).
+
+### Migrating from Argos-MCP
+
+The project was renamed from Argos-MCP to Argos. If you set it up before the rename:
+
+- **Claude Code registration:** re-register under the new name so the tools appear as
+  `mcp__argos__*`:
+
+  ```bash
+  claude mcp remove argos-mcp   # whatever name you registered it under
+  claude mcp add argos --scope user -- \
+    node /abs/path/to/argos/dist/cli.js serve --config /abs/path/config.ini
+  ```
+
+- **Commands:** `argos-mcp` is now `argos serve`, and `argos-setup` is now `argos setup`.
+  The old names still work for one release and print a deprecation notice to stderr.
+- **Audit logs** are now written to `~/.argos/audit/`. Earlier logs stay in
+  `~/.argos-mcp/audit/`; move them over if you want one trail.
+- **Server log** is now `argos.log` (was `argos-mcp.log`).
+- **Repository:** `AraneaDev/Argos-MCP` is now `AraneaDev/argos`; GitHub redirects the old URL,
+  but update your remote with `git remote set-url origin https://github.com/AraneaDev/argos.git`.
 
 ## Development
 
 ### Development Setup
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git
-cd Argos-MCP
+git clone https://github.com/AraneaDev/argos.git
+cd Argos
 npm install
 npm run dev
 npm test

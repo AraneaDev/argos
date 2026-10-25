@@ -2,7 +2,7 @@
 
 ## Overview
 
-This advanced tutorial demonstrates how to configure and manage multiple database connections within a single Argos-MCP instance. You'll learn advanced connection patterns, cross-database queries, data federation strategies, and performance optimization techniques for multi-database environments.
+This advanced tutorial demonstrates how to configure and manage multiple database connections within a single Argos instance. You'll learn advanced connection patterns, cross-database queries, data federation strategies, and performance optimization techniques for multi-database environments.
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ This advanced tutorial demonstrates how to configure and manage multiple databas
 +-------------------------------------------------------------------+
 |                                                                   |
 |  +--------------+  +--------------------------------------+       |
-|  | Claude       |----| Argos-MCP                     |       |
+|  | Claude       |----| Argos                     |       |
 |  |              |  | (Single Instance)                    |       |
 |  +--------------+  +--------------------------------------+       |
 |                              |                                    |
@@ -344,7 +344,7 @@ VALUES (12345, 15, 2450.75, 163.38, datetime('now'));
 
 ### 1. Connection Pooling
 
-The Argos-MCP manages connection pooling internally to optimize database resource utilization and ensure rapid response times:
+The Argos manages connection pooling internally to optimize database resource utilization and ensure rapid response times:
 - **PostgreSQL**: Utilizes `pg.Pool` with an automatic pool size of 10 concurrent connections.
 - **MySQL**: Managed via `mysql2.createPool` for efficient connection reuse.
 - **SQLite**: Single file access handles concurrency natively.
@@ -708,4 +708,4 @@ After mastering multi-database configuration:
 
 ---
 
-*This tutorial is part of the Argos-MCP Advanced Configuration Series. For questions or feedback, please refer to our [community discussions](https://github.com/AraneaDev/Argos-MCP/discussions).*
+*This tutorial is part of the Argos Advanced Configuration Series. For questions or feedback, please refer to our [community discussions](https://github.com/AraneaDev/argos/discussions).*

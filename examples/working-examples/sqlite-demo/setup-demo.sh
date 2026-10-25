@@ -161,7 +161,7 @@ cat > register-with-claude.sh << EOF
 # Remove it again with: claude mcp remove argos-demo
 set -eu
 claude mcp add argos-demo -- \\
-  node "$REPO_ROOT/dist/index.js" --config "$(pwd)/config.ini"
+  node "$REPO_ROOT/dist/cli.js" serve --config "$(pwd)/config.ini"
 EOF
 chmod +x register-with-claude.sh
 

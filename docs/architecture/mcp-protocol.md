@@ -1,6 +1,6 @@
 # MCP Protocol Implementation
 
-This document details how the Argos-MCP implements the Model Context Protocol (MCP) for seamless integration with Claude Code and other MCP-compatible clients.
+This document details how the Argos implements the Model Context Protocol (MCP) for seamless integration with Claude Code and other MCP-compatible clients.
 
 ## Table of Contents
 
@@ -36,7 +36,7 @@ The Model Context Protocol (MCP) is a standardized protocol that enables AI assi
 ## Protocol Implementation
 
 ### Server Architecture
-The Argos-MCP implements the complete MCP specification:
+The Argos implements the complete MCP specification:
 
 ```mermaid
 graph TB

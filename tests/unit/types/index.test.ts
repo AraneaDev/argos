@@ -57,7 +57,7 @@ describe('types/index.ts constants', () => {
   it('should export version constants', () => {
     expect(MCP_PROTOCOL_VERSION).toBe('2025-06-18');
     expect(typeof SERVER_VERSION).toBe('string');
-    expect(SERVER_NAME).toBe('argos-mcp');
+    expect(SERVER_NAME).toBe('argos');
   });
 
   it('should export DATABASE_TYPES array', () => {

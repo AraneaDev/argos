@@ -1,5 +1,5 @@
 /**
- * Enhanced logging utilities for Argos-MCP
+ * Enhanced logging utilities for Argos
  */
 import { createWriteStream, existsSync, unlinkSync, renameSync, chmodSync } from 'fs';
 import { dirname, join, resolve } from 'path';
@@ -105,7 +105,7 @@ export class Logger {
       // Both entry points pass this explicitly; the default only applies to a
       // Logger built without one, and it names the same file so that never
       // produces a second log under an older name.
-      logFile: join(PROJECT_ROOT, 'argos-mcp.log'),
+      logFile: join(PROJECT_ROOT, 'argos.log'),
       enableConsole: true,
       enableFile: true,
       rotateOnStart: true,

@@ -14,8 +14,8 @@ create or manage any.
 ## Getting it running
 
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git
-cd Argos-MCP
+git clone https://github.com/AraneaDev/argos.git
+cd Argos
 npm install
 npm run build
 ```
@@ -49,16 +49,16 @@ query_timeout=30000
 Run the server against it:
 
 ```bash
-node dist/index.js --config ./config.ini
+node dist/cli.js serve --config ./config.ini
 ```
 
-It waits for JSON-RPC on stdin and logs to `argos-mcp.log`. It will look idle,
+It waits for JSON-RPC on stdin and logs to `argos.log`. It will look idle,
 because it is: the client drives it. `Ctrl+C` to stop.
 
 To exercise it the way a client does, register the local build:
 
 ```bash
-claude mcp add argos-dev -- node "$(pwd)/dist/index.js" --config "$(pwd)/config.ini"
+claude mcp add argos-dev -- node "$(pwd)/dist/cli.js" serve --config "$(pwd)/config.ini"
 ```
 
 ## The scripts you will use
@@ -100,12 +100,12 @@ separately because a squash merge takes the title as the commit subject.
 ## Debugging
 
 The server never writes to stdout: that stream carries JSON-RPC, and anything
-else on it breaks the client. Everything goes to `argos-mcp.log`, rotated to
-`argos-mcp.log.1` on each start.
+else on it breaks the client. Everything goes to `argos.log`, rotated to
+`argos.log.1` on each start.
 
 ```bash
-tail -f argos-mcp.log
-grep -E '\[(ERROR|CRITICAL)\]' argos-mcp.log
+tail -f argos.log
+grep -E '\[(ERROR|CRITICAL)\]' argos.log
 ```
 
 `SSH_DEBUG=true` adds the ssh2 handshake trace to the same file. There is no

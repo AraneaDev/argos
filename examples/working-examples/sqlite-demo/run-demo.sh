@@ -3,7 +3,7 @@
 
 set -e  # Exit on any error
 
-echo "[START] Starting Argos-MCP SQLite Demo"
+echo "[START] Starting Argos SQLite Demo"
 echo "====================================="
 
 # Check prerequisites
@@ -31,7 +31,7 @@ echo "2. Setting up demo database..."
 ./setup-demo.sh
 
 # Start the server
-echo "3. Starting Argos-MCP..."
+echo "3. Starting Argos..."
 ./start-server.sh
 
 # Give server time to start
@@ -61,7 +61,7 @@ echo "================================"
 echo ""
 echo "[INFO] What was demonstrated:"
 echo "  [OK] SQLite database with sample data"
-echo "  [OK] Argos-MCP configuration"
+echo "  [OK] Argos configuration"
 echo "  [OK] MCP protocol communication"
 echo "  [OK] Query execution and results"
 echo "  [OK] Error handling"
@@ -73,4 +73,4 @@ echo "  2. Register the demo with Claude Code: ./register-with-claude.sh"
 echo "  3. Explore the configuration options"
 echo "  4. Read the documentation"
 echo ""
-echo "[DOCS] Documentation: https://github.com/AraneaDev/Argos-MCP/tree/main/docs"
+echo "[DOCS] Documentation: https://github.com/AraneaDev/argos/tree/main/docs"

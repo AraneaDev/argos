@@ -1,6 +1,6 @@
 /**
  * Centralized Error Handling Utilities
- * Provides consistent error handling and reporting across the Argos-MCP
+ * Provides consistent error handling and reporting across Argos
  */
 
 import type { Logger } from './logger.js';

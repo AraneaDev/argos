@@ -1,10 +1,10 @@
 # Claude Code Integration Tutorial
 
-This tutorial shows you how to register Argos-MCP with Claude Code, enabling Claude to query your databases directly.
+This tutorial shows you how to register Argos with Claude Code, enabling Claude to query your databases directly.
 
 ## Overview
 
-Claude Code connects to MCP (Model Context Protocol) servers to extend Claude's capabilities. Argos-MCP acts as a bridge between Claude and your databases, allowing Claude to:
+Claude Code connects to MCP (Model Context Protocol) servers to extend Claude's capabilities. Argos acts as a bridge between Claude and your databases, allowing Claude to:
 
 - Query your databases safely with built-in security validation
 - Analyze data and generate insights
@@ -15,14 +15,14 @@ Claude Code connects to MCP (Model Context Protocol) servers to extend Claude's 
 
 Before starting this tutorial, ensure you have:
 
-- **Argos-MCP installed** - [Installation Tutorial](01-installation.md)
+- **Argos installed** - [Installation Tutorial](01-installation.md)
 - **Database configured** - At least one database connection configured
 - **Claude Code installed** - `claude --version` should report a version
-- **Server tested** - Verified that `argos-mcp` starts without errors
+- **Server tested** - verified that `argos serve` starts without errors
 
-## Step 1: Verify Argos-MCP
+## Step 1: Verify Argos
 
-First, ensure your Argos-MCP is properly configured:
+First, ensure your Argos is properly configured:
 
 ### Check Configuration
 
@@ -31,12 +31,12 @@ First, ensure your Argos-MCP is properly configured:
 ls -la config.ini
 
 # Test server startup
-argos-mcp --test
+argos serve --test
 ```
 
 **Expected Output:**
 ```
- Argos-MCP starting...
+ Argos starting...
  Loaded 1 database configuration(s):
  - production (postgresql, SELECT-only)
  Security manager initialized with default limits
@@ -72,7 +72,7 @@ Claude Code owns its own MCP registry — you never hand-edit a JSON config. Fro
 
 ```bash
 claude mcp add argos --scope user -- \
-  node "$(pwd)/dist/index.js" --config "$HOME/.config/argos/config.ini"
+  node "$(pwd)/dist/cli.js" serve --config "$HOME/.config/argos/config.ini"
 ```
 
 Everything after `--` is the command Claude Code will spawn. Both paths must be absolute: Claude Code executes the command directly, so `~` and relative paths are not expanded.
@@ -95,7 +95,7 @@ Use `-e` for anything the server should read from the environment, so secrets st
 claude mcp add argos --scope user \
   -e NODE_ENV=production \
   -e SSH_KEY_PASSPHRASE="$SSH_KEY_PASSPHRASE" \
-  -- node "$(pwd)/dist/index.js" --config "$HOME/.config/argos/config.ini"
+  -- node "$(pwd)/dist/cli.js" serve --config "$HOME/.config/argos/config.ini"
 ```
 
 ### Registering Several Configurations
@@ -104,10 +104,10 @@ Separate registrations can point at different `config.ini` files — useful for 
 
 ```bash
 claude mcp add argos-prod --scope user -- \
-  node "$(pwd)/dist/index.js" --config /etc/argos/production.ini
+  node "$(pwd)/dist/cli.js" serve --config /etc/argos/production.ini
 
 claude mcp add argos-dev --scope user -- \
-  node "$(pwd)/dist/index.js" --config /etc/argos/development.ini
+  node "$(pwd)/dist/cli.js" serve --config /etc/argos/development.ini
 ```
 
 Each appears under its own tool namespace — `mcp__argos-prod__sql_query`, `mcp__argos-dev__sql_query` — so there is no ambiguity about which database Claude is reaching for.
@@ -231,8 +231,8 @@ Would you like me to analyze posting patterns over time or explore other user en
 
 2. **Confirm the entry point exists and runs:**
  ```bash
- test -f /abs/path/to/Argos-MCP/dist/index.js && echo present
- node /abs/path/to/Argos-MCP/dist/index.js --version
+ test -f /abs/path/to/argos/dist/cli.js && echo present
+ node /abs/path/to/argos/dist/cli.js version
  ```
  If it is missing, you have not built yet — run `npm run build`.
 
@@ -240,7 +240,7 @@ Would you like me to analyze posting patterns over time or explore other user en
  ```bash
  claude mcp remove argos --scope user
  claude mcp add argos --scope user -- \
-   node "$(pwd)/dist/index.js" --config "$HOME/.config/argos/config.ini"
+   node "$(pwd)/dist/cli.js" serve --config "$HOME/.config/argos/config.ini"
  ```
 
 4. **Check the scope you registered under.** A `--scope local` registration only exists in the project directory where you ran it. `claude mcp list` from elsewhere will not show it.
@@ -257,7 +257,7 @@ Would you like me to analyze posting patterns over time or explore other user en
  ```bash
  claude mcp remove argos --scope user
  claude mcp add argos --scope user -- \
-   node /abs/path/dist/index.js --config /full/path/to/config.ini
+   node /abs/path/dist/cli.js serve --config /full/path/to/config.ini
  ```
 
 2. **Verify the config file exists and is readable:**
@@ -283,16 +283,16 @@ Would you like me to analyze posting patterns over time or explore other user en
  ```bash
  claude mcp add argos --scope user \
    -e DB_PASSWORD="$DB_PASSWORD" \
-   -- node /abs/path/dist/index.js --config /abs/path/config.ini
+   -- node /abs/path/dist/cli.js serve --config /abs/path/config.ini
  ```
 
 3. **Enable debug logging:**
  ```bash
  claude mcp add argos --scope user \
    -e LOG_LEVEL=DEBUG \
-   -- node /abs/path/dist/index.js --config /abs/path/config.ini
+   -- node /abs/path/dist/cli.js serve --config /abs/path/config.ini
  ```
- Output goes to `argos-mcp.log`, never to stdout — stdout carries the JSON-RPC stream and anything written there breaks the protocol.
+ Output goes to `argos.log`, never to stdout — stdout carries the JSON-RPC stream and anything written there breaks the protocol.
 
 ### Issue 4: Permission Denied
 
@@ -304,7 +304,7 @@ Would you like me to analyze posting patterns over time or explore other user en
 
 1. **Check file permissions:**
  ```bash
- chmod +x $(which argos-mcp)
+ chmod +x $(which argos)
  chmod 600 config.ini # Protect sensitive config
  ```
 
@@ -330,15 +330,15 @@ Would you like me to analyze posting patterns over time or explore other user en
  cat .mcp.json 2>/dev/null
  ```
 
-3. **Read the server's own log.** Argos writes startup and connection failures to `argos-mcp.log` in the repository root — that is where a bad `config.ini` path shows up.
+3. **Read the server's own log.** Argos writes startup and connection failures to `argos.log` in the repository root — that is where a bad `config.ini` path shows up.
  ```bash
- tail -n 50 /abs/path/to/Argos-MCP/argos-mcp.log
+ tail -n 50 /abs/path/to/argos/argos.log
  ```
 
 4. **Remove and re-add** if the recorded entry looks wrong:
  ```bash
  claude mcp remove argos --scope user
- claude mcp add argos --scope user -- node /abs/path/dist/index.js --config /abs/path/config.ini
+ claude mcp add argos --scope user -- node /abs/path/dist/cli.js serve --config /abs/path/config.ini
  ```
 
 ## Advanced Integration Configurations
@@ -349,13 +349,13 @@ Register one server per environment, each with its own config file:
 
 ```bash
 claude mcp add production-db --scope user -- \
-  node /abs/path/dist/index.js --config /etc/argos/production.ini
+  node /abs/path/dist/cli.js serve --config /etc/argos/production.ini
 
 claude mcp add development-db --scope user -- \
-  node /abs/path/dist/index.js --config /etc/argos/development.ini
+  node /abs/path/dist/cli.js serve --config /etc/argos/development.ini
 
 claude mcp add analytics-db --scope user -- \
-  node /abs/path/dist/index.js --config /etc/argos/analytics.ini
+  node /abs/path/dist/cli.js serve --config /etc/argos/analytics.ini
 ```
 
 The registration name becomes the tool namespace, so Claude sees `mcp__production-db__sql_query` and `mcp__development-db__sql_query` as distinct tools. Naming them for the environment rather than the database is what keeps a production query from being issued by accident.
@@ -369,7 +369,7 @@ claude mcp add secure-database --scope user \
   -e SSH_PRIVATE_KEY=/path/to/ssh/private/key \
   -e SSH_PASSPHRASE="$SSH_PASSPHRASE" \
   -e DB_PASSWORD="$DB_PASSWORD" \
-  -- node /abs/path/dist/index.js --config /secure/path/config.ini
+  -- node /abs/path/dist/cli.js serve --config /secure/path/config.ini
 ```
 
 The tunnel itself is described in `config.ini` (`ssh_host`, `ssh_username`, `ssh_private_key`); the environment is only for the secrets you would rather not write to disk.
@@ -381,7 +381,7 @@ The tunnel itself is described in `config.ini` (`ssh_host`, `ssh_username`, `ssh
 claude mcp add argos-dev --scope user \
   -e NODE_ENV=development \
   -e LOG_LEVEL=DEBUG \
-  -- node /abs/path/dist/index.js --config /etc/argos/development.ini
+  -- node /abs/path/dist/cli.js serve --config /etc/argos/development.ini
 ```
 
 **Production:**
@@ -390,7 +390,7 @@ claude mcp add argos-prod --scope user \
   -e NODE_ENV=production \
   -e LOG_LEVEL=WARN \
   -e DB_PASSWORD="$DB_PASSWORD" \
-  -- node /abs/path/dist/index.js --config /etc/argos/production.ini
+  -- node /abs/path/dist/cli.js serve --config /etc/argos/production.ini
 ```
 
 Pair the production registration with `select_only=true` in its config file. The scopes are independent, so a project-scoped `argos-dev` and a user-scoped `argos-prod` can coexist without either shadowing the other.
@@ -419,7 +419,7 @@ Protect your configuration files:
 # Secure the Claude Code registration (it can hold env values)
 chmod 600 ~/.claude.json
 
-# Secure Argos-MCP config
+# Secure Argos config
 chmod 600 config.ini
 
 # Secure SSH keys
@@ -491,7 +491,7 @@ claude mcp add argos --scope user \
   -e DB_PROD_PASSWORD="$DB_PROD_PASSWORD" \
   -e DB_ANALYTICS_PASSWORD="$DB_ANALYTICS_PASSWORD" \
   -e SSH_PRIVATE_KEY=/secure/path/ssh_key \
-  -- node /opt/argos-mcp/dist/index.js --config /etc/argos/config.ini
+  -- node /opt/argos/dist/cli.js serve --config /etc/argos/config.ini
 ```
 
 Inspect what was stored with `claude mcp get argos`.

@@ -115,7 +115,7 @@ than passed through. See [Field Redaction](../features/field-redaction.md).
 tokens, PEM blocks, connection strings, email addresses and database usernames
 are replaced with placeholders, quoted values included.
 
-**In logs:** the same scrubbing applies to log messages. `argos-mcp.log` is
+**In logs:** the same scrubbing applies to log messages. `argos.log` is
 written `0600`, and the audit log records a hash of each statement rather than
 the statement.
 
@@ -140,13 +140,13 @@ be `0600`; a key others can read is refused with the file named.
 
 ## Reviewing what happened
 
-`~/.argos-mcp/audit/<database>.log` records one line per query — timestamp,
+`~/.argos/audit/<database>.log` records one line per query — timestamp,
 database, statement hash, duration, outcome. Blocked queries and their reasons
-appear in `argos-mcp.log`. Neither contains the SQL itself or any values.
+appear in `argos.log`. Neither contains the SQL itself or any values.
 
 ```bash
-grep -i "Query blocked" argos-mcp.log
-grep -v ' success$' ~/.argos-mcp/audit/production.log
+grep -i "Query blocked" argos.log
+grep -v ' success$' ~/.argos/audit/production.log
 ```
 
 ## Related

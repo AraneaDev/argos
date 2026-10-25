@@ -20,7 +20,7 @@ This advanced tutorial covers secure database connections through SSH tunnels, e
 +-------------------------------------------------------------------+
 |                                                                   |
 |  +--------------+ Encrypted SSH  +------------------+             |
-|  | Argos-MCP      |====Tunnel======| SSH Bastion      |             |
+|  | Argos      |====Tunnel======| SSH Bastion      |             |
 |  | Server       |                | Host             |             |
 |  |(Local:1234)  |                |                  |             |
 |  +--------------+                +------------------+             |
@@ -192,7 +192,7 @@ Host secure-db
 # ssh-key-setup.sh
 
 # Generate SSH key pair
-ssh-keygen -t ed25519 -b 521 -f /secure/keys/argos-tunnel -C "argos-mcp@$(hostname)"
+ssh-keygen -t ed25519 -b 521 -f /secure/keys/argos-tunnel -C "argos@$(hostname)"
 
 # Set proper permissions
 chmod 600 /secure/keys/argos-tunnel
@@ -369,7 +369,7 @@ DenyUsers root admin guest
 # firewall-setup.sh
 
 # Allow SSH from specific IPs only
-sudo ufw allow from 192.168.1.100 to any port 2222 proto tcp comment "Argos-MCP SSH"
+sudo ufw allow from 192.168.1.100 to any port 2222 proto tcp comment "Argos SSH"
 
 # Block all other SSH access
 sudo ufw deny 22
@@ -607,7 +607,7 @@ esac
 ```ini
 # /etc/systemd/system/argos-tunnels.service
 [Unit]
-Description=Argos-MCP SSH Tunnels
+Description=Argos SSH Tunnels
 After=network.target
 Wants=network.target
 
@@ -696,7 +696,7 @@ nc -z localhost 15432 || {
 echo "SSH tunnels established successfully"
 
 # Start the main application
-exec node dist/index.js
+exec node dist/cli.js serve
 ```
 
 ### 2. Docker Compose with SSH Tunnels
@@ -723,7 +723,7 @@ services:
  networks:
  - argos-network
 
- argos-mcp:
+ argos:
  build: .
  depends_on:
  - ssh-tunnel
@@ -853,4 +853,4 @@ After mastering SSH tunnel configuration:
 
 ---
 
-*This tutorial is part of the Argos-MCP Advanced Configuration Series. For questions or feedback, please refer to our [community discussions](https://github.com/AraneaDev/Argos-MCP/discussions).*
+*This tutorial is part of the Argos Advanced Configuration Series. For questions or feedback, please refer to our [community discussions](https://github.com/AraneaDev/argos/discussions).*

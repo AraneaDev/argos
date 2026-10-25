@@ -64,7 +64,7 @@ volumes:
 # 4. Use the docker-demo-config.ini configuration:
 #    cp examples/basic-setup/docker-demo-config.ini config.ini
 #
-# 5. Start the Argos-MCP:
+# 5. Start the Argos:
 #    npm start
 #
 # 6. Access Adminer for database management:

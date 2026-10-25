@@ -1,10 +1,10 @@
-# Prometheus Configuration for Argos-MCP Monitoring
+# Prometheus Configuration for Argos Monitoring
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    monitor: 'argos-mcp-monitor'
+    monitor: 'argos-monitor'
 
 # Alertmanager configuration
 alerting:
@@ -27,10 +27,10 @@ scrape_configs:
     scrape_interval: 30s
     metrics_path: /metrics
 
-  # Argos-MCP main metrics
-  - job_name: 'argos-mcp'
+  # Argos main metrics
+  - job_name: 'argos'
     static_configs:
-      - targets: ['host.docker.internal:3001']  # Adjust for your Argos-MCP
+      - targets: ['host.docker.internal:3001']  # Adjust for your Argos
     scrape_interval: 10s
     metrics_path: /metrics
     scrape_timeout: 10s

@@ -1,6 +1,6 @@
 /**
  * MCP Tool Definitions
- * JSON schema definitions for all Argos-MCP tools
+ * JSON schema definitions for all Argos tools
  */
 
 /**

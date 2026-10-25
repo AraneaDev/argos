@@ -1,6 +1,6 @@
 # Custom Database Adapters
 
-This directory contains examples and templates for creating custom database adapters for Argos-MCP. Learn how to extend support to new database types or customize existing adapters.
+This directory contains examples and templates for creating custom database adapters for Argos. Learn how to extend support to new database types or customize existing adapters.
 
 ## Directory Structure
 
@@ -33,7 +33,7 @@ custom-adapters/
 
 ## What are Custom Adapters?
 
-Custom adapters extend Argos-MCP to support:
+Custom adapters extend Argos to support:
 
 1. **New Database Types**: Oracle, Cassandra, MongoDB, etc.
 2. **Cloud Data Services**: Snowflake, BigQuery, Redshift, etc.
@@ -418,7 +418,7 @@ async captureSchema(connection: DatabaseConnection): Promise<DatabaseSchema> {
 ## Maintenance
 
 ### Version Compatibility
-- Test adapters with new Argos-MCP versions
+- Test adapters with new Argos versions
 - Update dependencies regularly
 - Monitor for breaking changes in database drivers
 - Keep documentation current
@@ -429,4 +429,4 @@ async captureSchema(connection: DatabaseConnection): Promise<DatabaseSchema> {
 - Watch for memory leaks
 - Optimize based on usage patterns
 
-Remember: Custom adapters extend the power of Argos-MCP to work with virtually any data source. Start simple, test thoroughly, and iterate based on real usage needs.
+Remember: Custom adapters extend the power of Argos to work with virtually any data source. Start simple, test thoroughly, and iterate based on real usage needs.

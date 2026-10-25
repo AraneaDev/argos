@@ -1,10 +1,10 @@
 # Release Process Guide
 
-This guide outlines the complete release process for the Argos-MCP, including versioning, testing, documentation, and deployment procedures.
+This guide outlines the complete release process for the Argos, including versioning, testing, documentation, and deployment procedures.
 
 ## Overview
 
-The Argos-MCP follows semantic versioning and maintains a structured release process that ensures quality, stability, and proper change management. Every release goes through comprehensive testing, documentation updates, and deployment validation.
+The Argos follows semantic versioning and maintains a structured release process that ensures quality, stability, and proper change management. Every release goes through comprehensive testing, documentation updates, and deployment validation.
 
 **Release Cycle:**
 - **Major versions** (X.0.0) - Breaking changes, major new features
@@ -138,7 +138,7 @@ correct a misleading commit subject, since it is what users will read.
 
 Merging tags `vX.Y.Z`, creates the GitHub Release, and runs the verification
 steps in the same workflow: build, lint, format check, typecheck, the full test
-suite, then an assertion that both bin targets exist and `dist/index.js` kept its
+suite, then an assertion that every bin target exists and `dist/cli.js` kept its
 shebang. The packaged `.tgz` and `.zip` are attached to the Release.
 
 Publishing to npm is wired up but dormant (`if: false`) — Argos is not on the
@@ -153,7 +153,7 @@ Everything below runs before a release can be cut, on every pull request via
 ```bash
 npm run validate       # lint:check + format:check + type-check + test
 npm run validate-docs  # version references across README and docs
-npm run build          # must emit dist/index.js and dist/setup.js
+npm run build          # must emit dist/cli.js (plus the dist/index.js and dist/setup.js aliases)
 ```
 
 
@@ -263,10 +263,10 @@ Argos is not published to npm yet, so this applies once the publish step in
 
 ```bash
 # Deprecate a problematic version
-npm deprecate argos-mcp@3.0.0 "This version has critical issues. Please upgrade to 3.0.1"
+npm deprecate @araneadev/argos@3.0.0 "This version has critical issues. Please upgrade to 3.0.1"
 
 # If severe, unpublish (only possible within 72 hours of publishing)
-npm unpublish argos-mcp@3.0.0
+npm unpublish @araneadev/argos@3.0.0
 ```
 
 Prefer deprecating over unpublishing: unpublishing breaks every lockfile that
@@ -284,7 +284,7 @@ already pins the version.
 ```markdown
 # Critical Security Update Required
 
-**Action Required:** All users of Argos-MCP v2.1.0 must upgrade immediately.
+**Action Required:** All users of Argos v2.1.0 must upgrade immediately.
 
 ## Issue
 Version 2.1.0 contains a critical security vulnerability that could allow SQL injection attacks.
@@ -342,7 +342,7 @@ const releaseMetrics = {
 
 ## Conclusion
 
-This comprehensive release process ensures that every Argos-MCP release meets high standards for quality, security, and reliability. The structured approach minimizes risks while maintaining development velocity and user satisfaction.
+This comprehensive release process ensures that every Argos release meets high standards for quality, security, and reliability. The structured approach minimizes risks while maintaining development velocity and user satisfaction.
 
 **Key Principles:**
 - **Quality First**: Comprehensive testing before any release

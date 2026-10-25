@@ -1,4 +1,4 @@
-# Argos-MCP Monitoring Guide
+# Argos Monitoring Guide
 
 ## What there is to monitor
 
@@ -13,8 +13,8 @@ runs on:
 | Source | What it tells you | Where |
 |--------|-------------------|-------|
 | `sql_get_metrics` tool | Live counters for the current process | Ask the model |
-| Server log | What the process did, including failures | `argos-mcp.log` |
-| Audit log | Which database was queried, when, and whether it worked | `~/.argos-mcp/audit/<database>.log` |
+| Server log | What the process did, including failures | `argos.log` |
+| Audit log | Which database was queried, when, and whether it worked | `~/.argos/audit/<database>.log` |
 
 ## Live metrics
 
@@ -47,7 +47,7 @@ Show me the query metrics for the analytics database.
 ### What the numbers are worth watching for
 
 - **`failed` climbing while `total` does not** — the database is reachable but
-  rejecting queries. Look for the reason in `argos-mcp.log`.
+  rejecting queries. Look for the reason in `argos.log`.
 - **Circuit events appearing** — repeated failures tripped the breaker, and
   queries are being rejected without reaching the database until it closes
   again.
@@ -58,20 +58,20 @@ Show me the query metrics for the analytics database.
 
 ## Server log
 
-The process writes to `argos-mcp.log` in its working directory, owner-readable
-only, and rotates the previous run to `argos-mcp.log.1` on every start. Console
+The process writes to `argos.log` in its working directory, owner-readable
+only, and rotates the previous run to `argos.log.1` on every start. Console
 output is off by design: stdout carries the JSON-RPC stream, and writing
 anything else there breaks the connection.
 
 ```bash
 # Follow it during a session
-tail -f argos-mcp.log
+tail -f argos.log
 
 # Failures only
-grep -E '\[(ERROR|CRITICAL)\]' argos-mcp.log
+grep -E '\[(ERROR|CRITICAL)\]' argos.log
 
 # What happened during startup, which is where configuration problems surface
-head -50 argos-mcp.log
+head -50 argos.log
 ```
 
 Secrets are stripped from log messages before they are written: passwords,
@@ -85,7 +85,7 @@ same file, prefixed `[DEBUG]`. It is verbose and off by default.
 ## Audit log
 
 Every query execution appends one line per database to
-`~/.argos-mcp/audit/<database>.log`, in a directory created `0700` with files
+`~/.argos/audit/<database>.log`, in a directory created `0700` with files
 created `0600`:
 
 ```
@@ -101,13 +101,13 @@ the same way and can be counted:
 
 ```bash
 # Busiest statements for one database
-awk '{print $3}' ~/.argos-mcp/audit/analytics.log | sort | uniq -c | sort -rn | head
+awk '{print $3}' ~/.argos/audit/analytics.log | sort | uniq -c | sort -rn | head
 
 # Failures, with their timestamps
-grep -v ' success$' ~/.argos-mcp/audit/analytics.log
+grep -v ' success$' ~/.argos/audit/analytics.log
 
 # Slowest recorded executions
-sort -t$'\t' -k4 -rn ~/.argos-mcp/audit/analytics.log | head
+sort -t$'\t' -k4 -rn ~/.argos/audit/analytics.log | head
 ```
 
 Installations upgraded from a version released before the rebrand will find

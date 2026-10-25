@@ -1,6 +1,6 @@
 # Field Redaction Configuration
 
-The Argos-MCP supports automatic redaction of sensitive fields in query results to protect privacy and comply with data protection regulations.
+The Argos supports automatic redaction of sensitive fields in query results to protect privacy and comply with data protection regulations.
 
 ## Overview
 

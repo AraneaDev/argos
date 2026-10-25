@@ -1,6 +1,6 @@
 # Security Architecture
 
-The Argos-MCP implements a comprehensive, multi-layered security architecture designed to protect database assets while providing secure access to Claude Code. This document details the security model, threat analysis, and protective mechanisms.
+The Argos implements a comprehensive, multi-layered security architecture designed to protect database assets while providing secure access to Claude Code. This document details the security model, threat analysis, and protective mechanisms.
 
 ## Security Philosophy
 

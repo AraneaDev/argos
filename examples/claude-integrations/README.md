@@ -1,6 +1,6 @@
 # Claude Integrations Examples
 
-This directory contains comprehensive examples for integrating Argos-MCP with various Claude interfaces and workflows. Learn how to configure, optimize, and troubleshoot Claude integrations.
+This directory contains comprehensive examples for integrating Argos with various Claude interfaces and workflows. Learn how to configure, optimize, and troubleshoot Claude integrations.
 
 ## Directory Structure
 
@@ -60,7 +60,7 @@ Pre-built workflows for common database tasks and analysis patterns.
 ## Quick Start Guide
 
 ### Claude Code Setup
-1. **Install and configure Argos-MCP**:
+1. **Install and configure Argos**:
  ```bash
  npm install
  npm run build
@@ -69,7 +69,7 @@ Pre-built workflows for common database tasks and analysis patterns.
 2. **Configure Claude Code**:
  ```bash
  # Copy the basic configuration
- claude mcp add argos --scope user -- node "$(pwd)/dist/index.js" --config "$(pwd)/config.ini"
+ claude mcp add argos --scope user -- node "$(pwd)/dist/cli.js" serve --config "$(pwd)/config.ini"
  
  # Edit paths to match your installation
  ```
@@ -144,9 +144,9 @@ Perform complex data analysis:
 ```json
 {
  "mcpServers": {
- "argos-mcp": {
+ "argos": {
  "command": "node",
- "args": ["/path/to/argos-mcp/dist/index.js"]
+ "args": ["/path/to/argos/dist/cli.js", "serve"]
  }
  }
 }
@@ -156,9 +156,9 @@ Perform complex data analysis:
 ```json
 {
  "mcpServers": {
- "argos-mcp": {
+ "argos": {
  "command": "node",
- "args": ["/path/to/argos-mcp/dist/index.js"],
+ "args": ["/path/to/argos/dist/cli.js", "serve"],
  "env": {
  "CONFIG_PATH": "/path/to/config.ini",
  "LOG_LEVEL": "info",

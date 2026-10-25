@@ -1,10 +1,10 @@
 # MySQL Database Configuration Guide
 
-This guide covers MySQL and MariaDB setup, configuration, and optimization for the Argos-MCP.
+This guide covers MySQL and MariaDB setup, configuration, and optimization for the Argos.
 
 ## Overview
 
-The Argos-MCP provides comprehensive support for MySQL and MariaDB databases through the `mysql2` driver, offering high-performance connections, connection pooling, and enterprise-grade features.
+The Argos provides comprehensive support for MySQL and MariaDB databases through the `mysql2` driver, offering high-performance connections, connection pooling, and enterprise-grade features.
 
 **Supported Versions:**
 - MySQL 5.7, 8.0, 8.1+
