@@ -432,10 +432,10 @@ npm test
 npm install -D typescript @types/node ts-node nodemon
 
 # Testing framework
-npm install -D jest @types/jest ts-jest supertest
+npm install -D jest @types/jest @swc/core @swc/jest supertest
 
 # Linting and formatting
-npm install -D eslint @typescript-eslint/eslint-plugin prettier
+npm install -D eslint @eslint/js typescript-eslint eslint-plugin-jsdoc globals prettier
 
 # Database testing tools
 npm install -D @testcontainers/postgresql @testcontainers/mysql

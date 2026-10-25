@@ -24,8 +24,8 @@
     "test:integration": "jest tests/integration --passWithNoTests",
     "test:watch": "jest --watch --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests",
-    "lint": "eslint src/**/*.ts --fix",
-    "lint:check": "eslint src/**/*.ts",
+    "lint": "eslint 'src/**/*.ts' --fix",
+    "lint:check": "eslint 'src/**/*.ts'",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts'",
     "type-check": "tsc --noEmit",
@@ -105,7 +105,6 @@
     "prettier": "3.9.10",
     "puppeteer-core": "25.16.0",
     "supertest": "7.3.1",
-    "ts-jest": "29.4.15",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.0",
     "vitest": "^5.0.5"
