@@ -12,7 +12,7 @@ This comprehensive guide walks you through installing the Argos on various platf
 - **Network**: Internet access for package installation
 
 ### Recommended Requirements
-- **Node.js**: 24.0.0 or higher (current LTS)
+- **Node.js**: 24.15.0 or higher (current LTS)
 - **npm**: 11.0.0 or higher
 - **Memory**: 512 MB RAM
 - **Storage**: 500 MB available disk space
@@ -85,7 +85,7 @@ npm run setup
 #### Prerequisites
 1. **Install Node.js**
  - Download from [nodejs.org](https://nodejs.org/)
- - Choose an LTS version (22.x or 24.x)
+ - Choose an LTS version (24.x or newer)
  - Run installer with default options
 
 2. **Verify Installation**
@@ -120,7 +120,7 @@ ssh_private_key=C:\Users\username\.ssh\id_rsa
 1. **Install Node.js**
  ```bash
  # Using Homebrew (recommended)
- brew install node@22
+ brew install node@24
 
  # Or download from nodejs.org
  ```
@@ -154,8 +154,8 @@ npm run setup
 # Update package index
 sudo apt update
 
-# Install Node.js 22.x
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+# Install Node.js 24.x
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Install build tools (if building from source)
@@ -172,8 +172,8 @@ npm run setup
 
 #### CentOS/RHEL/Rocky Linux
 ```bash
-# Install Node.js 22.x
-curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
+# Install Node.js 24.x
+curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
 sudo dnf install -y nodejs
 
 # Install development tools (if building from source)
@@ -508,7 +508,7 @@ node --version
 
 # If version is too old:
 # - Windows: Download from nodejs.org
-# - macOS: brew install node@22
+# - macOS: brew install node@24
 # - Linux: Use NodeSource repository
 ```
 

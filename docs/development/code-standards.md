@@ -38,7 +38,7 @@ The project uses TypeScript 5.0+ with strict settings:
 
 ### Node.js Compatibility
 
-- **Minimum Version**: Node.js 22.0.0+
+- **Minimum Version**: Node.js 24.15.0+
 - **Module System**: ESM (ES Modules) only
 - **Target**: ES2022 for modern JavaScript features
 

@@ -9,13 +9,13 @@ echo "====================================="
 # Check prerequisites
 echo "1. Checking prerequisites..."
 if ! command -v node >/dev/null 2>&1; then
-    echo "[ERROR] Node.js not found. Please install Node.js 22+"
+    echo "[ERROR] Node.js not found. Please install Node.js 24+"
     exit 1
 fi
 
 NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 22 ]; then
-    echo "[ERROR] Node.js version $NODE_VERSION found. Please upgrade to Node.js 22+"
+if [ "$NODE_VERSION" -lt 24 ]; then
+    echo "[ERROR] Node.js version $NODE_VERSION found. Please upgrade to Node.js 24+"
     exit 1
 fi
 

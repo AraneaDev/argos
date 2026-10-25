@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- Node.js 22+ installed
+- Node.js 24+ installed
 - argos package installed (`npm install -g argos`)
 - Command line access
 

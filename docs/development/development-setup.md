@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 22 or newer, with npm
+- Node.js 24 or newer, with npm
 - Git
 - A database to test against. SQLite needs nothing installed and is enough for
   most work; the other adapters need a reachable server.

@@ -258,10 +258,10 @@ Error: Node.js version 14.x is not supported
 # Check Node.js version
 node --version
 
-# Install Node.js 22+ using nvm (Linux/macOS)
+# Install Node.js 24+ using nvm (Linux/macOS)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-nvm install 22
-nvm use 22
+nvm install 24
+nvm use 24
 
 # Or download from nodejs.org for Windows
 ```
@@ -495,7 +495,7 @@ pm2 save
 ### Docker Deployment
 
 ```dockerfile
-FROM node:22-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 RUN git clone https://github.com/AraneaDev/argos.git . \

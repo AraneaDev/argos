@@ -6,7 +6,7 @@ Get Argos up and running with Claude Code in less than 5 minutes.
 
 Before you begin, ensure you have:
 
-- **Node.js 22+** and **npm 10+** installed
+- **Node.js 24+** and **npm 10+** installed
 - **Claude Code CLI** installed and on your `PATH` (`claude --version`)
 - **Database credentials** for at least one supported database:
  - PostgreSQL, MySQL, SQLite, or SQL Server

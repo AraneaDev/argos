@@ -710,7 +710,7 @@ Where the client is containerised, add the key and the configuration to that
 image:
 
 ```dockerfile
-FROM node:22-alpine
+FROM node:24-alpine
 
 COPY --chown=node:node tunnel_key /home/node/.ssh/tunnel_key
 RUN chmod 700 /home/node/.ssh && chmod 600 /home/node/.ssh/tunnel_key
