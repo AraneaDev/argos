@@ -73,9 +73,10 @@ function drawSegment(act: Handlers, ui: Elements[RenderSurface], s: Segment, ter
   // A Button draws exactly its segment's cells: only a tint needs a Box under it.
   const ground = (key: string, element: RenderNode) => (s.bg === undefined ? element : framed(element, `${key}-bg`, s.bg))
   if (s.field && Input !== undefined) {
+    // Under a new key at each run (`epoch`): the input empties itself on Enter, and only a new one holds the draft again.
     return framed(
       <Input
-        key={fieldKey(s.field.id)}
+        key={fieldKey(s.field.id, s.field.epoch)}
         value={s.field.value}
         placeholder={s.field.placeholder}
         submitLabel="run"

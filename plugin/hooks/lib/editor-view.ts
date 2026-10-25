@@ -40,10 +40,10 @@ function editorBlock(model: EditorModel): Block {
       const c = model.connection
       const colour = c === undefined ? undefined : engineColour(c.type)
       const connection: Segment[] = [
-        { text: padEnd(' connection', LABEL + 3), dim: true },
-        ...(c === undefined ? [{ text: 'none picked', dim: true }] : [{ text: c.name, bold: true }, { text: '  ' }, { text: ` ${c.type} `, ...(colour === undefined ? { dim: true } : { color: colour }), bg: CHIP_BG }, { text: '  ' }, c.selectOnly ? { text: 'SELECT_ONLY', color: STATUS_COLOURS.ok } : { text: 'full access', color: STATUS_COLOURS.warn }]),
+        { text: padEnd(' connection', LABEL + 4), dim: true },
+        ...(c === undefined ? [{ text: 'none picked', dim: true }] : [{ text: c.name, bold: true }, { text: '  ' }, { text: ` ${c.type} `, ...(colour === undefined ? { dim: true } : { color: colour }), bg: CHIP_BG }, { text: '  ' }, c.selectOnly ? { text: 'select-only', color: STATUS_COLOURS.ok } : { text: 'full access', color: STATUS_COLOURS.warn }]),
       ]
-      const field: Segment[] = [{ text: padEnd(' sql', LABEL + 3), dim: true }, { text: model.draft, field: { id: SQL_FIELD, value: model.draft, placeholder: 'SELECT … — enter runs it, read-only' } }]
+      const field: Segment[] = [{ text: padEnd(' sql', LABEL + 4), dim: true }, { text: model.draft, field: { id: SQL_FIELD, value: model.draft, placeholder: 'SELECT … — enter runs it, read-only', epoch: model.editor.runs ?? 0 } }]
       const body: Row[] = [
         { key: 'editor-connection', segments: clip(connection, inner) },
         { key: 'editor-sql', segments: field },
@@ -62,7 +62,7 @@ function statusOf({ editor, now }: EditorModel): Segment[] {
   if (entry === null) return [{ text: 'not run yet', dim: true }]
   if (entry.outcome === 'ok') return [mark(OUTCOME.ok, ' '), { text: metaOf(entry, now), dim: true }]
   const reason = entry.reason ?? (entry.outcome === 'blocked' ? 'not a SELECT' : 'the query failed')
-  return [mark(OUTCOME[entry.outcome], ' '), { text: entry.outcome === 'blocked' ? `refused: ${reason}` : reason, color: STATUS_COLOURS.alert }]
+  return [mark(OUTCOME[entry.outcome], ' '), { text: entry.outcome === 'blocked' ? `blocked: ${reason}` : reason, color: STATUS_COLOURS.alert }]
 }
 
 /** The Editor tab: the field above the result of its last run. */

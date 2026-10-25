@@ -141,7 +141,7 @@ describe('/argos', () => {
       await w.clock.settle()
       const text = await paneText(ui)
       expect(text).toContain('demo')
-      expect(text).toContain('SELECT_ONLY')
+      expect(text).toContain('select-only')
       expect(text).toContain('full access')
       expect(text).toContain('~/work/config.ini')
       await ui.unmount()

@@ -377,6 +377,40 @@ describe('the Editor tab', () => {
     expect((port.values.get('editor') as { entry: JournalEntry }).entry.reason).toBe('only SELECT is allowed')
   })
 
+  it('keeps the SQL when Enter empties the field, and still takes a later edit to nothing', async () => {
+    const blocked = { ...ran, outcome: 'blocked', reason: 'only SELECT is allowed', spool: null, rowCount: null }
+    const port = onEditor(() => ({ exitCode: 0, stdout: JSON.stringify(blocked) }), { draft: '' })
+    handlersOf(port.io).submit('sql', 'DELETE FROM t')
+    handlersOf(port.io).type('sql', '')
+    await port.advance()
+    await port.advance()
+    expect(port.values.get('draft')).toBe('DELETE FROM t')
+    handlersOf(port.io).type('sql', '')
+    await port.advance()
+    expect(port.values.get('draft')).toBe('')
+  })
+
+  it('keeps the draft through a refused run, and counts each run so the field is drawn afresh', async () => {
+    const blocked = { ...ran, outcome: 'blocked', reason: 'only SELECT is allowed', spool: null, rowCount: null }
+    const port = onEditor(() => ({ exitCode: 0, stdout: JSON.stringify(blocked) }), { draft: 'DROP TABLE t' })
+    await press(port, 'run')
+    await press(port, 'run')
+    expect(port.values.get('draft')).toBe('DROP TABLE t')
+    expect((port.values.get('editor') as { runs: number }).runs).toBe(2)
+  })
+
+  it('focuses the SQL field under the key of the run it was last drawn for', async () => {
+    const blocked = { ...ran, outcome: 'blocked', reason: 'x', spool: null, rowCount: null }
+    const port = onEditor(() => ({ exitCode: 0, stdout: JSON.stringify(blocked) }), { draft: 'DROP TABLE t' })
+    const keys: string[] = []
+    ;(port.io.ui as { focus: unknown }).focus = async (args: { key: string }) => (keys.push(args.key), {})
+    await press(port, 'tab:editor')
+    await press(port, 'run')
+    await press(port, 'tab:editor')
+    await port.advance()
+    expect(keys).toEqual(['field:sql', 'field:sql#1'])
+  })
+
   it('n changes the connection and keeps the SQL', async () => {
     const port = onEditor(() => ({ exitCode: 0, stdout: '{}' }))
     await press(port, 'next')

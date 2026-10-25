@@ -40,6 +40,12 @@ const SHOP: SchemaView = {
 const drawn = (view: SchemaView, selected: number, columns = 120, room = 40, options = {}) => schemaRows(view, selected, columns, tierOf(columns), room, {}, options)
 
 describe('the tables list', () => {
+  it('says rows est. only when some table has an estimate', () => {
+    const none: SchemaView = { ...SHOP, tables: SHOP.tables.map(t => ({ ...t, row_estimate: null })) }
+    expect(all(drawn(none, 0))).not.toContain('rows est.')
+    expect(all(drawn(SHOP, 0))).toContain('rows est.')
+  })
+
   it('lists each table with its estimate in groups of three and marks the changed ones', () => {
     const text = all(drawn(SHOP, 0))
     expect(text).toContain('Tables')

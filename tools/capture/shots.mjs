@@ -225,7 +225,7 @@ const toTable = [
 ];
 
 /** The refusal the Editor shows for a write. */
-export const REFUSED = String.raw`⊘ refused: Command 'DELETE' is not allowed`;
+export const REFUSED = String.raw`⊘ blocked: Command 'DELETE' is not allowed`;
 
 /** The hero's one prompt. */
 export const PROMPT = 'Which 10 customers spent the most in shop? Use argos.';

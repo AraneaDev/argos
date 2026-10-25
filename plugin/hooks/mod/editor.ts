@@ -32,16 +32,16 @@ export async function runEditor(io: Port): Promise<void> {
     await io.ui.toast('No connection to run on')
     return
   }
-  await io.state.editor.update(e => ({ ...e, running: true }))
+  await io.state.editor.update(e => ({ ...e, running: true, runs: (e.runs ?? 0) + 1 }))
   try {
     const ran = await runCli(io, ['query', db, '--sql', sql], parseJournalEntry, QUERY_TIMEOUT_MS)
     if (!ran.ok) {
-      await io.state.editor.update(() => ({ running: false, entry: null, page: null, failure: ran.reason }))
+      await io.state.editor.update(e => ({ running: false, entry: null, page: null, failure: ran.reason, ...(e.runs === undefined ? {} : { runs: e.runs }) }))
       return
     }
     const entry = ran.value
     const rows = entry.outcome === 'ok' && entry.spool !== null ? await firstPage(io, entry.id) : null
-    await io.state.editor.update(() => ({ running: false, entry, page: rows?.ok === true ? rows.value : null, failure: rows !== null && !rows.ok ? rows.reason : null }))
+    await io.state.editor.update(e => ({ running: false, entry, page: rows?.ok === true ? rows.value : null, failure: rows !== null && !rows.ok ? rows.reason : null, ...(e.runs === undefined ? {} : { runs: e.runs }) }))
     // The journal has a new entry: the Queries tab reads it again.
     if ((await io.state.history.read()) !== null) await reloadQueries(io)
   } finally {

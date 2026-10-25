@@ -10,6 +10,7 @@ import type { EngineInterface, PluginOptions, PluginState, Timer } from 'claude-
 import { INITIAL_VIEW, withScrollsKept } from '../lib/layout'
 import type { Row } from '../lib/types'
 import type { CliAnswer, CliEnv } from './cli'
+import type { Cells } from './port'
 
 /** The pane's id, as the engine opens and draws it. */
 export const PANE = 'argos'
@@ -49,21 +50,28 @@ export function cellChange<K extends keyof CellValues>(key: K, change: (v: CellV
  * under the key in document order. That can be the Button, still drawn: the
  * ring lands on it, the field never gets the keys, and once the next drawing
  * drops the Button the keyboard goes back to the prompt.
+ *
+ * The SQL field is drawn under a new key after each run (its `epoch`, the
+ * runs so far): the input empties itself on Enter, and only a new one holds
+ * the draft again.
  */
-export const fieldKey = (id: string): string => `field:${id}`
+export const fieldKey = (id: string, epoch = 0): string => (epoch > 0 ? `field:${id}#${epoch}` : `field:${id}`)
 
 /**
  * Scrolls the element `key` into the pane's window, then focuses it, on a
  * timer after the press so the drawing that brings the field has already
  * happened. A scroll the engine refuses still focuses.
  */
-export function focusField(io: { ui: Pick<EngineInterface['ui'], 'scroll' | 'focus'>; clock: Pick<EngineInterface['clock'], 'after'> }, id: string): void {
-  const key = fieldKey(id)
+export function focusField(io: { ui: Pick<EngineInterface['ui'], 'scroll' | 'focus'>; clock: Pick<EngineInterface['clock'], 'after'>; state: Pick<Cells, 'editor'> }, id: string): void {
   io.clock.after(0, () => {
-    void io.ui
-      .scroll({ in: PANE, to: { key } })
-      .catch(() => undefined)
-      .then(() => io.ui.focus({ requestId: PANE, key }))
+    void (id === 'sql' ? io.state.editor.read().then(e => e.runs ?? 0) : Promise.resolve(0))
+      .then(epoch => {
+        const key = fieldKey(id, epoch)
+        return io.ui
+          .scroll({ in: PANE, to: { key } })
+          .catch(() => undefined)
+          .then(() => io.ui.focus({ requestId: PANE, key }))
+      })
       .catch(() => undefined)
   })
 }
@@ -132,6 +140,14 @@ export function initialQueries() {
   }
 }
 
+/** The Editor's own state: what the field does around Enter. */
+export function initialEditor() {
+  return {
+    /** Set by Enter: the field empties itself then, and that edit (an empty text) is the field's own, not the person's. */
+    submitted: false,
+  }
+}
+
 /** The CLI runner's own state (`cli.ts`). */
 export function initialCli() {
   return {
@@ -157,6 +173,7 @@ function initialSlices() {
     cli: initialCli(),
     pane: initialPane(),
     queries: initialQueries(),
+    editor: initialEditor(),
   }
 }
 

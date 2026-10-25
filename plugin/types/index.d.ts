@@ -188,6 +188,8 @@ export type EditorState = {
   entry: JournalEntry | null
   page: SpoolPage | null
   failure: string | null
+  /** How many runs have started: the SQL field is drawn afresh at each, so the text it holds is the draft again. */
+  runs?: number
 }
 
 declare module 'claude-code' {

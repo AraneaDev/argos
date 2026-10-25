@@ -105,7 +105,9 @@ in the header says how old it is.
 ![The Editor tab: a SELECT on shop typed in the field, run read-only, and its result below](../images/claude-code/editor.png)
 
 Type SQL and press Enter to run it. The result shows below the field, the first
-200 rows. A refused query shows the reason in red.
+200 rows. A refused query shows the reason in red, and your SQL stays in the
+field. While the field holds the keys, letters and digits type into it; the
+footer says `tab: leave field`, and Tab moves out so the hotkeys work again.
 
 | Key | Does |
 |-----|------|
@@ -118,7 +120,7 @@ Type SQL and press Enter to run it. The result shows below the field, the first
 
 ### Connections
 
-![The Connections tab: counts across the top and a card each for shop (SQLite, full access) and analytics (PostgreSQL, SELECT-only)](../images/claude-code/connections.png)
+![The Connections tab: counts across the top and a card each for shop (SQLite, full access) and analytics (PostgreSQL, select-only)](../images/claude-code/connections.png)
 
 One card per database from `config.ini`: type, host, whether it uses an SSH
 tunnel or SSL, whether it is SELECT-only, and how old its captured schema is.
@@ -190,7 +192,7 @@ The pane never closes over a failure; it says one line and carries on.
 | `argos: plugin not installed by argos install-plugin` | The install's record is missing; run the install |
 | `argos: could not run the argos CLI (...)` | `node` or the built CLI could not start; rebuild or reinstall |
 | `argos: the pane could not be drawn (...)` | The pane failed to draw; the reason follows |
-| `refused: ...` / `blocked: ...` | The query was not read-only, or Argos's security check refused it |
+| `blocked: ...` | The query was not read-only, or Argos's security check refused it |
 | `result no longer kept - r to rerun` | The stored result aged out or was evicted |
 | `can't rerun: this query used parameters` | Claude ran it with bound parameter values, which the journal does not keep; open it with `e` and fill them in |
 | `result too wide to show here` | A result the pane cannot hold; `c` copies the SQL |

@@ -144,13 +144,15 @@ function joinGroups(groups: Segment[][]): Segment[] {
  * in from either edge; the moves (the marker) on the left, what can be done
  * against the right edge. Each key stays whole; past the width the actions
  * wrap under the moves, and a key is never dropped, since it would stop
- * working.
+ * working. A `hint` (what a field holding the keys needs said) stands among
+ * the moves.
  */
-export function footerRows(keys: FooterKey[], columns: number): Row[] {
+export function footerRows(keys: FooterKey[], columns: number, hint?: string): Row[] {
   const pad = padOf(tierOf(columns))
   const inner = Math.max(1, columns - 2 * pad)
   const group = (k: FooterKey): Segment[] => [button(k.id ?? k.label, k.label, k.hotkey, { dim: true })]
-  const moves = keys.filter(k => k.move === true).map(group)
+  // A hint is plain dim text among the moves: it is no key and presses nothing.
+  const moves = [...keys.filter(k => k.move === true).map(group), ...(hint === undefined ? [] : [[{ text: hint, dim: true }]])]
   const actions = keys.filter(k => k.move !== true).map(group)
   const left = joinGroups(moves)
   const right = joinGroups(actions)

@@ -399,20 +399,23 @@ export class SQLiteAdapter extends DatabaseAdapter {
         if (err) {
           reject(this.createError(`Failed to get columns for table ${tableName}`, err));
         } else {
-          const columns = (
-            rows as Array<{
-              cid: number;
-              name: string;
-              type: string;
-              notnull: number;
-              dflt_value: unknown;
-              pk: number;
-            }>
-          ).map(
+          const found = rows as Array<{
+            cid: number;
+            name: string;
+            type: string;
+            notnull: number;
+            dflt_value: unknown;
+            pk: number;
+          }>;
+          const keyed = found.filter((col) => col.pk > 0).length;
+          const columns = found.map(
             (col): ColumnInfo => ({
               name: col.name,
               type: col.type,
-              nullable: col.notnull === 0,
+              // A lone INTEGER PRIMARY KEY is the rowid: never NULL, though table_info says notnull=0
+              nullable:
+                col.notnull === 0 &&
+                !(keyed === 1 && col.pk > 0 && col.type.trim().toUpperCase() === 'INTEGER'),
               default: col.dflt_value,
               max_length: null,
               precision: null,

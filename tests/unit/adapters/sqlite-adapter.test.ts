@@ -780,6 +780,44 @@ describe('SQLiteAdapter', () => {
     });
   });
 
+  describe('captureSchema rowid primary keys', () => {
+    const capture = async (columns: unknown[]) => {
+      const connection = await adapter.connect();
+      mockAll
+        .mockImplementationOnce((query: string, callback: Function) => {
+          process.nextTick(() => callback(null, [{ name: 't', type: 'table' }]));
+        })
+        .mockImplementationOnce((query: string, callback: Function) => {
+          process.nextTick(() => callback(null, columns));
+        })
+        .mockImplementationOnce((query: string, callback: Function) => {
+          process.nextTick(() => callback(null, []));
+        });
+      return (await adapter.captureSchema(connection)).tables.t.columns;
+    };
+
+    it('reports a single-column INTEGER PRIMARY KEY as NOT NULL although table_info says notnull=0', async () => {
+      const cols = await capture([
+        { cid: 0, name: 'id', type: 'INTEGER', notnull: 0, dflt_value: null, pk: 1 },
+        { cid: 1, name: 'name', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      ]);
+      expect(cols[0].nullable).toBe(false);
+      expect(cols[1].nullable).toBe(true);
+    });
+
+    it('leaves a TEXT primary key and a composite key as table_info reports them', async () => {
+      const text = await capture([
+        { cid: 0, name: 'code', type: 'TEXT', notnull: 0, dflt_value: null, pk: 1 },
+      ]);
+      expect(text[0].nullable).toBe(true);
+      const composite = await capture([
+        { cid: 0, name: 'a', type: 'INTEGER', notnull: 0, dflt_value: null, pk: 1 },
+        { cid: 1, name: 'b', type: 'INTEGER', notnull: 0, dflt_value: null, pk: 2 },
+      ]);
+      expect(composite[0].nullable).toBe(true);
+    });
+  });
+
   // ============================================================================
   // captureTableColumns error path (line 226)
   // ============================================================================

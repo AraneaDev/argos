@@ -344,7 +344,7 @@ describe('what the shots read off the pane', () => {
   it("reads the Editor's refusal of a write", () => {
     expect(
       new RegExp(REFUSED).test(
-        "⊘ refused: Command 'DELETE' is not allowed in SELECT-only mode. Allowed commands: SELECT"
+        "⊘ blocked: Command 'DELETE' is not allowed in SELECT-only mode. Allowed commands: SELECT"
       )
     ).toBe(true);
   });

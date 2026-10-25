@@ -142,7 +142,7 @@ function connectionBlock(c: ConnectionView, i: number, marked: boolean, now: num
         line('engine', [{ text: ` ${c.type} `, ...(colour === undefined ? { dim: true } : { color: colour }), bg: CHIP_BG }]),
         line('host', c.host === null ? [{ text: 'local', dim: true }] : [{ text: c.host }]),
         line('tunnel', tunnel === '' ? [{ text: 'none', dim: true }] : [{ text: tunnel }]),
-        line('access', c.selectOnly ? [{ text: 'SELECT_ONLY', color: STATUS_COLOURS.ok }] : [{ text: 'full access', color: STATUS_COLOURS.warn }]),
+        line('access', c.selectOnly ? [{ text: 'select-only', color: STATUS_COLOURS.ok }] : [{ text: 'full access', color: STATUS_COLOURS.warn }]),
         line('MCP', [{ text: `configurable: ${c.mcpConfigurable ? 'yes' : 'no'}`, ...(c.mcpConfigurable ? {} : { dim: true }) }]),
         line('schema', capturedOf(c.schemaCapturedAt, now)),
       ]
@@ -302,6 +302,9 @@ function footerKeys(model: PaneModel): FooterKey[] {
   ]
 }
 
+/** What the footer says while a text field holds the keys. */
+export const FIELD_HINT = 'tab: leave field'
+
 /**
  * The pane laid out: its rows from the header down (`body`) and the footer
  * bar (`footer`). When the two fit the height, the body is filled with blank
@@ -331,7 +334,9 @@ export function paneLayout(model: PaneModel, columns: number, height: number): {
   rows.push({ key: 'head-rule', segments: [{ text: '─'.repeat(width), color: FAINT }] })
   const failure = model.connections?.failure ?? (model.view.tab === 'schema' ? (schemaFor(model.schema, model.view.db)?.failure ?? null) : model.view.tab === 'queries' ? (model.history?.failure ?? model.pins?.failure ?? null) : null)
   if (failure !== null) rows.push(padded(dimRow('failure', failure, inner), pad, width))
-  const bar = footerRows(footerKeys(model), width)
+  // The SQL field and the open filter field take the keys, letters and digits alike: the hint says how to leave them.
+  const typing = model.view.tab === 'editor' || (model.view.tab === 'schema' && model.view.filtering)
+  const bar = footerRows(footerKeys(model), width, typing ? FIELD_HINT : undefined)
   const footer = [...(short ? [] : [blank('gap-keys')]), ...bar]
   const room = height - rows.length - footer.length
   // The connection cards keep their own height: stretched to the foot, a grid row of two would stand hollow.

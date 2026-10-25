@@ -104,7 +104,7 @@ function tablesBlock(view: SchemaView, list: TableInfo[], selected: number, opti
         }),
       )
       const body = list.length === 0 ? [dimRow('tables-none', `   no table matches "${filter}"`, inner)] : rows
-      return { key: 'tables', title: 'Tables', note: noteOf('rows est.'), body: [...head, ...body], ...(list.length === 0 ? {} : { window }) }
+      return { key: 'tables', title: 'Tables', note: noteOf(estW > 0 ? 'rows est.' : ''), body: [...head, ...body], ...(list.length === 0 ? {} : { window }) }
     },
   }
 }

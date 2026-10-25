@@ -325,12 +325,16 @@ async function submitFilter(io: Port, text: string): Promise<void> {
 
 /** The SQL as typed. */
 async function typeSql(io: Port, text: string): Promise<void> {
-  await io.state.draft.update(() => text)
+  // Enter empties the field, and says so as an edit: the SQL stays in the draft, as the person left it.
+  const emptied = mod.editor.submitted && text === ''
+  mod.editor.submitted = false
+  if (!emptied) await io.state.draft.update(() => text)
 }
 
 /** Enter in the SQL field: the text as it stands is run. */
 async function submitSql(io: Port, text: string): Promise<void> {
-  await typeSql(io, text)
+  mod.editor.submitted = text !== ''
+  await io.state.draft.update(() => text)
   await runEditor(io)
 }
 

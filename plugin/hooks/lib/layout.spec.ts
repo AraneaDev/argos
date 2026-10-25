@@ -31,13 +31,13 @@ const lines = (rows: Row[]): string[] => rows.map(r => r.segments.filter(s => s.
 const all = (rows: Row[]): string => lines(rows).join('\n')
 
 describe('the Connections tab', () => {
-  it('shows one card per connection, SELECT_ONLY for a select-only one and full access for the other', () => {
+  it('shows one card per connection, select-only for a select-only one and full access for the other', () => {
     const text = all(paneRows(model(), 100, 40))
     expect(text).toContain('demo')
     expect(text).toContain('writable')
-    expect(text).toContain('SELECT_ONLY')
+    expect(text).not.toContain('SELECT_ONLY')
     expect(text).toContain('full access')
-    expect(text.match(/SELECT_ONLY/g)).toHaveLength(1)
+    expect(text.match(/access\s+select-only/g)).toHaveLength(1)
   })
 
   it('says the engine, the host, the tunnel, MCP configuration and when the schema was captured', () => {
@@ -220,6 +220,23 @@ describe('the Queries tab', () => {
   })
 })
 
+describe('the Queries tab at medium width', () => {
+  it('hands the free height to the lists before cutting them with "n more"', () => {
+    const history = Array.from({ length: 8 }, (_, i) => E(`e${i}`))
+    const page = { id: 'e0', fields: ['n'], rows: Array.from({ length: 10 }, (_, i) => [i]), total: 10, offset: 0, truncated: false }
+    for (let height = 40; height <= 60; height++) {
+      const m = queriesModel(0, { history: { ask: 1, phase: 'done', answer: history, more: false, failure: null }, result: { id: 'e0', offset: 0, phase: 'done', page, failure: null } })
+      const laid = paneLayout(m, 86, height)
+      if (laid.pinned) continue
+      const rows = lines([...laid.body, ...laid.footer])
+      const cut = rows.some(l => /\d+ more ↓/.test(l))
+      // The body ends on the gap before the footer bar and nothing else blank: no height left idle while a list is cut.
+      const blanks = lines(laid.body).reverse().findIndex(l => l.trim() !== '')
+      if (cut) expect(blanks, `height ${height}`).toBe(0)
+    }
+  })
+})
+
 describe('a schema read for another connection', () => {
   it('is no answer for the connection now picked', () => {
     const stale = schemaModel({}, { db: 'shop' })
@@ -238,7 +255,33 @@ describe('the Editor tab', () => {
   it('shows the field with the draft, and the refusal of a blocked entry', () => {
     const text = all(paneLayout(editorModel({ editor: ran({ outcome: 'blocked', reason: 'only SELECT is allowed', spool: null }) }), 100, 40).body)
     expect(text).toContain('DELETE FROM t')
-    expect(text).toContain('refused: only SELECT is allowed')
+    expect(text).toContain('blocked: only SELECT is allowed')
+  })
+
+  it('separates the connection label from its value, in the same words as the cards', () => {
+    const text = lines(paneLayout(editorModel(), 100, 40).body)
+    expect(text.find(l => l.includes('connection'))).toMatch(/connection\s+\S/)
+    expect(text.find(l => l.includes('connection'))).not.toMatch(/connection[^\s]/)
+    expect(all(paneLayout(editorModel(), 100, 40).body)).not.toContain('SELECT_ONLY')
+    expect(all(paneLayout(editorModel(), 100, 40).body)).toMatch(/select-only/)
+  })
+
+  it('keeps the SQL in the field after a blocked, failed or successful run', () => {
+    for (const outcome of ['blocked', 'error', 'ok'] as const) {
+      const field = paneLayout(editorModel({ editor: ran({ outcome, reason: 'x', spool: null }) }), 100, 40).body.flatMap(r => r.segments).find(s => s.field !== undefined)!
+      expect(field.field!.value).toBe('DELETE FROM t')
+      expect(field.text).toBe('DELETE FROM t')
+    }
+  })
+
+  it('draws the field afresh at each run, so the input holds the draft again', () => {
+    const epochOf = (runs: number) => paneLayout(editorModel({ editor: { ...ran(), runs } }), 100, 40).body.flatMap(r => r.segments).find(s => s.field !== undefined)!.field!.epoch
+    expect(epochOf(2)).not.toBe(epochOf(1))
+  })
+
+  it('hints how to leave the field while it holds the keys', () => {
+    expect(lines(paneLayout(editorModel(), 120, 40).footer).join('\n')).toContain('tab: leave field')
+    expect(keysOf(queriesModel(0))).not.toContain('leave field')
   })
 
   it('draws the result grid of a run', () => {

@@ -11,7 +11,7 @@
         {
           "name": "id",
           "type": "INTEGER",
-          "nullable": true,
+          "nullable": false,
           "default": null,
           "max_length": null,
           "precision": null,
@@ -67,7 +67,7 @@
         {
           "name": "id",
           "type": "INTEGER",
-          "nullable": true,
+          "nullable": false,
           "default": null,
           "max_length": null,
           "precision": null,
