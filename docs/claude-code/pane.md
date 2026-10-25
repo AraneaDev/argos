@@ -39,6 +39,12 @@ installed copy, and runs `claude plugin marketplace add` and
 `claude plugin install argos@argos`. Re-run it after moving the repository or
 the config. Restart Claude Code (or start a new session) to load it.
 
+The pane reads the journal in the `.argos/` folder beside the `config.ini` the
+install recorded. The Argos MCP server writes Claude's queries to the journal
+beside the `config.ini` it was started with, so both must use the same file:
+if the server runs with a different config, the pane will not see Claude's
+queries.
+
 ## Opening it
 
 Type `/argos` in Claude Code to open the pane; type it again to close it. The
@@ -70,7 +76,7 @@ you from the pane. Claude's queries appear the moment they finish.
 
 | Key | Does |
 |-----|------|
-| `r` | Rerun the selected query read-only, as a pane query of yours |
+| `r` | Rerun the selected query read-only, as a pane query of yours. A query Claude ran with bound parameters cannot be rerun (the journal keeps the SQL, not the values); the pane says so instead |
 | `e` | Open its SQL in the Editor |
 | `p` | Pin it, or unpin it. A pinned query keeps its result |
 | `c` | Copy the result as Markdown; press again within two seconds for CSV, then JSON |
@@ -146,6 +152,8 @@ Beside your `config.ini`, in a `.argos/` folder (created private to your user):
 | `.argos/journal.jsonl` | One line per query: when, who ran it, the connection, the SQL, how long, rows, and the outcome |
 | `.argos/spool/` | The full result of each query, read back page by page |
 | `.argos/pins.json` | Your pins |
+| `.argos/schema-checks.json` | When each connection's schema was last checked for changes, so the once-a-minute limit holds across the server and the pane |
+| `.argos/.gitignore` | Ignores everything in the folder, so none of it is committed to the repository the config lives in |
 
 Results are kept for up to 30 days and 200 MB in total; past either, the oldest
 are removed first. Results of pinned queries are kept regardless. The history
@@ -176,6 +184,7 @@ The pane never closes over a failure; it says one line and carries on.
 | `argos: the pane could not be drawn (...)` | The pane failed to draw; the reason follows |
 | `refused: ...` / `blocked: ...` | The query was not read-only, or Argos's security check refused it |
 | `result no longer kept - r to rerun` | The stored result aged out or was evicted |
+| `can't rerun: this query used parameters` | Claude ran it with bound parameter values, which the journal does not keep; open it with `e` and fill them in |
 | `result too wide to show here` | A result the pane cannot hold; `c` copies the SQL |
 | `output too large` | The CLI's answer was cut short; the pane asks again for fewer rows |
 
