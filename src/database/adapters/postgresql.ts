@@ -78,6 +78,16 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
     this.validateConfig(['host', 'database', 'username', 'password']);
     try {
       const client: PoolClient = await this.getPool().connect();
+      if (this.config.read_only_session) {
+        try {
+          // Database-enforced: any write in this session fails with
+          // "cannot execute ... in a read-only transaction".
+          await client.query('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY');
+        } catch (error) {
+          client.release();
+          throw error;
+        }
+      }
       return client as DatabaseConnection;
     } catch (error) {
       throw this.createError('Failed to acquire PostgreSQL connection from pool', error as Error);

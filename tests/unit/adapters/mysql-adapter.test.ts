@@ -99,6 +99,43 @@ describe('MySQLAdapter', () => {
   // Connection Management Tests
   // ============================================================================
 
+  describe('read-only session', () => {
+    const withQuery = (query: jest.Mock) => {
+      mockGetConnection.mockResolvedValue({ ...mockConnection, query });
+    };
+
+    it('should not make the session read-only when read_only_session is unset', async () => {
+      const query = jest.fn().mockResolvedValue([[], []]);
+      withQuery(query);
+
+      await adapter.connect();
+
+      expect(query).not.toHaveBeenCalledWith('SET SESSION TRANSACTION READ ONLY');
+    });
+
+    it('should make the session read-only when read_only_session is set', async () => {
+      const query = jest.fn().mockResolvedValue([[], []]);
+      withQuery(query);
+
+      await new MySQLAdapter({ ...config, read_only_session: true }).connect();
+
+      expect(query).toHaveBeenCalledWith('SET SESSION TRANSACTION READ ONLY');
+    });
+
+    it('should release the connection and fail when the session cannot be made read-only', async () => {
+      const query = jest.fn(async (sql: string) => {
+        if (sql === 'SET SESSION TRANSACTION READ ONLY') throw new Error('nope');
+        return [[], []];
+      });
+      withQuery(query);
+
+      await expect(
+        new MySQLAdapter({ ...config, read_only_session: true }).connect()
+      ).rejects.toThrow();
+      expect(mockRelease).toHaveBeenCalled();
+    });
+  });
+
   describe('connect', () => {
     it('should connect to MySQL database successfully', async () => {
       const connection = await adapter.connect();

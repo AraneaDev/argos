@@ -55,6 +55,10 @@ export interface DatabaseConfig {
   ssl?: boolean;
   ssl_verify?: boolean; // Verify SSL certificates (default: true)
   select_only?: boolean;
+  // Ask the database itself to refuse writes for the whole session (PostgreSQL and
+  // MySQL only). Never read from config.ini: the pane CLI sets it on its own copy of
+  // each connection so the MCP server's behaviour is unchanged.
+  read_only_session?: boolean;
   timeout?: number;
   file?: string; // For SQLite
   encrypt?: boolean; // For MSSQL

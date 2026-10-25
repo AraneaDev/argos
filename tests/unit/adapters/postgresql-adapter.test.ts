@@ -225,6 +225,32 @@ describe('PostgreSQLAdapter', () => {
   // Pool Configuration
   // ============================================================================
 
+  describe('read-only session', () => {
+    it('should not touch the session when read_only_session is unset', async () => {
+      await adapter.connect();
+
+      expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    it('should make the session read-only when read_only_session is set', async () => {
+      const ro = new PostgreSQLAdapter({ ...config, read_only_session: true });
+
+      await ro.connect();
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY'
+      );
+    });
+
+    it('should release the client and fail when the session cannot be made read-only', async () => {
+      mockQuery.mockRejectedValueOnce(new Error('nope'));
+      const ro = new PostgreSQLAdapter({ ...config, read_only_session: true });
+
+      await expect(ro.connect()).rejects.toThrow();
+      expect(mockRelease).toHaveBeenCalled();
+    });
+  });
+
   describe('pool configuration', () => {
     const poolConfigAfterConnect = async (
       overrides: Partial<DatabaseConfig>

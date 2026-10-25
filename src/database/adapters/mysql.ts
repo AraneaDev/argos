@@ -92,6 +92,15 @@ export class MySQLAdapter extends DatabaseAdapter {
     try {
       const conn: MySQLPoolConnection = await this.getPool().getConnection();
       await this.applyStatementTimeout(conn);
+      if (this.config.read_only_session) {
+        try {
+          // Database-enforced: writes to tables fail with ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION.
+          await conn.query('SET SESSION TRANSACTION READ ONLY');
+        } catch (error) {
+          conn.release();
+          throw error;
+        }
+      }
       return conn as DatabaseConnection;
     } catch (error) {
       throw this.createError('Failed to acquire MySQL connection from pool', error as Error);
