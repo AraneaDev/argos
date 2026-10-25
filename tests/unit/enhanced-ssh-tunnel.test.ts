@@ -90,22 +90,6 @@ describe('PortManager', () => {
       expect(result.port).toBe(testPort);
       expect(result.reason).toMatch(/already in use/i);
     });
-
-    it('should validate port numbers', () => {
-      expect(portManager.isValidPort(1)).toBe(true);
-      expect(portManager.isValidPort(65535)).toBe(true);
-      expect(portManager.isValidPort(0)).toBe(false);
-      expect(portManager.isValidPort(65536)).toBe(false);
-      expect(portManager.isValidPort(-100)).toBe(false);
-    });
-
-    it('should identify privileged ports', () => {
-      expect(portManager.isPrivilegedPort(22)).toBe(true);
-      expect(portManager.isPrivilegedPort(80)).toBe(true);
-      expect(portManager.isPrivilegedPort(1023)).toBe(true);
-      expect(portManager.isPrivilegedPort(1024)).toBe(false);
-      expect(portManager.isPrivilegedPort(8080)).toBe(false);
-    });
   });
 
   describe('Smart Port Assignment', () => {
@@ -319,40 +303,6 @@ describe('PortManager', () => {
       expect(duration).toBeLessThan(5000); // Should complete within 5 seconds
     });
   });
-
-  describe('Port Status Information', () => {
-    it('should provide readable status for available ports', async () => {
-      const testPort = testPortBase + 600;
-      const status = await portManager.getPortStatus(testPort);
-
-      expect(status).toContain(`Port ${testPort} is available`);
-    });
-
-    it('should provide readable status for occupied ports', async () => {
-      const testPort = testPortBase + 601;
-      await testOccupier.occupyPort(testPort);
-
-      const status = await portManager.getPortStatus(testPort);
-
-      expect(status).toContain(`Port ${testPort} is not available`);
-      expect(status).toMatch(/already in use/i);
-    });
-
-    it('should indicate reserved ports in status', async () => {
-      const testPort = testPortBase + 602;
-      portManager.reservePort(testPort);
-
-      const status = await portManager.getPortStatus(testPort);
-
-      // Port is still available to the system but reserved by manager
-      const availabilityCheck = await portManager.isPortAvailable(testPort);
-      expect(availabilityCheck.isAvailable).toBe(true);
-
-      // Status might indicate it's reserved (implementation dependent)
-      expect(typeof status).toBe('string');
-      expect(status.length).toBeGreaterThan(0);
-    });
-  });
 });
 
 // ============================================================================
@@ -465,8 +415,6 @@ describe('EnhancedSSHTunnelManager', () => {
     it('should start with no tunnels', () => {
       expect(tunnelManager.hasTunnel('any-db')).toBe(false);
       expect(tunnelManager.getTunnel('any-db')).toBeUndefined();
-      expect(tunnelManager.getEnhancedTunnel('any-db')).toBeUndefined();
-      expect(tunnelManager.getActiveTunnels()).toEqual([]);
     });
 
     it('should start with empty stats', () => {
@@ -611,10 +559,6 @@ describe('EnhancedSSHTunnelManager', () => {
 
     it('should return undefined for getTunnel on non-existent tunnels', () => {
       expect(tunnelManager.getTunnel('nonexistent')).toBeUndefined();
-    });
-
-    it('should return undefined for getEnhancedTunnel on non-existent tunnels', () => {
-      expect(tunnelManager.getEnhancedTunnel('nonexistent')).toBeUndefined();
     });
 
     it('should handle closeTunnel for non-existent tunnel gracefully', async () => {
@@ -893,46 +837,6 @@ describe('EnhancedSSHTunnelManager', () => {
       });
 
       expect(tunnelManager.isConnected('test-db')).toBe(false);
-    });
-  });
-
-  // ============================================================================
-  // getActiveTunnels
-  // ============================================================================
-
-  describe('getActiveTunnels', () => {
-    it('should return empty array when no tunnels', () => {
-      expect(tunnelManager.getActiveTunnels()).toEqual([]);
-    });
-
-    it('should only return connected tunnels', () => {
-      // Active tunnel
-      const activeConn = new MockSSHClient();
-      activeConn.on('error', () => {});
-      (tunnelManager as any).tunnels.set('active-db', {
-        isActive: true,
-        connection: activeConn as any,
-      });
-      (tunnelManager as any).tunnelStatus.set('active-db', {
-        status: 'connected',
-        isHealthy: true,
-        reconnectAttempts: 0,
-      });
-
-      // Inactive tunnel
-      (tunnelManager as any).tunnels.set('inactive-db', {
-        isActive: false,
-        connection: new MockSSHClient() as any,
-      });
-      (tunnelManager as any).tunnelStatus.set('inactive-db', {
-        status: 'disconnected',
-        isHealthy: false,
-        reconnectAttempts: 0,
-      });
-
-      const activeTunnels = tunnelManager.getActiveTunnels();
-      expect(activeTunnels).toContain('active-db');
-      expect(activeTunnels).not.toContain('inactive-db');
     });
   });
 
@@ -1318,15 +1222,6 @@ describe('EnhancedSSHTunnelManager', () => {
   // ============================================================================
 
   describe('Error Handling', () => {
-    it('should handle invalid port numbers gracefully', async () => {
-      const invalidPorts = [-1, 0, 65536, 99999];
-
-      for (const port of invalidPorts) {
-        expect(() => portManager.isValidPort(port)).not.toThrow();
-        expect(portManager.isValidPort(port)).toBe(false);
-      }
-    });
-
     it('should handle network errors during port checks', async () => {
       // Test with a port that might cause permission errors on some systems
       const privilegedPort = 80;

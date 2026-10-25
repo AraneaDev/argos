@@ -41,7 +41,6 @@ describe('ConnectionManager', () => {
         remotePort: 5432,
         portAssignment: { assignedPort: 12345, wasPreferredPort: false },
       }),
-      getEnhancedTunnel: jest.fn().mockReturnValue(null),
       getPortRecommendations: jest
         .fn()
         .mockResolvedValue({ available: [12346, 12347], used: [], suggestions: [] }),

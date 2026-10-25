@@ -150,14 +150,12 @@ export class EnhancedSSHTunnelManager extends EventEmitter {
  createEnhancedTunnel(dbName: string, options: EnhancedTunnelOptions): Promise<EnhancedTunnelInfo>;
  hasTunnel(dbName: string): boolean;
  getTunnel(dbName: string): SSHTunnelInfo | undefined;
- getEnhancedTunnel(dbName: string): EnhancedTunnelInfo | undefined;
  closeTunnel(dbName: string): Promise<void>;
  closeAllTunnels(): Promise<void>;
 
  // Status
  isConnected(dbName: string): boolean;
  getTunnelStatus(dbName: string): SSHTunnelStatusInfo | undefined;
- getActiveTunnels(): string[];
 }
 ```
 
