@@ -98,7 +98,7 @@ describe('query journaling', () => {
 
   it('marks a sql_query that used params, and leaves others unmarked', async () => {
     const ctx = makeCtx(store);
-    await handleSqlQuery(ctx, { database: 'db', query: 'SELECT $1', params: [1] });
+    await handleSqlQuery(ctx, { database: 'db', query: 'SELECT $1', params: ['1'] });
     await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1', params: [] });
     (ctx.connectionManager.executeQuery as jest.Mock).mockRejectedValueOnce(new Error('boom'));
     await handleSqlQuery(ctx, { database: 'db', query: 'SELECT $2', params: ['x'] });
