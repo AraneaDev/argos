@@ -171,77 +171,8 @@ export const DEFAULT_CONNECTION_TIMEOUT = 30000;
 export const DEFAULT_SSH_PORT = 22;
 
 // ============================================================================
-// Type Guards and Validation
-// ============================================================================
-
-/**
- *
- */
-export function isDatabaseSectionConfig(value: unknown): value is DatabaseSectionConfig {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'type' in value &&
-    typeof (value as DatabaseSectionConfig).type === 'string'
-  );
-}
-
-/**
- *
- */
-export function isRawConfigFile(value: unknown): value is RawConfigFile {
-  return typeof value === 'object' && value !== null;
-}
-
-// ============================================================================
 // Configuration Utilities
 // ============================================================================
-
-/**
- *
- */
-export function parseStringToNumber(
-  value: string | number | undefined,
-  defaultValue: number
-): number {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? defaultValue : parsed;
-  }
-  return defaultValue;
-}
-
-/**
- *
- */
-export function parseStringToBoolean(
-  value: string | boolean | undefined,
-  defaultValue: boolean
-): boolean {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true';
-  }
-  return defaultValue;
-}
-
-/**
- *
- */
-export function validateDatabaseType(type: string): DatabaseTypeString | null {
-  const lowerType = type.toLowerCase();
-  const validTypes: DatabaseTypeString[] = [
-    'mysql',
-    'postgresql',
-    'postgres',
-    'sqlite',
-    'mssql',
-    'sqlserver',
-  ];
-
-  return validTypes.find((t) => t === lowerType) || null;
-}
 
 /**
  *
@@ -259,31 +190,4 @@ export function getRequiredFields(type: DatabaseTypeString): string[] {
     default:
       return [];
   }
-}
-
-/**
- *
- */
-export function validateRequiredFields(
-  config: DatabaseSectionConfig,
-  _dbName: string,
-  type: DatabaseTypeString
-): ConfigValidationError[] {
-  const errors: ConfigValidationError[] = [];
-  const required = getRequiredFields(type);
-
-  for (const field of required) {
-    const value = config[field as keyof DatabaseSectionConfig];
-    if (!value || (typeof value === 'string' && value.trim() === '')) {
-      errors.push({
-        section: `database.${_dbName}`,
-        field,
-        value,
-        message: `Required field '${field}' is missing or empty for ${type} database`,
-        severity: 'error',
-      });
-    }
-  }
-
-  return errors;
 }

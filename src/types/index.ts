@@ -15,7 +15,6 @@ export type {
   TableInfo,
   ForeignKey,
   DatabaseSchema,
-  SchemaInfo,
   QueryObject,
   BatchResultItem,
   BatchResult,
@@ -105,21 +104,10 @@ export {
 } from '../utils/error-handler.js';
 
 // Type guards
-export {
-  isDatabaseType,
-  isQueryObject,
-  isSecurityViolationError,
-  isValidRedactionType,
-  isValidFieldPatternType,
-  isFieldRedactionRule,
-  isDatabaseRedactionConfig,
-} from './database.js';
+export { isValidRedactionType, isValidFieldPatternType, isFieldRedactionRule } from './database.js';
 
 export {
   isMCPRequest,
-  isMCPResponse,
-  isMCPNotification,
-  isMCPToolCallRequest,
   isSQLQueryArgs,
   isSQLBatchQueryArgs,
   isSQLGetSchemaArgs,
@@ -128,15 +116,7 @@ export {
 
 export { validateSSHConfig } from './ssh.js';
 
-export {
-  isDatabaseSectionConfig,
-  isRawConfigFile,
-  parseStringToNumber,
-  parseStringToBoolean,
-  validateDatabaseType,
-  getRequiredFields,
-  validateRequiredFields,
-} from './config.js';
+export { getRequiredFields } from './config.js';
 
 export {} from './performance.js';
 

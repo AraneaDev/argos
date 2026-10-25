@@ -33,17 +33,7 @@ jest.mock('path', () => ({
   }),
 }));
 
-import {
-  Logger,
-  getLogger,
-  initializeLogger,
-  cleanupLogger,
-  log,
-  logError,
-  logWarning,
-  logCritical,
-  logDebug,
-} from '../../../src/utils/logger.js';
+import { Logger, getLogger, initializeLogger, cleanupLogger } from '../../../src/utils/logger.js';
 
 import { createWriteStream, existsSync, unlinkSync } from 'fs';
 
@@ -507,48 +497,6 @@ describe('Logger', () => {
   // ============================================================================
   // Convenience Functions
   // ============================================================================
-
-  describe('convenience functions', () => {
-    it('log should call info on global logger', () => {
-      log('test message');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('test message'));
-    });
-
-    it('log should pass context', () => {
-      log('test', { key: 'val' });
-      expect(console.log).toHaveBeenCalled();
-    });
-
-    it('logError should call error on global logger', () => {
-      logError('error msg');
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('error msg'));
-    });
-
-    it('logError should accept Error object', () => {
-      logError('fail', new Error('err'));
-      expect(console.error).toHaveBeenCalled();
-    });
-
-    it('logWarning should call warning on global logger', () => {
-      logWarning('warn msg');
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('warn msg'));
-    });
-
-    it('logCritical should call critical on global logger', () => {
-      logCritical('critical msg');
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('critical msg'));
-    });
-
-    it('logCritical should accept Error object', () => {
-      logCritical('fail', new Error('crit'));
-      expect(console.error).toHaveBeenCalled();
-    });
-
-    it('logDebug should call debug on global logger', () => {
-      logDebug('debug msg');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[DEBUG] debug msg'));
-    });
-  });
 
   describe('secret redaction in file output', () => {
     it('redacts secret-looking context fields before writing to the log file', async () => {

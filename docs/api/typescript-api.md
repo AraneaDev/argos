@@ -641,36 +641,27 @@ export interface TestConnectionResult {
 Functions to check types at runtime.
 
 ```typescript
-// Database type guards
-export function isDatabaseType(value: any): value is DatabaseType;
-export function isQueryObject(value: any): value is QueryObject;
-export function isSecurityViolationError(error: any): error is SecurityViolationError;
+// Redaction config guards (src/types/database.ts)
+export function isValidRedactionType(value: string): value is RedactionType;
+export function isValidFieldPatternType(value: string): value is FieldPatternType;
+export function isFieldRedactionRule(value: unknown): value is FieldRedactionRule;
 
-// MCP type guards
-export function isMCPRequest(message: any): message is MCPRequest;
-export function isMCPResponse(message: any): message is MCPResponse;
-export function isMCPToolCallRequest(request: any): request is MCPToolCallRequest;
-export function isSQLQueryArgs(args: any): args is SQLQueryArgs;
-export function isSQLBatchQueryArgs(args: any): args is SQLBatchQueryArgs;
+// MCP guards (src/types/mcp.ts)
+export function isMCPRequest(message: MCPMessage): message is MCPRequest;
+export function isSQLQueryArgs(args: unknown): args is SQLQueryArgs;
+export function isSQLBatchQueryArgs(args: unknown): args is SQLBatchQueryArgs;
+export function isSQLGetSchemaArgs(args: unknown): args is SQLGetSchemaArgs;
+export function isSQLTestConnectionArgs(args: unknown): args is SQLTestConnectionArgs;
 
-// Security type guards
-export function isComplexityRiskLevel(value: any): value is ComplexityRiskLevel;
-export function isTokenType(value: any): value is TokenType;
-
-// SSH type guards
-export function isSSHTunnelStatus(value: any): value is SSHTunnelStatus;
-export function validateSSHConfig(config: any): config is SSHConnectionConfig;
+// SSH (src/types/ssh.ts)
+export function validateSSHConfig(config: SSHConnectionConfig): SSHTunnelValidationResult;
 ```
 
 ### Configuration Utilities
 Helper functions for configuration management.
 
 ```typescript
-export function parseStringToNumber(value: string, defaultValue: number): number;
-export function parseStringToBoolean(value: string, defaultValue: boolean): boolean;
-export function validateDatabaseType(type: string): type is DatabaseType;
-export function getRequiredFields(dbType: DatabaseType): string[];
-export function validateRequiredFields(config: any, required: string[]): string[];
+export function getRequiredFields(type: DatabaseTypeString): string[];
 ```
 
 ---
@@ -788,18 +779,13 @@ offending statement is `blockedCommand`.
 
 ### Type-Safe Configuration
 ```typescript
-import { isDatabaseType, validateRequiredFields } from '../../src/types/index.js';
+import { DEFAULT_DATABASE_PORTS, getRequiredFields } from '../../src/types/index.js';
 import type { DatabaseConfig } from '../../src/types/index.js';
 
 function createDatabaseConfig(rawConfig: any): DatabaseConfig {
- // Validate database type
- if (!isDatabaseType(rawConfig.type)) {
- throw new Error(`Invalid database type: ${rawConfig.type}`);
- }
- 
  // Check required fields
  const required = getRequiredFields(rawConfig.type);
- const missing = validateRequiredFields(rawConfig, required);
+ const missing = required.filter((field) => !rawConfig[field]);
  
  if (missing.length > 0) {
  throw new Error(`Missing required fields: ${missing.join(', ')}`);
@@ -812,7 +798,7 @@ function createDatabaseConfig(rawConfig: any): DatabaseConfig {
  database: rawConfig.database,
  username: rawConfig.username,
  password: rawConfig.password,
- select_only: parseStringToBoolean(rawConfig.select_only, true)
+ select_only: rawConfig.select_only !== 'false'
  };
 }
 ```

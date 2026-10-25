@@ -324,7 +324,7 @@ export class Logger {
     }
   }
 
-  // eslint-disable-next-line no-console -- logger is the one place that legitimately uses console
+   
   private getConsoleMethod(level: LogEntry['level']): (..._args: unknown[]) => void {
     switch (level) {
       case 'INFO':
@@ -333,7 +333,7 @@ export class Logger {
         return console.warn; // eslint-disable-line no-console
       case 'ERROR':
       case 'CRITICAL':
-        return console.error; // eslint-disable-line no-console
+        return console.error;  
       default:
         return console.log; // eslint-disable-line no-console
     }
@@ -471,46 +471,4 @@ export async function cleanupLogger(): Promise<void> {
     await globalLogger.cleanup();
     globalLogger = undefined;
   }
-}
-
-// ============================================================================
-// Convenience Functions
-// ============================================================================
-
-/**
- *
- */
-export function log(message: string, context?: Record<string, unknown>): void {
-  getLogger().info(message, context);
-}
-
-/**
- *
- */
-export function logError(message: string, contextOrError?: Record<string, unknown> | Error): void {
-  getLogger().error(message, contextOrError);
-}
-
-/**
- *
- */
-export function logWarning(message: string, context?: Record<string, unknown>): void {
-  getLogger().warning(message, context);
-}
-
-/**
- *
- */
-export function logCritical(
-  message: string,
-  contextOrError?: Record<string, unknown> | Error
-): void {
-  getLogger().critical(message, contextOrError);
-}
-
-/**
- *
- */
-export function logDebug(message: string, context?: Record<string, unknown>): void {
-  getLogger().debug(message, context);
 }

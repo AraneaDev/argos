@@ -3,7 +3,6 @@
  */
 
 import type { Client as PgClient, PoolClient as PgPoolClient } from 'pg';
-import { SecurityViolationError } from '../utils/error-handler.js';
 import type {
   Connection as MySQLConnection,
   PoolConnection as MySQLPoolConnection,
@@ -17,7 +16,7 @@ import type { ConnectionPool as MSSQLConnection } from 'mssql';
 
 // Database type enum - exported for external use
 // Note: Some values kept for backward compatibility but may be unused internally
- 
+
 export enum DatabaseType {
   // Commonly used values
   MYSQL = 'mysql',
@@ -27,7 +26,6 @@ export enum DatabaseType {
   MSSQL = 'mssql',
   SQLSERVER = 'sqlserver',
 }
- 
 
 // For backward compatibility, also export as type
 export type DatabaseTypeString =
@@ -161,16 +159,6 @@ export interface DatabaseSchema {
     view_count: number;
     total_columns: number;
   };
-}
-
-export interface SchemaInfo {
-  table_count: number;
-  view_count: number;
-  function_count: number;
-  sequence_count: number;
-  total_columns: number;
-  total_indexes: number;
-  foreign_key_count: number;
 }
 
 // ============================================================================
@@ -331,32 +319,6 @@ export interface QueryResultWithRedaction extends QueryResult {
 /**
  *
  */
-export function isDatabaseType(value: string): value is DatabaseTypeString {
-  return ['mysql', 'postgresql', 'postgres', 'sqlite', 'mssql', 'sqlserver'].includes(value);
-}
-
-/**
- *
- */
-export function isQueryObject(value: unknown): value is QueryObject {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'query' in value &&
-    typeof (value as QueryObject).query === 'string'
-  );
-}
-
-/**
- *
- */
-export function isSecurityViolationError(error: unknown): error is SecurityViolationError {
-  return error instanceof SecurityViolationError;
-}
-
-/**
- *
- */
 export function isValidRedactionType(value: string): value is RedactionType {
   return ['full_mask', 'partial_mask', 'replace', 'custom'].includes(value);
 }
@@ -381,20 +343,5 @@ export function isFieldRedactionRule(value: unknown): value is FieldRedactionRul
     typeof (value as FieldRedactionRule).field_pattern === 'string' &&
     isValidFieldPatternType((value as FieldRedactionRule).pattern_type) &&
     isValidRedactionType((value as FieldRedactionRule).redaction_type)
-  );
-}
-
-/**
- *
- */
-export function isDatabaseRedactionConfig(value: unknown): value is DatabaseRedactionConfig {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'enabled' in value &&
-    'rules' in value &&
-    typeof (value as DatabaseRedactionConfig).enabled === 'boolean' &&
-    Array.isArray((value as DatabaseRedactionConfig).rules) &&
-    (value as DatabaseRedactionConfig).rules.every(isFieldRedactionRule)
   );
 }

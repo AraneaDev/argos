@@ -9,7 +9,6 @@ import type {
   DatabaseSchema,
   ForeignKey,
   DatabaseTypeString,
-  QueryResultWithRedaction,
 } from '../../types/index.js';
 import { RedactionManager } from '../../classes/RedactionManager.js';
 

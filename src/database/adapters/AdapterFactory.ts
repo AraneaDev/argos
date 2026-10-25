@@ -3,7 +3,6 @@
  */
 
 import type { DatabaseConfig, DatabaseTypeString } from '../../types/index.js';
-import { DEFAULT_DATABASE_PORTS } from '../../types/index.js';
 import { usesAzureCliAuth } from '../../utils/config.js';
 import type { DatabaseAdapter } from './base.js';
 import { MySQLAdapter } from './mysql.js';

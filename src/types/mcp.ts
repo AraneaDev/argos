@@ -135,34 +135,6 @@ export function isMCPRequest(message: MCPMessage): message is MCPRequest {
   return 'id' in message && 'method' in message && message.id !== undefined;
 }
 
-/**
- *
- */
-export function isMCPResponse(message: MCPMessage): message is MCPResponse {
-  return 'id' in message && ('result' in message || 'error' in message);
-}
-
-/**
- *
- */
-export function isMCPNotification(message: MCPMessage): message is MCPNotification {
-  return 'method' in message && !('id' in message);
-}
-
-/**
- *
- */
-export function isMCPToolCallRequest(message: MCPMessage): message is MCPToolCallRequest {
-  return (
-    isMCPRequest(message) &&
-    message.method === 'tools/call' &&
-    typeof message.params === 'object' &&
-    message.params !== null &&
-    'name' in message.params &&
-    'arguments' in message.params
-  );
-}
-
 // ============================================================================
 // Tool-specific Type Guards
 // ============================================================================
