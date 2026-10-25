@@ -310,23 +310,21 @@ docs/ # Documentation
  
  describe('query validation', () => {
  test('should allow safe SELECT queries', async () => {
- const result = await securityManager.validateQuery('SELECT * FROM users');
+ const result = securityManager.validateSelectOnlyQuery('SELECT * FROM users');
  expect(result.allowed).toBe(true);
  expect(result.confidence).toBeGreaterThan(0.8);
  });
  
  test('should block dangerous operations', async () => {
- const result = await securityManager.validateQuery('DROP TABLE users');
+ const result = securityManager.validateSelectOnlyQuery('DROP TABLE users');
  expect(result.allowed).toBe(false);
  expect(result.reason).toContain('DROP');
  });
  
  test('should handle edge cases and errors', async () => {
- await expect(
- securityManager.validateQuery('')
- ).rejects.toThrow('Empty query');
+ expect(securityManager.validateSelectOnlyQuery('').allowed).toBe(false);
  
- const malformedResult = await securityManager.validateQuery('SELCT * FROM');
+ const malformedResult = securityManager.validateSelectOnlyQuery('SELCT * FROM');
  expect(malformedResult.allowed).toBe(false);
  });
  });

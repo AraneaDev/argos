@@ -56,16 +56,12 @@ export type {
 // Security types
 export type {
   SecurityValidation,
-  BatchValidationResult,
-  QueryValidationResult,
-  BatchSecurityAnalysis,
   ComplexityRiskLevel,
   QueryComplexityAnalysis,
   ComplexityLimits,
   TokenType,
   SQLToken,
   LogSeverity,
-  AuditLogEntry,
   SecurityConfig,
   SecurityManagerConfig,
   ISecurityManager,

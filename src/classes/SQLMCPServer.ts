@@ -411,13 +411,6 @@ export class SQLMCPServer extends EventEmitter {
     this.schemaManager.on('schema-refreshed', (dbName: string) => {
       this.logger.info(`Schema refreshed: ${dbName}`);
     });
-
-    this.securityManager.on('query-blocked', (dbName: string, reason: string) => {
-      this.logger.warning(`Query blocked in ${dbName}: ${reason}`);
-    });
-    this.securityManager.on('query-approved', (dbName: string) => {
-      this.logger.info(`Query approved for ${dbName}`);
-    });
   }
 
   private registerMCPHandlers(): void {

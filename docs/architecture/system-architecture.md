@@ -300,10 +300,6 @@ connectionManager.on('error', (error: Error, dbName?: string) => {...})
 // SSH tunnel events
 sshTunnelManager.on('tunnel-connected', (dbName: string) => {...})
 sshTunnelManager.on('tunnel-disconnected', (dbName: string) => {...})
-
-// Security events
-securityManager.on('query-blocked', (dbName: string, reason: string) => {...})
-securityManager.on('query-approved', (dbName: string) => {...})
 ```
 
 ### Event Benefits

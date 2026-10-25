@@ -2,24 +2,19 @@
  * SQL Security Manager with comprehensive validation
  */
 
-import { createHash } from 'crypto';
 import { EventEmitter } from 'events';
 import type {
   SecurityValidation,
-  BatchValidationResult,
-  QueryValidationResult,
   QueryComplexityAnalysis,
   ComplexityLimits,
   ComplexityRiskLevel,
   SQLToken,
   TokenType,
-  AuditLogEntry,
   SecurityManagerConfig,
   ISecurityManager,
   ParsedServerConfig,
 } from '../types/index.js';
 import { getLogger } from '../utils/logger.js';
-import { sanitizeMessage } from '../utils/error-handler.js';
 
 // ============================================================================
 // SQL Security Manager Implementation
@@ -220,20 +215,10 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
 
   private readonly complexityLimits: ComplexityLimits;
   private readonly logger = getLogger();
-  private selectOnlyMode: boolean = true;
-  private statisticsEnabled: boolean = true;
-  private statistics = {
-    queriesValidated: 0,
-    queriesBlocked: 0,
-    queriesAllowed: 0,
-    totalComplexity: 0,
-    avgComplexity: 0,
-  };
 
-  constructor(config: SecurityManagerConfig = {}, selectOnlyMode: boolean = true) {
+  constructor(config: SecurityManagerConfig = {}) {
     super(); // Call EventEmitter constructor
 
-    this.selectOnlyMode = selectOnlyMode;
     const securityConfig = config.security || {};
 
     this.complexityLimits = {
@@ -247,7 +232,6 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
 
     this.logger.info('Security manager initialized', {
       limits: this.complexityLimits,
-      selectOnlyMode: this.selectOnlyMode,
     });
   }
 
@@ -282,26 +266,6 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
     }
 
     this.emit('initialized', config);
-  }
-
-  /**
-   * Validate a single SELECT-only query
-   */
-  validateQuery(query: string, dbType = 'mysql'): Promise<SecurityValidation> {
-    this.updateStatistics();
-    const result = this.selectOnlyMode
-      ? this.validateSelectOnlyQuery(query, dbType)
-      : this.validateAnyQuery(query, dbType);
-
-    if (result.allowed) {
-      this.statistics.queriesAllowed++;
-      this.emit('query-approved', 'unknown');
-    } else {
-      this.statistics.queriesBlocked++;
-      this.emit('query-blocked', 'unknown', result.reason || 'Unknown reason');
-    }
-
-    return Promise.resolve(result);
   }
 
   /**
@@ -429,111 +393,6 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
       allowed: true,
       confidence: 0.9,
     };
-  }
-
-  /**
-   * Analyze query performance characteristics
-   */
-  analyzeQuery(query: string): Promise<QueryComplexityAnalysis> {
-    return Promise.resolve(this.analyzeQueryComplexity(query));
-  }
-
-  /**
-   * Analyze performance impact of query
-   */
-  analyzePerformance(_query: string): Promise<{
-    executionTime: number;
-    explainTime: number;
-    rowCount: number;
-    columnCount: number;
-    executionPlan: string;
-    recommendations: string;
-  }> {
-    // Mock performance analysis - this would integrate with database adapters in real implementation
-    return Promise.resolve({
-      executionTime: 100,
-      explainTime: 50,
-      rowCount: 0,
-      columnCount: 0,
-      executionPlan: 'Mock execution plan for analysis',
-      recommendations: 'Mock performance recommendations',
-    });
-  }
-
-  /**
-   * Update configuration at runtime
-   */
-  updateConfig(config: SecurityManagerConfig): void {
-    if (config.security) {
-      // Update complexity limits
-      const securityConfig = config.security;
-
-      this.complexityLimits.maxJoins =
-        Number(securityConfig.max_joins) || this.complexityLimits.maxJoins;
-      this.complexityLimits.maxSubqueries =
-        Number(securityConfig.max_subqueries) || this.complexityLimits.maxSubqueries;
-      this.complexityLimits.maxUnions =
-        Number(securityConfig.max_unions) || this.complexityLimits.maxUnions;
-      this.complexityLimits.maxGroupBys =
-        Number(securityConfig.max_group_bys) || this.complexityLimits.maxGroupBys;
-      this.complexityLimits.maxComplexityScore =
-        Number(securityConfig.max_complexity_score) || this.complexityLimits.maxComplexityScore;
-      this.complexityLimits.maxQueryLength =
-        Number(securityConfig.max_query_length) || this.complexityLimits.maxQueryLength;
-
-      this.logger.info('Security manager configuration updated', {
-        limits: this.complexityLimits,
-      });
-    }
-  }
-
-  /**
-   * Get current configuration
-   */
-  getConfig(): SecurityManagerConfig {
-    return {
-      security: {
-        max_joins: this.complexityLimits.maxJoins,
-        max_subqueries: this.complexityLimits.maxSubqueries,
-        max_unions: this.complexityLimits.maxUnions,
-        max_group_bys: this.complexityLimits.maxGroupBys,
-        max_complexity_score: this.complexityLimits.maxComplexityScore,
-        max_query_length: this.complexityLimits.maxQueryLength,
-      },
-    };
-  }
-
-  /**
-   * Set SELECT-only mode
-   */
-  setSelectOnlyMode(enabled: boolean): void {
-    this.selectOnlyMode = enabled;
-    this.logger.info(`SELECT-only mode ${enabled ? 'enabled' : 'disabled'}`);
-  }
-
-  /**
-   * Check if in SELECT-only mode
-   */
-  isSelectOnlyMode(): boolean {
-    return this.selectOnlyMode;
-  }
-
-  /**
-   * Get security statistics
-   */
-  getStatistics(): typeof this.statistics {
-    return { ...this.statistics };
-  }
-
-  /**
-   * Update statistics (private helper)
-   */
-  private updateStatistics(): void {
-    this.statistics.queriesValidated++;
-    if (this.statistics.queriesValidated > 0) {
-      this.statistics.avgComplexity =
-        this.statistics.totalComplexity / this.statistics.queriesValidated;
-    }
   }
 
   /**
@@ -700,59 +559,6 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
   }
 
   /**
-   * Validate multiple SQL queries in batch against SELECT-only restrictions
-   */
-  validateBatchSelectOnlyQueries(
-    queries: Array<{ query: string; params?: unknown[]; label?: string }>,
-    dbType = 'mysql'
-  ): BatchValidationResult {
-    const results: QueryValidationResult[] = [];
-    let hasViolations = false;
-    let totalComplexity = 0;
-
-    for (let i = 0; i < queries.length; i++) {
-      const queryObj = queries[i];
-      const validation = this.validateSelectOnlyQuery(queryObj.query, dbType);
-
-      // Add complexity analysis
-      const complexity = this.analyzeQueryComplexity(queryObj.query);
-      totalComplexity += complexity.score;
-
-      const result: QueryValidationResult = {
-        index: i,
-        label: queryObj.label || `Query ${i + 1}`,
-        query: queryObj.query.substring(0, 100),
-        allowed: validation.allowed,
-        reason: validation.reason,
-        complexity: complexity,
-        blockedCommand: validation.blockedCommand,
-      };
-
-      results.push(result);
-
-      if (!validation.allowed) {
-        hasViolations = true;
-      }
-    }
-
-    // Check batch-level constraints
-    const batchAnalysis = this.analyzeBatchComplexity(queries, totalComplexity);
-
-    return {
-      allowed: !hasViolations && batchAnalysis.allowed,
-      queries: results,
-      batch_analysis: batchAnalysis,
-      total_complexity: totalComplexity,
-      summary: {
-        total_queries: queries.length,
-        allowed_queries: results.filter((r) => r.allowed).length,
-        blocked_queries: results.filter((r) => !r.allowed).length,
-        high_complexity_queries: results.filter((r) => r.complexity.score > 50).length,
-      },
-    };
-  }
-
-  /**
    * Analyze query complexity and potential performance impact
    */
   analyzeQueryComplexity(query: string): QueryComplexityAnalysis {
@@ -807,41 +613,6 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
       windowFuncCount,
       risk_level: this.getComplexityRiskLevel(score),
     };
-  }
-
-  /**
-   * Create comprehensive audit log entry
-   */
-  createAuditLog(
-    database: string,
-    query: string | string[],
-    allowed: boolean,
-    reason?: string,
-    metadata: Record<string, unknown> = {}
-  ): AuditLogEntry {
-    const isBatch = Array.isArray(query);
-
-    return {
-      timestamp: new Date().toISOString(),
-      database,
-      query_type: isBatch ? 'BATCH' : 'SINGLE',
-      query: isBatch ? query.map((q) => q.substring(0, 200)).join('; ') : query.substring(0, 500),
-      query_count: isBatch ? query.length : 1,
-      queryHash: createHash('sha256').update(JSON.stringify(query)).digest('hex'),
-      allowed,
-      reason,
-      metadata,
-      sourceIP: process.env.CLIENT_IP || 'unknown',
-      severity: allowed ? 'INFO' : 'WARNING',
-    };
-  }
-
-  /**
-   * Sanitize error messages to prevent information disclosure
-   */
-  sanitizeErrorMessage(errorMessage: string): string {
-    // Delegate to centralized sanitizer from error-handler
-    return sanitizeMessage(errorMessage);
   }
 
   // ============================================================================
@@ -940,119 +711,6 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
       allowed: true,
       reason: undefined, // Don't provide reason for successful validations
       confidence: 0.95,
-    };
-  }
-
-  private analyzeBatchComplexity(
-    queries: Array<{ query: string; params?: unknown[]; label?: string }>,
-    totalComplexity: number
-  ) {
-    const warnings: string[] = [];
-    let allowed = true;
-
-    // Check batch size
-    if (queries.length > 10) {
-      warnings.push(`Batch size (${queries.length}) exceeds recommended limit of 10`);
-      allowed = false;
-    }
-
-    // Check total complexity
-    if (totalComplexity > 500) {
-      warnings.push(`Total batch complexity (${totalComplexity}) is very high`);
-      allowed = false;
-    }
-
-    // Check for potential resource conflicts
-    const tableReferences = this.extractTableReferences(queries);
-    if (tableReferences.conflicts.length > 0) {
-      warnings.push(`Potential table access conflicts: ${tableReferences.conflicts.join(', ')}`);
-    }
-
-    return {
-      allowed,
-      warnings,
-      total_complexity: totalComplexity,
-      query_count: queries.length,
-      table_references: tableReferences,
-      estimated_resource_usage: this.estimateResourceUsage(queries),
-    };
-  }
-
-  private extractTableReferences(
-    queries: Array<{ query: string; params?: unknown[]; label?: string }>
-  ) {
-    const tableMap = new Map<string, string[]>();
-    const conflicts: string[] = [];
-
-    for (const queryObj of queries) {
-      const tables = this.extractTablesFromQuery(queryObj.query);
-
-      for (const table of tables) {
-        if (!tableMap.has(table)) {
-          tableMap.set(table, []);
-        }
-        tableMap.get(table)!.push(queryObj.label || 'Unnamed query');
-      }
-    }
-
-    // Check for potential conflicts (same table accessed multiple times)
-    for (const [table, accessors] of tableMap) {
-      if (accessors.length > 3) {
-        conflicts.push(`${table} (${accessors.length} accesses)`);
-      }
-    }
-
-    return {
-      tables: Array.from(tableMap.keys()),
-      conflicts,
-      access_map: Object.fromEntries(tableMap),
-    };
-  }
-
-  private extractTablesFromQuery(query: string): string[] {
-    const tables: string[] = [];
-    const upperQuery = query.toUpperCase();
-
-    // Simple regex to find table names after FROM and JOIN
-    const fromPattern = /\bFROM\s+([^\s(,]+)/gi;
-    const joinPattern = /\bJOIN\s+([^\s(,]+)/gi;
-
-    let match;
-    while ((match = fromPattern.exec(upperQuery)) !== null) {
-      tables.push(match[1]!.toLowerCase());
-    }
-
-    while ((match = joinPattern.exec(upperQuery)) !== null) {
-      tables.push(match[1]!.toLowerCase());
-    }
-
-    return [...new Set(tables)]; // Remove duplicates
-  }
-
-  private estimateResourceUsage(
-    queries: Array<{ query: string; params?: unknown[]; label?: string }>
-  ) {
-    let estimatedCpuIntensity = 0;
-    let estimatedMemoryUsage = 0;
-    let estimatedIoOperations = 0;
-
-    for (const queryObj of queries) {
-      const complexity = this.analyzeQueryComplexity(queryObj.query);
-
-      // Simple heuristics for resource estimation
-      estimatedCpuIntensity += complexity.joinCount * 2 + complexity.subqueryCount * 3;
-      estimatedMemoryUsage += complexity.groupByCount * 10 + complexity.windowFuncCount * 15;
-      estimatedIoOperations += queryObj.query.length / 50; // Rough estimate based on query length
-    }
-
-    return {
-      cpu_intensity: Math.min(estimatedCpuIntensity, 100),
-      memory_usage: Math.min(estimatedMemoryUsage, 100),
-      io_operations: Math.min(estimatedIoOperations, 100),
-      overall_impact: Math.min(
-        (estimatedCpuIntensity + estimatedMemoryUsage + estimatedIoOperations) / 3,
-        100
-      ),
     };
   }
 

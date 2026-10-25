@@ -97,37 +97,17 @@ Handles query validation and security enforcement.
 
 ```typescript
 export class SecurityManager extends EventEmitter {
- constructor(config?: SecurityManagerConfig, selectOnlyMode?: boolean);
+ constructor(config?: SecurityManagerConfig);
  
  // Initialization
  initialize(config: ParsedServerConfig): void;
  
- // Main validation methods
- validateQuery(query: string, dbType?: string): Promise<SecurityValidation>;
+ // Validation: databases with select_only = true use the first, the rest the second
+ validateSelectOnlyQuery(query: string, dbType?: string): SecurityValidation;
  validateAnyQuery(query: string, dbType?: string): SecurityValidation;
- analyzeQuery(query: string): Promise<QueryComplexityAnalysis>;
  analyzeQueryComplexity(query: string): QueryComplexityAnalysis;
  
- // Batch validation 
- validateBatchSelectOnlyQueries(
- queries: Array<{query: string; params?: unknown[]; label?: string}>, 
- dbType?: string
- ): BatchValidationResult;
- 
- // Configuration management
- updateConfig(config: SecurityManagerConfig): void;
- getConfig(): SecurityManagerConfig;
- setSelectOnlyMode(enabled: boolean): void;
- isSelectOnlyMode(): boolean;
- 
- // Audit and utilities
- createAuditLog(database: string, query: string | string[], allowed: boolean, reason?: string, metadata?: Record<string, unknown>): AuditLogEntry;
- sanitizeErrorMessage(errorMessage: string): string;
- getStatistics(): { queriesValidated: number; queriesBlocked: number; queriesAllowed: number; totalComplexity: number; avgComplexity: number; };
- 
  // Events emitted
- on(event: 'query-blocked', listener: (database: string, reason: string) => void): this;
- on(event: 'query-approved', listener: (database: string) => void): this;
  on(event: 'initialized', listener: (config: ParsedServerConfig) => void): this;
 }
 ```

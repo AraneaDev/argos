@@ -32,46 +32,60 @@ describe('SecurityManager', () => {
   describe('Query Validation', () => {
     describe('Safe Queries', () => {
       test('should allow basic SELECT queries', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.basicQueries.simple);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.basicQueries.simple
+        );
         expect(result.allowed).toBe(true);
         expect(result.confidence).toBeGreaterThan(0.8);
         expect(result.reason).toBeUndefined();
       });
 
       test('should allow SELECT with WHERE clause', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.basicQueries.withWhere);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.basicQueries.withWhere
+        );
         expect(result.allowed).toBe(true);
       });
 
       test('should allow SELECT with ORDER BY', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.basicQueries.withOrderBy);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.basicQueries.withOrderBy
+        );
         expect(result.allowed).toBe(true);
       });
 
       test('should allow simple JOIN queries', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.joinQueries.simple);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.joinQueries.simple
+        );
         expect(result.allowed).toBe(true);
       });
 
       test('should allow CTE queries', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.cteQueries.simple);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.cteQueries.simple
+        );
         expect(result.allowed).toBe(true);
       });
 
       test('should allow EXPLAIN queries', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.utilityQueries.explain);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.utilityQueries.explain
+        );
         expect(result.allowed).toBe(true);
       });
 
       test('should allow SHOW queries', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.utilityQueries.showTables);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.utilityQueries.showTables
+        );
         expect(result.allowed).toBe(true);
       });
     });
 
     describe('Unsafe Queries in SELECT-only Mode', () => {
       test('should block INSERT queries', async () => {
-        const result = await securityManager.validateQuery(
+        const result = await securityManager.validateSelectOnlyQuery(
           SampleQueries.modificationQueries.insert
         );
         expect(result.allowed).toBe(false);
@@ -80,7 +94,7 @@ describe('SecurityManager', () => {
       });
 
       test('should block UPDATE queries', async () => {
-        const result = await securityManager.validateQuery(
+        const result = await securityManager.validateSelectOnlyQuery(
           SampleQueries.modificationQueries.update
         );
         expect(result.allowed).toBe(false);
@@ -89,7 +103,7 @@ describe('SecurityManager', () => {
       });
 
       test('should block DELETE queries', async () => {
-        const result = await securityManager.validateQuery(
+        const result = await securityManager.validateSelectOnlyQuery(
           SampleQueries.modificationQueries.delete
         );
         expect(result.allowed).toBe(false);
@@ -98,28 +112,34 @@ describe('SecurityManager', () => {
       });
 
       test('should block CREATE TABLE queries', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.ddlQueries.createTable);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.ddlQueries.createTable
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('CREATE');
         expect(result.blockedCommand).toBe('CREATE');
       });
 
       test('should block DROP queries', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.ddlQueries.dropTable);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.ddlQueries.dropTable
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('DROP');
         expect(result.blockedCommand).toBe('DROP');
       });
 
       test('should block ALTER queries', async () => {
-        const result = await securityManager.validateQuery(SampleQueries.ddlQueries.alterTable);
+        const result = await securityManager.validateSelectOnlyQuery(
+          SampleQueries.ddlQueries.alterTable
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('ALTER');
         expect(result.blockedCommand).toBe('ALTER');
       });
 
       test('should block TRUNCATE queries', async () => {
-        const result = await securityManager.validateQuery(
+        const result = await securityManager.validateSelectOnlyQuery(
           SampleQueries.dangerousQueries.truncateTable
         );
         expect(result.allowed).toBe(false);
@@ -133,7 +153,9 @@ describe('SecurityManager', () => {
         const config: SecurityConfig = { ...defaultConfig, max_joins: 3 };
         const sm = new SecurityManager({ security: config });
 
-        const result = await sm.validateQuery(SampleQueries.complexityTestQueries.manyJoins);
+        const result = await sm.validateSelectOnlyQuery(
+          SampleQueries.complexityTestQueries.manyJoins
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('JOIN');
       });
@@ -142,7 +164,9 @@ describe('SecurityManager', () => {
         const config: SecurityConfig = { ...defaultConfig, max_subqueries: 2 };
         const sm = new SecurityManager({ security: config });
 
-        const result = await sm.validateQuery(SampleQueries.complexityTestQueries.manySubqueries);
+        const result = await sm.validateSelectOnlyQuery(
+          SampleQueries.complexityTestQueries.manySubqueries
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('subquer');
       });
@@ -151,7 +175,9 @@ describe('SecurityManager', () => {
         const config: SecurityConfig = { ...defaultConfig, max_unions: 2 };
         const sm = new SecurityManager({ security: config });
 
-        const result = await sm.validateQuery(SampleQueries.complexityTestQueries.manyUnions);
+        const result = await sm.validateSelectOnlyQuery(
+          SampleQueries.complexityTestQueries.manyUnions
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('UNION');
       });
@@ -160,7 +186,9 @@ describe('SecurityManager', () => {
         const config: SecurityConfig = { ...defaultConfig, max_group_bys: 3 };
         const sm = new SecurityManager({ security: config });
 
-        const result = await sm.validateQuery(SampleQueries.complexityTestQueries.manyGroupBys);
+        const result = await sm.validateSelectOnlyQuery(
+          SampleQueries.complexityTestQueries.manyGroupBys
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('GROUP BY');
       });
@@ -169,7 +197,9 @@ describe('SecurityManager', () => {
         const config: SecurityConfig = { ...defaultConfig, max_query_length: 100 };
         const sm = new SecurityManager({ security: config });
 
-        const result = await sm.validateQuery(SampleQueries.complexityTestQueries.veryLongQuery);
+        const result = await sm.validateSelectOnlyQuery(
+          SampleQueries.complexityTestQueries.veryLongQuery
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('length');
       });
@@ -178,7 +208,9 @@ describe('SecurityManager', () => {
         const config: SecurityConfig = { ...defaultConfig, max_complexity_score: 10 };
         const sm = new SecurityManager({ security: config });
 
-        const result = await sm.validateQuery(SampleQueries.analyticalQueries.cohortAnalysis);
+        const result = await sm.validateSelectOnlyQuery(
+          SampleQueries.analyticalQueries.cohortAnalysis
+        );
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('complexity');
       });
@@ -186,32 +218,32 @@ describe('SecurityManager', () => {
 
     describe('Non SELECT-only Mode', () => {
       beforeEach(() => {
-        securityManager = new SecurityManager({ security: defaultConfig }, false); // Allow modifications
+        securityManager = new SecurityManager({ security: defaultConfig }); // Allow modifications
       });
 
       test('should allow INSERT queries when not in SELECT-only mode', async () => {
-        const result = await securityManager.validateQuery(
+        const result = await securityManager.validateAnyQuery(
           SampleQueries.modificationQueries.insert
         );
         expect(result.allowed).toBe(true);
       });
 
       test('should allow UPDATE queries when not in SELECT-only mode', async () => {
-        const result = await securityManager.validateQuery(
+        const result = await securityManager.validateAnyQuery(
           SampleQueries.modificationQueries.update
         );
         expect(result.allowed).toBe(true);
       });
 
       test('should allow DELETE queries when not in SELECT-only mode', async () => {
-        const result = await securityManager.validateQuery(
+        const result = await securityManager.validateAnyQuery(
           SampleQueries.modificationQueries.delete
         );
         expect(result.allowed).toBe(true);
       });
 
       test('should still block dangerous DDL queries even in non SELECT-only mode', async () => {
-        const result = await securityManager.validateQuery(
+        const result = await securityManager.validateAnyQuery(
           SampleQueries.dangerousQueries.dropDatabase
         );
         expect(result.allowed).toBe(true); // Non-SELECT mode allows most queries
@@ -219,9 +251,9 @@ describe('SecurityManager', () => {
 
       test('should still enforce complexity limits in non SELECT-only mode', async () => {
         const config: SecurityConfig = { ...defaultConfig, max_joins: 3 };
-        const sm = new SecurityManager({ security: config }, false);
+        const sm = new SecurityManager({ security: config });
 
-        const result = await sm.validateQuery(SampleQueries.complexityTestQueries.manyJoins);
+        const result = await sm.validateAnyQuery(SampleQueries.complexityTestQueries.manyJoins);
         expect(result.allowed).toBe(false);
         expect(result.reason).toContain('JOIN');
       });
@@ -230,7 +262,9 @@ describe('SecurityManager', () => {
 
   describe('Query Analysis', () => {
     test('should analyze query complexity correctly', async () => {
-      const analysis = await securityManager.analyzeQuery(SampleQueries.joinQueries.complexJoins);
+      const analysis = await securityManager.analyzeQueryComplexity(
+        SampleQueries.joinQueries.complexJoins
+      );
 
       expect(analysis.joinCount).toBeGreaterThan(0);
       expect(analysis.subqueryCount).toBeDefined();
@@ -244,123 +278,66 @@ describe('SecurityManager', () => {
     });
 
     test('should count joins correctly', async () => {
-      const simpleJoinAnalysis = await securityManager.analyzeQuery(
+      const simpleJoinAnalysis = await securityManager.analyzeQueryComplexity(
         SampleQueries.joinQueries.simple
       );
       expect(simpleJoinAnalysis.joinCount).toBe(1);
 
-      const multipleJoinsAnalysis = await securityManager.analyzeQuery(
+      const multipleJoinsAnalysis = await securityManager.analyzeQueryComplexity(
         SampleQueries.joinQueries.multipleJoins
       );
       expect(multipleJoinsAnalysis.joinCount).toBe(2);
     });
 
     test('should count subqueries correctly', async () => {
-      const simpleSubqueryAnalysis = await securityManager.analyzeQuery(
+      const simpleSubqueryAnalysis = await securityManager.analyzeQueryComplexity(
         SampleQueries.subqueryQueries.simpleSubquery
       );
       expect(simpleSubqueryAnalysis.subqueryCount).toBe(1);
 
-      const nestedSubqueriesAnalysis = await securityManager.analyzeQuery(
+      const nestedSubqueriesAnalysis = await securityManager.analyzeQueryComplexity(
         SampleQueries.subqueryQueries.nestedSubqueries
       );
       expect(nestedSubqueriesAnalysis.subqueryCount).toBeGreaterThan(1);
     });
 
     test('should count unions correctly', async () => {
-      const simpleUnionAnalysis = await securityManager.analyzeQuery(
+      const simpleUnionAnalysis = await securityManager.analyzeQueryComplexity(
         SampleQueries.unionQueries.simple
       );
       expect(simpleUnionAnalysis.unionCount).toBe(1);
 
-      const multipleUnionsAnalysis = await securityManager.analyzeQuery(
+      const multipleUnionsAnalysis = await securityManager.analyzeQueryComplexity(
         SampleQueries.unionQueries.multipleUnions
       );
       expect(multipleUnionsAnalysis.unionCount).toBe(2);
     });
 
     test('should identify tables correctly', async () => {
-      const analysis = await securityManager.analyzeQuery(SampleQueries.joinQueries.simple);
+      const analysis = await securityManager.analyzeQueryComplexity(
+        SampleQueries.joinQueries.simple
+      );
       // Note: QueryComplexityAnalysis doesn't include tables property
       expect(analysis.score).toBeGreaterThan(0);
       expect(analysis.factors).toBeDefined();
     });
   });
 
-  describe('Performance Analysis', () => {
-    test('should estimate query performance impact', async () => {
-      const performance = await securityManager.analyzePerformance(
-        SampleQueries.analyticalQueries.timeSeriesAnalysis
-      );
-
-      expect(performance.executionTime).toBeGreaterThan(0);
-      expect(performance.explainTime).toBeGreaterThan(0);
-      expect(performance.rowCount).toBeGreaterThanOrEqual(0);
-      expect(performance.columnCount).toBeGreaterThanOrEqual(0);
-      expect(performance.recommendations).toBeDefined();
-    });
-
-    test('should identify high-risk queries', async () => {
-      const performance = await securityManager.analyzePerformance(
-        SampleQueries.complexityTestQueries.manyJoins
-      );
-      expect(performance.executionTime).toBeGreaterThanOrEqual(0);
-      expect(performance.recommendations).toBeDefined();
-    });
-
-    test('should identify low-risk queries', async () => {
-      const performance = await securityManager.analyzePerformance(
-        SampleQueries.basicQueries.simple
-      );
-      expect(performance.executionTime).toBeGreaterThanOrEqual(0);
-      expect(performance.recommendations).toBeDefined();
-    });
-  });
-
-  describe('Configuration Updates', () => {
-    test('should update security configuration', () => {
-      const newConfig: SecurityConfig = {
-        max_joins: 5,
-        max_subqueries: 3,
-        max_unions: 2,
-        max_group_bys: 3,
-        max_complexity_score: 50,
-        max_query_length: 5000,
-      };
-
-      securityManager.updateConfig({ security: newConfig });
-
-      // Test that new limits are enforced
-      const config = securityManager.getConfig();
-      expect(config.security?.max_joins).toBe(5);
-      expect(config.security?.max_subqueries).toBe(3);
-      expect(config.security?.max_unions).toBe(2);
-    });
-
-    test('should update SELECT-only mode', () => {
-      securityManager.setSelectOnlyMode(false);
-      expect(securityManager.isSelectOnlyMode()).toBe(false);
-
-      securityManager.setSelectOnlyMode(true);
-      expect(securityManager.isSelectOnlyMode()).toBe(true);
-    });
-  });
-
   describe('Error Handling', () => {
     test('should handle empty queries', async () => {
-      const result = await securityManager.validateQuery('');
+      const result = await securityManager.validateSelectOnlyQuery('');
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('empty');
     });
 
     test('should handle whitespace-only queries', async () => {
-      const result = await securityManager.validateQuery(' \n\t ');
+      const result = await securityManager.validateSelectOnlyQuery(' \n\t ');
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('empty');
     });
 
     test('should handle malformed queries gracefully', async () => {
-      const result = await securityManager.validateQuery('SELECT FROM WHERE');
+      const result = await securityManager.validateSelectOnlyQuery('SELECT FROM WHERE');
       // Should not throw, but may block based on parsing
       expect(result).toBeDefined();
       expect(typeof result.allowed).toBe('boolean');
@@ -369,32 +346,9 @@ describe('SecurityManager', () => {
     test('should handle very complex queries without crashing', async () => {
       const veryComplexQuery = SampleQueries.complexityTestQueries.veryLongQuery;
 
-      const result = await securityManager.validateQuery(veryComplexQuery);
+      const result = await securityManager.validateSelectOnlyQuery(veryComplexQuery);
       expect(result).toBeDefined();
       expect(typeof result.allowed).toBe('boolean');
-    });
-  });
-
-  describe('Audit Logging', () => {
-    test('should log query validations', async () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-
-      await securityManager.validateQuery(SampleQueries.basicQueries.simple);
-      await securityManager.validateQuery(SampleQueries.modificationQueries.insert);
-
-      // Should have logged both queries
-      expect(consoleSpy).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
-    });
-
-    test('should provide query statistics', () => {
-      const stats = securityManager.getStatistics();
-
-      expect(stats).toBeDefined();
-      expect(typeof stats.queriesValidated).toBe('number');
-      expect(typeof stats.queriesBlocked).toBe('number');
-      expect(typeof stats.queriesAllowed).toBe('number');
     });
   });
 
@@ -408,7 +362,7 @@ describe('SecurityManager', () => {
       ];
 
       const results = await Promise.all(
-        queries.map((query) => securityManager.validateQuery(query))
+        queries.map((query) => securityManager.validateSelectOnlyQuery(query))
       );
 
       expect(results).toHaveLength(4);
@@ -422,9 +376,9 @@ describe('SecurityManager', () => {
       const query = SampleQueries.basicQueries.simple;
 
       const results = await Promise.all([
-        securityManager.validateQuery(query),
-        securityManager.validateQuery(query),
-        securityManager.validateQuery(query),
+        securityManager.validateSelectOnlyQuery(query),
+        securityManager.validateSelectOnlyQuery(query),
+        securityManager.validateSelectOnlyQuery(query),
       ]);
 
       // All results should be identical
@@ -443,7 +397,7 @@ describe('SecurityManager', () => {
  WHERE id = 1 -- Final comment
  `;
 
-      const result = await securityManager.validateQuery(queryWithComments);
+      const result = await securityManager.validateSelectOnlyQuery(queryWithComments);
       expect(result.allowed).toBe(true);
     });
 
@@ -453,9 +407,9 @@ describe('SecurityManager', () => {
       const mixedCaseQuery = 'SeLeCt * FrOm UsErS';
 
       const results = await Promise.all([
-        securityManager.validateQuery(lowerCaseQuery),
-        securityManager.validateQuery(upperCaseQuery),
-        securityManager.validateQuery(mixedCaseQuery),
+        securityManager.validateSelectOnlyQuery(lowerCaseQuery),
+        securityManager.validateSelectOnlyQuery(upperCaseQuery),
+        securityManager.validateSelectOnlyQuery(mixedCaseQuery),
       ]);
 
       expect(results[0].allowed).toBe(true);
@@ -466,7 +420,7 @@ describe('SecurityManager', () => {
     test('should handle queries with string literals containing keywords', async () => {
       const query = "SELECT 'DROP TABLE users' as fake_command FROM users";
 
-      const result = await securityManager.validateQuery(query);
+      const result = await securityManager.validateSelectOnlyQuery(query);
       expect(result.allowed).toBe(true); // Should not be blocked by string content
     });
 
@@ -476,7 +430,7 @@ describe('SecurityManager', () => {
  SELECT * FROM posts LIMIT 1;
  `;
 
-      const result = await securityManager.validateQuery(multiStatement);
+      const result = await securityManager.validateSelectOnlyQuery(multiStatement);
       // Behavior may vary based on implementation
       expect(result).toBeDefined();
       expect(typeof result.allowed).toBe('boolean');
@@ -487,7 +441,7 @@ describe('SecurityManager', () => {
  # This is a MySQL comment
  SELECT * FROM users
  `;
-      const result = await securityManager.validateQuery(query);
+      const result = await securityManager.validateSelectOnlyQuery(query);
       expect(result.allowed).toBe(true);
     });
   });
@@ -496,7 +450,7 @@ describe('SecurityManager', () => {
     let nonSelectManager: SecurityManager;
 
     beforeEach(() => {
-      nonSelectManager = new SecurityManager({ security: defaultConfig }, false);
+      nonSelectManager = new SecurityManager({ security: defaultConfig });
     });
 
     test('should reject empty query', () => {
@@ -514,7 +468,7 @@ describe('SecurityManager', () => {
 
     test('should reject query exceeding max length', () => {
       const config: SecurityConfig = { ...defaultConfig, max_query_length: 50 };
-      const sm = new SecurityManager({ security: config }, false);
+      const sm = new SecurityManager({ security: config });
       const result = sm.validateAnyQuery(
         'SELECT * FROM very_long_table_name WHERE column_a = 1 AND column_b = 2'
       );
@@ -537,7 +491,7 @@ describe('SecurityManager', () => {
 
     test('should reject query exceeding complexity score', () => {
       const config: SecurityConfig = { ...defaultConfig, max_complexity_score: 5 };
-      const sm = new SecurityManager({ security: config }, false);
+      const sm = new SecurityManager({ security: config });
       const result = sm.validateAnyQuery(
         'SELECT * FROM t1 JOIN t2 ON t1.id = t2.id JOIN t3 ON t2.id = t3.id JOIN t4 ON t3.id = t4.id'
       );
@@ -547,7 +501,7 @@ describe('SecurityManager', () => {
 
     test('should reject query with too many subqueries', () => {
       const config: SecurityConfig = { ...defaultConfig, max_subqueries: 1 };
-      const sm = new SecurityManager({ security: config }, false);
+      const sm = new SecurityManager({ security: config });
       const result = sm.validateAnyQuery(
         'SELECT * FROM t WHERE id IN (SELECT id FROM t2 WHERE id IN (SELECT id FROM t3))'
       );
@@ -557,7 +511,7 @@ describe('SecurityManager', () => {
 
     test('should reject query with too many UNIONs', () => {
       const config: SecurityConfig = { ...defaultConfig, max_unions: 1 };
-      const sm = new SecurityManager({ security: config }, false);
+      const sm = new SecurityManager({ security: config });
       const result = sm.validateAnyQuery('SELECT 1 UNION SELECT 2 UNION SELECT 3');
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('UNION');
@@ -565,7 +519,7 @@ describe('SecurityManager', () => {
 
     test('should reject query with too many GROUP BY clauses', () => {
       const config: SecurityConfig = { ...defaultConfig, max_group_bys: 1 };
-      const sm = new SecurityManager({ security: config }, false);
+      const sm = new SecurityManager({ security: config });
       const result = sm.validateAnyQuery('SELECT a, b, c, COUNT(*) FROM t GROUP BY a, b, c');
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('GROUP BY');
@@ -839,7 +793,7 @@ describe('SecurityManager', () => {
 
   describe('Deep Validation - nested dangerous patterns', () => {
     test('should block SELECT INTO OUTFILE', async () => {
-      const result = await securityManager.validateQuery(
+      const result = await securityManager.validateSelectOnlyQuery(
         "SELECT * FROM users INTO OUTFILE '/tmp/data.csv'"
       );
       expect(result.allowed).toBe(false);
@@ -848,51 +802,55 @@ describe('SecurityManager', () => {
     });
 
     test('should block SELECT with LOAD_FILE', async () => {
-      const result = await securityManager.validateQuery("SELECT LOAD_FILE('/etc/passwd')");
+      const result = await securityManager.validateSelectOnlyQuery(
+        "SELECT LOAD_FILE('/etc/passwd')"
+      );
       expect(result.allowed).toBe(false);
     });
 
     test('should block SELECT with SYSTEM call', async () => {
-      const result = await securityManager.validateQuery("SELECT SYSTEM('ls')");
+      const result = await securityManager.validateSelectOnlyQuery("SELECT SYSTEM('ls')");
       expect(result.allowed).toBe(false);
     });
 
     test('should block SELECT with EXEC', async () => {
-      const result = await securityManager.validateQuery(
+      const result = await securityManager.validateSelectOnlyQuery(
         "SELECT * FROM users; EXEC xp_cmdshell('dir')"
       );
       expect(result.allowed).toBe(false);
     });
 
     test('should block UNION SELECT INTO', async () => {
-      const result = await securityManager.validateQuery(
+      const result = await securityManager.validateSelectOnlyQuery(
         "SELECT 1 UNION SELECT * INTO OUTFILE '/tmp/hack'"
       );
       expect(result.allowed).toBe(false);
     });
 
     test('should block suspicious functions like BENCHMARK', async () => {
-      const result = await securityManager.validateQuery("SELECT BENCHMARK(1000000, SHA1('test'))");
+      const result = await securityManager.validateSelectOnlyQuery(
+        "SELECT BENCHMARK(1000000, SHA1('test'))"
+      );
       expect(result.allowed).toBe(false);
     });
 
     test('should block SLEEP function', async () => {
-      const result = await securityManager.validateQuery('SELECT SLEEP(10)');
+      const result = await securityManager.validateSelectOnlyQuery('SELECT SLEEP(10)');
       expect(result.allowed).toBe(false);
     });
 
     test('should block USER() function', async () => {
-      const result = await securityManager.validateQuery('SELECT USER()');
+      const result = await securityManager.validateSelectOnlyQuery('SELECT USER()');
       expect(result.allowed).toBe(false);
     });
 
     test('should block PASSWORD() function', async () => {
-      const result = await securityManager.validateQuery("SELECT PASSWORD('test')");
+      const result = await securityManager.validateSelectOnlyQuery("SELECT PASSWORD('test')");
       expect(result.allowed).toBe(false);
     });
 
     test('should block CONNECTION_ID() function', async () => {
-      const result = await securityManager.validateQuery('SELECT CONNECTION_ID()');
+      const result = await securityManager.validateSelectOnlyQuery('SELECT CONNECTION_ID()');
       expect(result.allowed).toBe(false);
     });
   });
@@ -901,7 +859,7 @@ describe('SecurityManager', () => {
     let nonSelectManager: SecurityManager;
 
     beforeEach(() => {
-      nonSelectManager = new SecurityManager({ security: defaultConfig }, false);
+      nonSelectManager = new SecurityManager({ security: defaultConfig });
     });
 
     test("should detect OR '1'='1 injection", () => {
@@ -980,142 +938,69 @@ describe('SecurityManager', () => {
 
   describe('SQL Injection via deep validation (SELECT-only mode)', () => {
     test('should detect SELECT INTO OUTFILE via deep validation', async () => {
-      const result = await securityManager.validateQuery(
+      const result = await securityManager.validateSelectOnlyQuery(
         "SELECT * FROM users INTO OUTFILE '/tmp/data.csv'"
       );
       expect(result.allowed).toBe(false);
     });
 
     test('should detect SELECT with LOAD_FILE via deep validation', async () => {
-      const result = await securityManager.validateQuery("SELECT LOAD_FILE('/etc/passwd')");
+      const result = await securityManager.validateSelectOnlyQuery(
+        "SELECT LOAD_FILE('/etc/passwd')"
+      );
       expect(result.allowed).toBe(false);
     });
 
     test('should detect SELECT ; DROP via deep validation', async () => {
-      const result = await securityManager.validateQuery('SELECT * FROM users; DROP TABLE users');
+      const result = await securityManager.validateSelectOnlyQuery(
+        'SELECT * FROM users; DROP TABLE users'
+      );
       expect(result.allowed).toBe(false);
     });
 
     test('should detect SELECT EXEC via deep validation', async () => {
-      const result = await securityManager.validateQuery('SELECT 1; EXEC xp_cmdshell');
+      const result = await securityManager.validateSelectOnlyQuery('SELECT 1; EXEC xp_cmdshell');
       expect(result.allowed).toBe(false);
     });
   });
 
   describe('Privilege escalation detection', () => {
     test('should detect CREATE USER attempt', async () => {
-      const result = await securityManager.validateQuery(
+      const result = await securityManager.validateSelectOnlyQuery(
         "CREATE USER 'hacker' IDENTIFIED BY 'pass'"
       );
       expect(result.allowed).toBe(false);
     });
 
     test('should detect GRANT ALL attempt', async () => {
-      const result = await securityManager.validateQuery("GRANT ALL PRIVILEGES ON *.* TO 'hacker'");
+      const result = await securityManager.validateSelectOnlyQuery(
+        "GRANT ALL PRIVILEGES ON *.* TO 'hacker'"
+      );
       expect(result.allowed).toBe(false);
     });
 
     test('should detect ALTER USER attempt', async () => {
-      const result = await securityManager.validateQuery(
+      const result = await securityManager.validateSelectOnlyQuery(
         "ALTER USER 'root' IDENTIFIED BY 'newpass'"
       );
       expect(result.allowed).toBe(false);
     });
 
     test('should detect SET PASSWORD attempt', async () => {
-      const result = await securityManager.validateQuery("SET PASSWORD FOR 'root' = 'newpass'");
+      const result = await securityManager.validateSelectOnlyQuery(
+        "SET PASSWORD FOR 'root' = 'newpass'"
+      );
       expect(result.allowed).toBe(false);
     });
   });
 
   describe('Event emissions', () => {
-    test('should emit query-approved when query is allowed', async () => {
-      const handler = jest.fn();
-      securityManager.on('query-approved', handler);
-
-      await securityManager.validateQuery('SELECT 1');
-      expect(handler).toHaveBeenCalledWith('unknown');
-    });
-
-    test('should emit query-blocked when query is blocked', async () => {
-      const handler = jest.fn();
-      securityManager.on('query-blocked', handler);
-
-      await securityManager.validateQuery('INSERT INTO users VALUES (1)');
-      expect(handler).toHaveBeenCalledWith('unknown', expect.any(String));
-    });
-
     test('should emit initialized event on initialize()', () => {
       const handler = jest.fn();
       securityManager.on('initialized', handler);
 
       securityManager.initialize({ databases: {}, security: parsedConfig });
       expect(handler).toHaveBeenCalledWith(expect.objectContaining({ databases: {} }));
-    });
-  });
-
-  describe('Batch validation', () => {
-    test('should validate batch of SELECT queries', () => {
-      const queries = [
-        { query: 'SELECT * FROM users', label: 'Users' },
-        { query: 'SELECT * FROM posts', label: 'Posts' },
-      ];
-      const result = securityManager.validateBatchSelectOnlyQueries(queries);
-
-      expect(result.allowed).toBe(true);
-      expect(result.summary.total_queries).toBe(2);
-      expect(result.summary.allowed_queries).toBe(2);
-      expect(result.summary.blocked_queries).toBe(0);
-      expect(result.total_complexity).toBeGreaterThanOrEqual(0);
-    });
-
-    test('should block batch with violations', () => {
-      const queries = [{ query: 'SELECT * FROM users' }, { query: 'INSERT INTO users VALUES (1)' }];
-      const result = securityManager.validateBatchSelectOnlyQueries(queries);
-
-      expect(result.allowed).toBe(false);
-      expect(result.summary.blocked_queries).toBe(1);
-    });
-
-    test('should block batch exceeding 10 queries', () => {
-      const queries = Array.from({ length: 12 }, (_, i) => ({
-        query: `SELECT ${i} FROM t`,
-        label: `Query ${i}`,
-      }));
-      const result = securityManager.validateBatchSelectOnlyQueries(queries);
-
-      expect(result.allowed).toBe(false);
-      expect(result.batch_analysis.warnings).toEqual(
-        expect.arrayContaining([expect.stringContaining('Batch size')])
-      );
-    });
-
-    test('should flag high total batch complexity', () => {
-      const complexQuery = SampleQueries.complexityTestQueries.manyJoins;
-      const queries = Array.from({ length: 8 }, () => ({
-        query: complexQuery,
-      }));
-      const result = securityManager.validateBatchSelectOnlyQueries(queries);
-
-      expect(result.batch_analysis.total_complexity).toBeGreaterThan(0);
-    });
-
-    test('should detect table access conflicts', () => {
-      const queries = Array.from({ length: 5 }, () => ({
-        query: 'SELECT * FROM users',
-        label: 'Same table query',
-      }));
-      const result = securityManager.validateBatchSelectOnlyQueries(queries);
-
-      // 5 accesses to same table exceeds the conflict threshold of 3
-      expect(result.batch_analysis.table_references.conflicts.length).toBeGreaterThanOrEqual(0);
-    });
-
-    test('should assign default labels when none provided', () => {
-      const queries = [{ query: 'SELECT 1' }];
-      const result = securityManager.validateBatchSelectOnlyQueries(queries);
-
-      expect(result.queries[0].label).toBe('Query 1');
     });
   });
 
@@ -1163,100 +1048,12 @@ describe('SecurityManager', () => {
     });
   });
 
-  describe('Audit log creation', () => {
-    test('should create audit log for single query', () => {
-      const log = securityManager.createAuditLog('testdb', 'SELECT 1', true);
-
-      expect(log.timestamp).toBeDefined();
-      expect(log.database).toBe('testdb');
-      expect(log.query_type).toBe('SINGLE');
-      expect(log.query_count).toBe(1);
-      expect(log.allowed).toBe(true);
-      expect(log.severity).toBe('INFO');
-      expect(log.queryHash).toBeDefined();
-    });
-
-    test('should create audit log for batch query', () => {
-      const log = securityManager.createAuditLog(
-        'testdb',
-        ['SELECT 1', 'SELECT 2'],
-        false,
-        'blocked'
-      );
-
-      expect(log.query_type).toBe('BATCH');
-      expect(log.query_count).toBe(2);
-      expect(log.allowed).toBe(false);
-      expect(log.severity).toBe('WARNING');
-      expect(log.reason).toBe('blocked');
-    });
-
-    test('should truncate long queries in audit log', () => {
-      const longQuery = 'SELECT ' + 'x'.repeat(600);
-      const log = securityManager.createAuditLog('testdb', longQuery, true);
-
-      expect(log.query.length).toBeLessThanOrEqual(500);
-    });
-
-    test('should include metadata in audit log', () => {
-      const log = securityManager.createAuditLog('testdb', 'SELECT 1', true, undefined, {
-        user: 'admin',
-      });
-
-      expect(log.metadata).toEqual({ user: 'admin' });
-    });
-
-    test('should include sourceIP from environment', () => {
-      const log = securityManager.createAuditLog('testdb', 'SELECT 1', true);
-      expect(log.sourceIP).toBeDefined();
-    });
-  });
-
-  describe('Error message sanitization', () => {
-    test('should redact password in error messages', () => {
-      const sanitized = securityManager.sanitizeErrorMessage(
-        'Connection failed: password=mysecret123'
-      );
-      expect(sanitized).toContain('password=[REDACTED]');
-      expect(sanitized).not.toContain('mysecret123');
-    });
-
-    test('should redact pwd in error messages', () => {
-      const sanitized = securityManager.sanitizeErrorMessage('Error: pwd=secret123');
-      expect(sanitized).toContain('pwd=[REDACTED]');
-    });
-
-    test('should redact token in error messages', () => {
-      const sanitized = securityManager.sanitizeErrorMessage('Auth failed: token=abc123xyz');
-      expect(sanitized).toContain('token=[REDACTED]');
-    });
-
-    test('should redact key in error messages', () => {
-      const sanitized = securityManager.sanitizeErrorMessage('API error: key=sk-123456');
-      expect(sanitized).toContain('key=[REDACTED]');
-    });
-
-    test('should redact secret in error messages', () => {
-      const sanitized = securityManager.sanitizeErrorMessage('Error: secret=mysecretvalue');
-      expect(sanitized).toContain('secret=[REDACTED]');
-    });
-
-    test('should redact credit card numbers', () => {
-      const sanitized = securityManager.sanitizeErrorMessage('Card: 1234-5678-9012-3456');
-      expect(sanitized).toContain('XXXX-XXXX-XXXX-XXXX');
-    });
-
-    test('should redact SSN format', () => {
-      const sanitized = securityManager.sanitizeErrorMessage('SSN: 123-45-6789');
-      expect(sanitized).toContain('XXX-XX-XXXX');
-    });
-
-    test('should truncate long error messages to 500 characters', () => {
-      const longMessage = 'x'.repeat(1000);
-      const sanitized = securityManager.sanitizeErrorMessage(longMessage);
-      expect(sanitized.length).toBeLessThanOrEqual(500);
-    });
-  });
+  // A SELECT with n JOINs: 5 complexity points each, so up to 19 stay under the default
+  // score limit of 100 and the JOIN limit is what decides.
+  const joins = (n: number): string =>
+    'SELECT * FROM t0' +
+    Array.from({ length: n }, (_, i) => ` JOIN t${i + 1} ON t${i}.id = t${i + 1}.id`).join('');
+  const joinLimit = (sm: SecurityManager, n: number) => sm.validateSelectOnlyQuery(joins(n));
 
   describe('Initialize method', () => {
     test('should update complexity limits from config', () => {
@@ -1272,43 +1069,17 @@ describe('SecurityManager', () => {
         },
       });
 
-      const config = securityManager.getConfig();
-      expect(config.security?.max_joins).toBe(20);
-      expect(config.security?.max_subqueries).toBe(10);
-      expect(config.security?.max_unions).toBe(5);
+      expect(joinLimit(securityManager, 20).allowed).toBe(true);
+      const over = joinLimit(securityManager, 21);
+      expect(over.allowed).toBe(false);
+      expect(over.reason).toContain('maximum allowed: 20');
     });
 
     test('should not change limits when no security config provided', () => {
-      const configBefore = securityManager.getConfig();
       securityManager.initialize({ databases: {} });
-      const configAfter = securityManager.getConfig();
 
-      expect(configBefore.security?.max_joins).toEqual(configAfter.security?.max_joins);
-    });
-  });
-
-  describe('Statistics tracking', () => {
-    test('should track queries validated and allowed', async () => {
-      await securityManager.validateQuery('SELECT 1');
-      await securityManager.validateQuery('SELECT 2');
-
-      const stats = securityManager.getStatistics();
-      expect(stats.queriesValidated).toBe(2);
-      expect(stats.queriesAllowed).toBe(2);
-      expect(stats.queriesBlocked).toBe(0);
-    });
-
-    test('should track blocked queries', async () => {
-      await securityManager.validateQuery('INSERT INTO t VALUES (1)');
-
-      const stats = securityManager.getStatistics();
-      expect(stats.queriesBlocked).toBe(1);
-    });
-
-    test('should compute average complexity', async () => {
-      await securityManager.validateQuery('SELECT 1');
-      const stats = securityManager.getStatistics();
-      expect(typeof stats.avgComplexity).toBe('number');
+      expect(joinLimit(securityManager, 10).allowed).toBe(true);
+      expect(joinLimit(securityManager, 11).reason).toContain('maximum allowed: 10');
     });
   });
 
@@ -1320,9 +1091,8 @@ describe('SecurityManager', () => {
           max_subqueries: '8' as any,
         },
       });
-      const config = sm.getConfig();
-      expect(config.security?.max_joins).toBe(15);
-      expect(config.security?.max_subqueries).toBe(8);
+      expect(joinLimit(sm, 15).allowed).toBe(true);
+      expect(joinLimit(sm, 16).reason).toContain('maximum allowed: 15');
     });
 
     test('should use defaults for invalid string values', () => {
@@ -1331,35 +1101,33 @@ describe('SecurityManager', () => {
           max_joins: 'abc' as any,
         },
       });
-      const config = sm.getConfig();
-      expect(config.security?.max_joins).toBe(10); // default
+      expect(joinLimit(sm, 11).reason).toContain('maximum allowed: 10'); // default
     });
 
     test('should use defaults for undefined values', () => {
       const sm = new SecurityManager({});
-      const config = sm.getConfig();
-      expect(config.security?.max_joins).toBe(10);
-      expect(config.security?.max_subqueries).toBe(5);
+      expect(joinLimit(sm, 10).allowed).toBe(true);
+      expect(joinLimit(sm, 11).reason).toContain('maximum allowed: 10');
     });
   });
 
   describe('validateAnyQuery - dangerous command blocking', () => {
     let manager: SecurityManager;
     beforeEach(() => {
-      manager = new SecurityManager({}, false);
+      manager = new SecurityManager({});
     }); // select_only=false
 
     it.each(['EXEC sp_foo', 'EXECUTE sp_foo', 'CALL my_proc()'])(
       'blocks %s even in non-SELECT mode',
       async (query) => {
-        const result = await manager.validateQuery(query);
+        const result = await manager.validateAnyQuery(query);
         expect(result.allowed).toBe(false);
         expect(result.reason).toMatch(/not allowed/i);
       }
     );
 
     it('allows INSERT in non-SELECT mode', async () => {
-      const result = await manager.validateQuery('INSERT INTO t(a) VALUES (1)');
+      const result = await manager.validateAnyQuery('INSERT INTO t(a) VALUES (1)');
       expect(result.allowed).toBe(true);
     });
   });
@@ -1368,23 +1136,23 @@ describe('SecurityManager', () => {
     let writeManager: SecurityManager;
 
     beforeEach(() => {
-      writeManager = new SecurityManager({ security: defaultConfig }, false);
+      writeManager = new SecurityManager({ security: defaultConfig });
     });
 
     test('should block EXEC even in write mode', async () => {
-      const result = await writeManager.validateQuery('EXEC xp_cmdshell "dir"');
+      const result = await writeManager.validateAnyQuery('EXEC xp_cmdshell "dir"');
       expect(result.allowed).toBe(false);
     });
 
     test('should block LOAD even in write mode', async () => {
-      const result = await writeManager.validateQuery(
+      const result = await writeManager.validateAnyQuery(
         "LOAD DATA INFILE '/etc/passwd' INTO TABLE t"
       );
       expect(result.allowed).toBe(false);
     });
 
     test('should allow INSERT in write mode', async () => {
-      const result = await writeManager.validateQuery("INSERT INTO t VALUES (1, 'a')");
+      const result = await writeManager.validateAnyQuery("INSERT INTO t VALUES (1, 'a')");
       expect(result.allowed).toBe(true);
     });
   });
@@ -1425,18 +1193,24 @@ describe('SecurityManager', () => {
 
   describe('MySQL version-conditional comment bypass', () => {
     test('should block queries with /*! version-conditional comments', async () => {
-      const result = await securityManager.validateQuery('SELECT 1 /*!50000 ; DROP TABLE users */');
+      const result = await securityManager.validateSelectOnlyQuery(
+        'SELECT 1 /*!50000 ; DROP TABLE users */'
+      );
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('version-conditional');
     });
 
     test('should block queries with /*! without version number', async () => {
-      const result = await securityManager.validateQuery('SELECT 1 /*! DROP TABLE users */');
+      const result = await securityManager.validateSelectOnlyQuery(
+        'SELECT 1 /*! DROP TABLE users */'
+      );
       expect(result.allowed).toBe(false);
     });
 
     test('should still allow normal comments', async () => {
-      const result = await securityManager.validateQuery('SELECT /* this is fine */ 1 FROM users');
+      const result = await securityManager.validateSelectOnlyQuery(
+        'SELECT /* this is fine */ 1 FROM users'
+      );
       expect(result.allowed).toBe(true);
     });
   });

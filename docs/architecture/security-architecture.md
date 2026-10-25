@@ -321,20 +321,12 @@ sequenceDiagram
 
 ### Comprehensive Audit Logging
 
-```typescript
-interface AuditLogEntry {
- timestamp: string; // ISO 8601 timestamp
- database: string; // Target database name
- query_type: 'SINGLE' | 'BATCH'; // Operation type
- query: string; // Query text (truncated/sanitized)
- query_count: number; // Number of queries (for batches)
- queryHash: string; // SHA256 hash of query
- allowed: boolean; // Whether query was allowed
- reason?: string; // Reason for blocking (if blocked)
- metadata: Record<string, unknown>; // Additional context
- sourceIP: string; // Source IP (when available)
- severity: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
-}
+Every executed query appends one line to `~/.argos/audit/<database>.log`
+(directory 0700, file 0600; `src/utils/audit-logger.ts`). The line carries no SQL text,
+only a hash of the normalised query:
+
+```text
+<ISO 8601 timestamp>  <database>  <first 8 hex chars of SHA-256(query)>  <duration>ms  <outcome>
 ```
 
 ### Security Event Categories
@@ -360,16 +352,14 @@ interface AuditLogEntry {
 ### Real-Time Monitoring
 
 ```typescript
-// Event-driven security monitoring
-securityManager.on('query-blocked', (dbName: string, reason: string) => {
- logger.warning(`Query blocked on ${dbName}: ${reason}`);
- // Trigger alerting system
-});
-
-securityManager.on('suspicious-pattern', (pattern: string, query: string) => {
- logger.error(`Suspicious pattern detected: ${pattern}`);
- // Immediate security response
-});
+// Every query is validated before it reaches the database. A rejection is thrown as a
+// SecurityViolationError, which the tool layer logs and returns to the client.
+const validation = dbConfig.select_only
+ ? securityManager.validateSelectOnlyQuery(query, dbConfig.type)
+ : securityManager.validateAnyQuery(query, dbConfig.type);
+if (!validation.allowed) {
+ throw new SecurityViolationError(`Query blocked: ${validation.reason}`, { database, reason: validation.reason });
+}
 ```
 
 ## Security Configuration
@@ -495,15 +485,10 @@ authorization become a hard prerequisite, not an option.
 
 ### Sensitive Data Handling
 ```typescript
-// Automatic sensitive data redaction
-sanitizeErrorMessage(errorMessage: string): string {
- return errorMessage
- .replace(/password[=:]\s*[^\s;,)]+/gi, 'password=[REDACTED]')
- .replace(/token[=:]\s*[^\s;,)]+/gi, 'token=[REDACTED]')
- .replace(/key[=:]\s*[^\s;,)]+/gi, 'key=[REDACTED]')
- .replace(/\b\d{4}-\d{4}-\d{4}-\d{4}\b/g, 'XXXX-XXXX-XXXX-XXXX')
- .substring(0, 500);
-}
+// Automatic sensitive data redaction (src/utils/error-handler.ts)
+// sanitizeMessage() redacts passwords, tokens, keys, secrets, card and SSN-shaped
+// numbers, and truncates to 500 characters. sanitizeError() applies it to any thrown value.
+const safe = sanitizeError(error);
 ```
 
 ## Security Validation Testing
@@ -519,14 +504,14 @@ describe('Security Validation', () => {
  ];
  
  maliciousQueries.forEach(query => {
- const result = securityManager.validateQuery(query);
+ const result = securityManager.validateSelectOnlyQuery(query);
  expect(result.allowed).toBe(false);
  });
  });
  
  it('should enforce complexity limits', () => {
  const complexQuery = buildComplexQuery({ joins: 20 }); // Exceeds limit
- const result = securityManager.validateQuery(complexQuery);
+ const result = securityManager.validateSelectOnlyQuery(complexQuery);
  expect(result.allowed).toBe(false);
  expect(result.reason).toContain('complexity');
  });

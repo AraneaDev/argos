@@ -153,7 +153,7 @@ describe('SecurityManager', () => {
  });
 
  test('should allow basic SELECT queries', async () => {
- const result = await securityManager.validateQuery(
+ const result = securityManager.validateSelectOnlyQuery(
  SampleQueries.basicQueries.simple
  );
  expect(result.allowed).toBe(true);
@@ -161,7 +161,7 @@ describe('SecurityManager', () => {
  });
 
  test('should block INSERT queries in SELECT-only mode', async () => {
- const result = await securityManager.validateQuery(
+ const result = securityManager.validateSelectOnlyQuery(
  SampleQueries.modificationQueries.insert
  );
  expect(result.allowed).toBe(false);
@@ -811,7 +811,7 @@ const complexQueries = SampleQueries.getComplexityTestQueries();
 
 test('should handle complex analytical queries', async () => {
  const query = SampleQueries.analyticalQueries.cohortAnalysis;
- const result = await securityManager.validateQuery(query);
+ const result = securityManager.validateSelectOnlyQuery(query);
  expect(result.allowed).toBe(true);
 });
 ```
@@ -948,7 +948,7 @@ test('should not leak memory with repeated operations', async () => {
  
  // Perform many operations
  for (let i = 0; i < 1000; i++) {
- await securityManager.validateQuery('SELECT 1');
+ securityManager.validateSelectOnlyQuery('SELECT 1');
  }
  
  // Force garbage collection
