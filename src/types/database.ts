@@ -17,7 +17,7 @@ import type { ConnectionPool as MSSQLConnection } from 'mssql';
 
 // Database type enum - exported for external use
 // Note: Some values kept for backward compatibility but may be unused internally
-/* eslint-disable no-unused-vars */
+ 
 export enum DatabaseType {
   // Commonly used values
   MYSQL = 'mysql',
@@ -27,7 +27,7 @@ export enum DatabaseType {
   MSSQL = 'mssql',
   SQLSERVER = 'sqlserver',
 }
-/* eslint-enable no-unused-vars */
+ 
 
 // For backward compatibility, also export as type
 export type DatabaseTypeString =
@@ -322,19 +322,6 @@ export interface RedactionResult {
  */
 export interface QueryResultWithRedaction extends QueryResult {
   redaction?: RedactionResult; // Information about applied redaction
-}
-
-/**
- * Audit log entry for redacted field access
- */
-export interface RedactionAuditEntry {
-  timestamp: string; // When the redaction occurred
-  database: string; // Database name
-  query_hash: string; // Hash of the query
-  fields_redacted: string[]; // Fields that were redacted
-  rules_applied: string[]; // Rules that were applied
-  redaction_count: number; // Number of values redacted
-  user_context?: string; // User or session context if available
 }
 
 // ============================================================================

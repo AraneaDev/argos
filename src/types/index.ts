@@ -29,7 +29,6 @@ export type {
   DatabaseRedactionConfig,
   RedactionResult,
   QueryResultWithRedaction,
-  RedactionAuditEntry,
 } from './database.js';
 
 export { MSSQL_AUTHENTICATION_MODES } from './database.js';

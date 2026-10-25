@@ -9,6 +9,17 @@ import type {
   QueryResult,
 } from '../../src/types/index.js';
 
+// Redact one row the way query results are redacted.
+const redactOne = (manager: RedactionManager, row: Record<string, unknown>) => ({
+  redacted: manager.redactResults({
+    rows: [row],
+    rowCount: 1,
+    fields: Object.keys(row),
+    truncated: false,
+    execution_time_ms: 0,
+  }).rows[0],
+});
+
 describe('RedactionPatterns', () => {
   describe('fullMask', () => {
     it('should mask entire string with asterisks', () => {
@@ -144,24 +155,6 @@ describe('RedactionManager', () => {
 
       expect(manager.shouldRedactField('Email')).toBeTruthy();
       expect(manager.shouldRedactField('USER_EMAIL')).toBeTruthy();
-    });
-
-    it('should apply the same defaults when the rules are replaced', () => {
-      const manager = new RedactionManager({
-        enabled: true,
-        rules: [],
-        log_redacted_access: true,
-        audit_redacted_queries: true,
-        case_sensitive_matching: true,
-      } as DatabaseRedactionConfig);
-
-      manager.updateRules({ enabled: true, rules: [] } as DatabaseRedactionConfig);
-
-      expect(manager.getConfigurationSummary().settings).toEqual({
-        log_access: false,
-        audit_queries: false,
-        case_sensitive: false,
-      });
     });
   });
 
@@ -441,33 +434,6 @@ describe('RedactionManager', () => {
     });
   });
 
-  describe('testRedaction', () => {
-    it('should provide test results for sample data', () => {
-      const sampleData = {
-        id: 123,
-        email: 'test@example.com',
-        mobile_phone: '555-0123',
-        ssn: '123-45-6789',
-        username: 'testuser',
-      };
-
-      const testResult = redactionManager.testRedaction(sampleData);
-
-      expect(testResult.original).toEqual(sampleData);
-      expect(testResult.fields_affected).toContain('email');
-      expect(testResult.fields_affected).toContain('mobile_phone');
-      expect(testResult.fields_affected).toContain('ssn');
-      expect(testResult.fields_affected).not.toContain('username');
-      expect(testResult.fields_affected).not.toContain('id');
-
-      expect(testResult.redacted.email).toContain('*');
-      expect(testResult.redacted.mobile_phone).toBe('********');
-      expect(testResult.redacted.ssn).toBe('[SSN_REDACTED]');
-      expect(testResult.redacted.username).toBe('testuser');
-      expect(testResult.redacted.id).toBe(123);
-    });
-  });
-
   describe('getConfigurationSummary', () => {
     it('should return configuration summary', () => {
       const summary = redactionManager.getConfigurationSummary();
@@ -482,52 +448,6 @@ describe('RedactionManager', () => {
       expect(emailRule).toBeDefined();
       expect(emailRule?.type).toBe('exact');
       expect(emailRule?.redaction).toBe('partial_mask');
-    });
-  });
-
-  describe('updateRules', () => {
-    it('should replace all rules with new configuration', () => {
-      const newConfig: DatabaseRedactionConfig = {
-        enabled: true,
-        rules: [
-          {
-            field_pattern: 'password',
-            pattern_type: 'exact',
-            redaction_type: 'full_mask',
-          },
-        ],
-        log_redacted_access: true,
-        audit_redacted_queries: true,
-        case_sensitive_matching: true,
-      };
-
-      redactionManager.updateRules(newConfig);
-      const summary = redactionManager.getConfigurationSummary();
-
-      expect(summary.rule_count).toBe(1);
-      expect(summary.rules[0].pattern).toBe('password');
-      expect(summary.settings.log_access).toBe(true);
-      expect(summary.settings.audit_queries).toBe(true);
-      expect(summary.settings.case_sensitive).toBe(true);
-    });
-  });
-
-  describe('createAuditEntry', () => {
-    it('should create a valid audit entry', () => {
-      const redactionResult = {
-        fields_redacted: ['email', 'ssn'],
-        redaction_count: 4,
-        rules_applied: ['email', 'ssn'],
-      };
-
-      const entry = redactionManager.createAuditEntry('testdb', 'abc123hash', redactionResult);
-
-      expect(entry.timestamp).toBeDefined();
-      expect(entry.database).toBe('testdb');
-      expect(entry.query_hash).toBe('abc123hash');
-      expect(entry.fields_redacted).toEqual(['email', 'ssn']);
-      expect(entry.redaction_count).toBe(4);
-      expect(entry.rules_applied).toEqual(['email', 'ssn']);
     });
   });
 
@@ -663,7 +583,7 @@ describe('RedactionManager', () => {
       };
 
       const manager = new RedactionManager(config);
-      const result = manager.testRedaction({ data: 'order 12345 confirmed' });
+      const result = redactOne(manager, { data: 'order 12345 confirmed' });
       expect(result.redacted.data).toBe('order [NUM] confirmed');
     });
 
@@ -681,7 +601,7 @@ describe('RedactionManager', () => {
       };
 
       const manager = new RedactionManager(config);
-      const result = manager.testRedaction({ data: 'sensitive' });
+      const result = redactOne(manager, { data: 'sensitive' });
       expect(result.redacted.data).toBe('*********');
     });
   });
@@ -700,7 +620,7 @@ describe('RedactionManager', () => {
       };
 
       const manager = new RedactionManager(config);
-      const result = manager.testRedaction({ data: 'value' });
+      const result = redactOne(manager, { data: 'value' });
       expect(result.redacted.data).toBe('*****');
     });
   });
@@ -720,7 +640,7 @@ describe('RedactionManager', () => {
       };
 
       const manager = new RedactionManager(config);
-      const result = manager.testRedaction({ token: 'abc123' });
+      const result = redactOne(manager, { token: 'abc123' });
       expect(result.redacted.token).toBe('[REDACTED]');
     });
   });
@@ -740,7 +660,7 @@ describe('RedactionManager', () => {
       };
 
       const manager = new RedactionManager(config);
-      const result = manager.testRedaction({ name: 'JohnDoe' });
+      const result = redactOne(manager, { name: 'JohnDoe' });
       expect(result.redacted.name).toBe('J*****e');
     });
   });
@@ -759,7 +679,7 @@ describe('RedactionManager', () => {
       };
 
       const manager = new RedactionManager(config);
-      const result = manager.testRedaction({ salary: 50000 });
+      const result = redactOne(manager, { salary: 50000 });
       expect(result.redacted.salary).toBe('*****');
     });
 
@@ -776,7 +696,7 @@ describe('RedactionManager', () => {
       };
 
       const manager = new RedactionManager(config);
-      const result = manager.testRedaction({ active: true });
+      const result = redactOne(manager, { active: true });
       expect(result.redacted.active).toBe('****');
     });
   });

@@ -8,7 +8,6 @@ import type {
   QueryResult,
   QueryResultWithRedaction,
   RedactionResult,
-  RedactionAuditEntry,
 } from '../types/index.js';
 import { getLogger } from '../utils/logger.js';
 import { getErrorMessage } from '../utils/error-handler.js';
@@ -480,24 +479,6 @@ export class RedactionManager {
   }
 
   /**
-   * Create audit log entry for redacted query
-   */
-  createAuditEntry(
-    database: string,
-    queryHash: string,
-    redactionResult: RedactionResult
-  ): RedactionAuditEntry {
-    return {
-      timestamp: new Date().toISOString(),
-      database,
-      query_hash: queryHash,
-      fields_redacted: redactionResult.fields_redacted,
-      rules_applied: redactionResult.rules_applied,
-      redaction_count: redactionResult.redaction_count,
-    };
-  }
-
-  /**
    * Get current configuration summary
    */
   getConfigurationSummary(): {
@@ -525,51 +506,6 @@ export class RedactionManager {
         audit_queries: this.auditQueries,
         case_sensitive: this.caseSensitive,
       },
-    };
-  }
-
-  /**
-   * Update redaction rules at runtime
-   */
-  updateRules(config: DatabaseRedactionConfig): void {
-    this.rules.clear();
-    this.logAccess = config.log_redacted_access ?? false;
-    this.auditQueries = config.audit_redacted_queries ?? false;
-    this.caseSensitive = config.case_sensitive_matching ?? false;
-    this.defaultRedaction = config.default_redaction;
-
-    for (const rule of config.rules) {
-      this.addRule(rule);
-    }
-
-    this.logger.info('RedactionManager rules updated', {
-      ruleCount: this.rules.size,
-    });
-  }
-
-  /**
-   * Test redaction rules against sample data
-   */
-  testRedaction(sampleData: Record<string, unknown>): {
-    original: Record<string, unknown>;
-    redacted: Record<string, unknown>;
-    fields_affected: string[];
-    rules_applied: string[];
-  } {
-    const fields = Object.keys(sampleData);
-    const redactionResult: RedactionResult = {
-      fields_redacted: [],
-      redaction_count: 0,
-      rules_applied: [],
-    };
-
-    const redacted = this.redactRow(sampleData, fields, redactionResult);
-
-    return {
-      original: sampleData,
-      redacted,
-      fields_affected: redactionResult.fields_redacted,
-      rules_applied: redactionResult.rules_applied,
     };
   }
 }

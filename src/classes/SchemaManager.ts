@@ -2,24 +2,10 @@
  * Schema Manager for database schema caching and operations
  */
 
-import {
-  readFileSync,
-  writeFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  unlinkSync,
-  statSync,
-} from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { join, basename } from 'path';
 import { EventEmitter } from 'events';
-import type {
-  DatabaseSchema,
-  DatabaseListItem,
-  DatabaseConfig,
-  ColumnInfo,
-  TableInfo,
-} from '../types/index.js';
+import type { DatabaseSchema, DatabaseConfig, ColumnInfo, TableInfo } from '../types/index.js';
 import type { ConnectionManager } from './ConnectionManager.js';
 import { getLogger } from '../utils/logger.js';
 
@@ -62,17 +48,6 @@ export class SchemaManager extends EventEmitter {
       schemaPath: this.schemaPath,
       cachedSchemas: this.schemas.size,
     });
-  }
-
-  /**
-   * Clean up schema manager resources
-   */
-  async cleanup(): Promise<void> {
-    // Save any pending schema changes
-    await this.saveAllSchemas();
-    this.schemas.clear();
-
-    this.logger.info('Schema manager cleaned up');
   }
 
   // ============================================================================
@@ -298,121 +273,9 @@ export class SchemaManager extends EventEmitter {
     return parts.join('\n');
   }
 
-  /**
-   * Update database list items with schema information
-   */
-  enrichDatabaseListItems(items: DatabaseListItem[]): DatabaseListItem[] {
-    return items.map((item) => {
-      const schema = this.schemas.get(item.name);
-
-      if (schema) {
-        return {
-          ...item,
-          schema_cached: true,
-          schema_info: schema.summary,
-        };
-      }
-
-      return item;
-    });
-  }
-
   // ============================================================================
   // Schema Analysis and Statistics
   // ============================================================================
-
-  /**
-   * Get schema statistics across all cached schemas
-   */
-  getSchemaStatistics(): {
-    totalDatabases: number;
-    totalTables: number;
-    totalViews: number;
-    totalColumns: number;
-    avgTablesPerDb: number;
-    avgColumnsPerTable: number;
-    schemasByType: Record<string, number>;
-  } {
-    const schemas = Array.from(this.schemas.values());
-
-    const stats = {
-      totalDatabases: schemas.length,
-      totalTables: schemas.reduce((sum, s) => sum + s.summary.table_count, 0),
-      totalViews: schemas.reduce((sum, s) => sum + s.summary.view_count, 0),
-      totalColumns: schemas.reduce((sum, s) => sum + s.summary.total_columns, 0),
-      avgTablesPerDb: 0,
-      avgColumnsPerTable: 0,
-      schemasByType: {} as Record<string, number>,
-    };
-
-    if (schemas.length > 0) {
-      stats.avgTablesPerDb = Math.round((stats.totalTables / schemas.length) * 100) / 100;
-    }
-
-    if (stats.totalTables > 0) {
-      stats.avgColumnsPerTable = Math.round((stats.totalColumns / stats.totalTables) * 100) / 100;
-    }
-
-    // Count schemas by database type
-    for (const schema of schemas) {
-      stats.schemasByType[schema.type] = (stats.schemasByType[schema.type] || 0) + 1;
-    }
-
-    return stats;
-  }
-
-  /**
-   * Find tables across all schemas that match a pattern
-   */
-  findTables(pattern: string | RegExp): Array<{
-    database: string;
-    table: string;
-    type: 'table' | 'view';
-    columns: number;
-  }> {
-    const results: Array<{
-      database: string;
-      table: string;
-      type: 'table' | 'view';
-      columns: number;
-    }> = [];
-
-    const regex =
-      typeof pattern === 'string' ? new RegExp(pattern.replace(/\*/g, '.*'), 'i') : pattern;
-
-    for (const [dbName, schema] of this.schemas.entries()) {
-      // Search tables
-      for (const [tableName, table] of Object.entries(schema.tables)) {
-        if (regex.test(tableName)) {
-          results.push({
-            database: dbName,
-            table: tableName,
-            type: 'table',
-            columns: table.columns.length,
-          });
-        }
-      }
-
-      // Search views
-      for (const [viewName, view] of Object.entries(schema.views)) {
-        if (regex.test(viewName)) {
-          results.push({
-            database: dbName,
-            table: viewName,
-            type: 'view',
-            columns: view.columns.length,
-          });
-        }
-      }
-    }
-
-    return results.sort((a, b) => {
-      if (a.database === b.database) {
-        return a.table.localeCompare(b.table);
-      }
-      return a.database.localeCompare(b.database);
-    });
-  }
 
   // ============================================================================
   // File Operations
@@ -496,16 +359,6 @@ export class SchemaManager extends EventEmitter {
     }
   }
 
-  private async saveAllSchemas(): Promise<void> {
-    const promises = Array.from(this.schemas.entries()).map(([dbName, schema]) =>
-      this.saveSchema(dbName, schema).catch((error) => {
-        this.logger.error(`Failed to save schema for '${dbName}'`, error as Error);
-      })
-    );
-
-    await Promise.all(promises);
-  }
-
   private isValidSchema(value: unknown): value is DatabaseSchema {
     if (!value || typeof value !== 'object') return false;
     const s = value as Record<string, unknown>;
@@ -527,100 +380,4 @@ export class SchemaManager extends EventEmitter {
   // ============================================================================
   // Maintenance Operations
   // ============================================================================
-
-  /**
-   * Remove old or invalid schema cache files
-   */
-  async cleanupOldSchemas(maxAgeHours = 24 * 7): Promise<{ removed: number; errors: string[] }> {
-    const removed: string[] = [];
-    const errors: string[] = [];
-    const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
-
-    try {
-      if (!existsSync(this.schemaPath)) {
-        return { removed: 0, errors: [] };
-      }
-
-      const files = readdirSync(this.schemaPath);
-
-      for (const file of files) {
-        if (!file.endsWith('.json')) continue;
-
-        try {
-          const filePath = join(this.schemaPath, file);
-          const stats = statSync(filePath);
-          const age = Date.now() - stats.mtime.getTime();
-
-          if (age > maxAgeMs) {
-            // Read the file BEFORE deleting it to extract the correct in-memory
-            // cache key (schema.database). After M4, the cache is keyed by the
-            // original DB name, not the sanitized filename.
-            let dbName = file.replace('.json', '');
-            try {
-              const content = readFileSync(filePath, 'utf-8');
-              const schema = JSON.parse(content) as DatabaseSchema;
-              if (schema.database) dbName = schema.database;
-            } catch {
-              // Fall back to filename-based key for legacy/corrupt files
-            }
-
-            unlinkSync(filePath);
-            removed.push(file);
-            this.schemas.delete(dbName);
-          }
-        } catch (error) {
-          errors.push(`Error processing ${file}: ${(error as Error).message}`);
-        }
-      }
-
-      if (removed.length > 0) {
-        this.logger.info(`Cleaned up ${removed.length} old schema files`, { removed });
-      }
-    } catch (error) {
-      errors.push(`Error during cleanup: ${(error as Error).message}`);
-      this.logger.error('Error during schema cleanup', error as Error);
-    }
-
-    return { removed: removed.length, errors };
-  }
-
-  /**
-   * Get schema cache information
-   */
-  getCacheInfo(): {
-    schemasInMemory: number;
-    schemaPath: string;
-    filesOnDisk: number;
-    totalSizeBytes: number;
-  } {
-    let filesOnDisk = 0;
-    let totalSizeBytes = 0;
-
-    try {
-      if (existsSync(this.schemaPath)) {
-        const files = readdirSync(this.schemaPath).filter((file) => file.endsWith('.json'));
-
-        filesOnDisk = files.length;
-
-        for (const file of files) {
-          try {
-            const filePath = join(this.schemaPath, file);
-            const stats = statSync(filePath);
-            totalSizeBytes += stats.size;
-          } catch {
-            // Ignore individual file errors
-          }
-        }
-      }
-    } catch (error) {
-      this.logger.error('Error getting cache info', error as Error);
-    }
-
-    return {
-      schemasInMemory: this.schemas.size,
-      schemaPath: this.schemaPath,
-      filesOnDisk,
-      totalSizeBytes,
-    };
-  }
 }

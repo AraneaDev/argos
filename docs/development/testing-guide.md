@@ -188,8 +188,8 @@ describe('SchemaManager', () => {
  mockAdapter = MockDatabaseFactory.createMockAdapter();
  });
 
- afterEach(async () => {
- await schemaManager.cleanup();
+ afterEach(() => {
+ fs.rmSync('./test-cache', { recursive: true, force: true });
  });
 
  describe('schema capture and caching', () => {
