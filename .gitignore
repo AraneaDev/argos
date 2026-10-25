@@ -167,3 +167,6 @@ CLAUDE.md
 
 # packaged Claude Code plugin
 .plugin/
+
+# Capture tool frames and failed-shot dumps (tools/capture)
+/tools/capture/out/

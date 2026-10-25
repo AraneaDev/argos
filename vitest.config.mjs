@@ -15,7 +15,7 @@ export default defineConfig({
         },
     },
     test: {
-        include: ["plugin/hooks/**/*.spec.ts"],
+        include: ["plugin/hooks/**/*.spec.ts", "tools/capture/*.spec.mjs"],
         environment: "node",
     },
 });
