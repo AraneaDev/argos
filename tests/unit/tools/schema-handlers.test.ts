@@ -3,6 +3,7 @@
  * Tests for sql_get_schema, sql_refresh_schema, sql_list_databases, sql_test_connection handlers
  */
 
+import type { SchemaWatch } from '../../../src/schema/watch.js';
 import {
   handleGetSchema,
   handleRefreshSchema,
@@ -59,6 +60,8 @@ function createMockContext(
       ...(security ? { security } : {}),
     } as ParsedServerConfig,
     configPath: '/tmp/test-config.ini',
+    schemaWatch: { check: jest.fn().mockResolvedValue([]) } as unknown as SchemaWatch,
+    paneStore: null,
     logger: {
       info: jest.fn(),
       debug: jest.fn(),

@@ -4,6 +4,7 @@
  * sql_get_config, sql_set_mcp_configurable handlers
  */
 
+import type { SchemaWatch } from '../../../src/schema/watch.js';
 import {
   handleAddDatabase,
   handleUpdateDatabase,
@@ -64,6 +65,8 @@ function createMockContext(databases: Record<string, DatabaseConfig> = {}): Tool
       databases,
     } as ParsedServerConfig,
     configPath: '/tmp/test-config.ini',
+    schemaWatch: { check: jest.fn().mockResolvedValue([]) } as unknown as SchemaWatch,
+    paneStore: null,
     logger: {
       info: jest.fn(),
       debug: jest.fn(),
