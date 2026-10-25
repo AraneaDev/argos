@@ -106,6 +106,64 @@ describe('query journaling', () => {
     expect(r._meta.argos?.schemaChange).toEqual(changes);
   });
 
+  describe('keeps a schema change when the query then fails', () => {
+    const changes = [{ kind: 'column-added', table: 't', column: 'c', type: 'int' }];
+    const line = 'Schema changed since last look: t + c (int).';
+
+    it('on sql_query', async () => {
+      const ctx = makeCtx(store);
+      (ctx.schemaWatch.check as jest.Mock).mockResolvedValue(changes);
+      (ctx.connectionManager.executeQuery as jest.Mock).mockRejectedValue(new Error('boom'));
+      const r = await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1' });
+      const [e] = await store.history();
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toContain(line);
+      expect(r._meta.argos?.schemaChange).toEqual(changes);
+      expect(e).toMatchObject({ outcome: 'error', schemaChange: changes });
+    });
+
+    it('on sql_batch_query', async () => {
+      const ctx = makeCtx(store);
+      (ctx.schemaWatch.check as jest.Mock).mockResolvedValue(changes);
+      (ctx.connectionManager.executeBatch as jest.Mock).mockRejectedValue(new Error('boom'));
+      const r = await handleBatchQuery(ctx, {
+        database: 'db',
+        queries: [{ query: 'SELECT 1' }, { query: 'SELECT 2' }],
+      });
+      const entries = await store.history();
+      expect(r.content[0].text).toContain(line);
+      expect(r._meta.argos?.schemaChange).toEqual(changes);
+      expect(entries.filter((e) => e.schemaChange)).toHaveLength(1);
+      expect(entries.find((e) => e.sql === 'SELECT 1')?.schemaChange).toEqual(changes);
+    });
+
+    it('on a batch whose first statement fails', async () => {
+      const ctx = makeCtx(store);
+      (ctx.schemaWatch.check as jest.Mock).mockResolvedValue(changes);
+      (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+        results: [{ index: 0, query: 'SELECT 1', success: false, error: 'boom' }],
+        successCount: 0,
+        failureCount: 1,
+        totalExecutionTime: 1,
+      });
+      const r = await handleBatchQuery(ctx, { database: 'db', queries: [{ query: 'SELECT 1' }] });
+      const [e] = await store.history();
+      expect(r._meta.argos?.schemaChange).toEqual(changes);
+      expect(e).toMatchObject({ outcome: 'error', schemaChange: changes });
+    });
+
+    it('on sql_analyze_performance', async () => {
+      const ctx = makeCtx(store);
+      (ctx.schemaWatch.check as jest.Mock).mockResolvedValue(changes);
+      (ctx.connectionManager.analyzePerformance as jest.Mock).mockRejectedValue(new Error('boom'));
+      const r = await handleAnalyzePerformance(ctx, { database: 'db', query: 'SELECT 1' });
+      const [e] = await store.history();
+      expect(r.content[0].text).toContain(line);
+      expect(r._meta.argos?.schemaChange).toEqual(changes);
+      expect(e).toMatchObject({ outcome: 'error', schemaChange: changes });
+    });
+  });
+
   it('journals a batch of 3 as 3 entries sharing a batchId, each spooled', async () => {
     const ctx = makeCtx(store);
     (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({

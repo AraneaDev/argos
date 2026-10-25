@@ -40,6 +40,16 @@ function withSchemaChanges(
 }
 
 /**
+ * Failure response: the schema-change line (if any) is kept, because `check` has already
+ * refreshed the cache and will not report the same change again.
+ */
+function failureResponse(text: string, changes: SchemaChange[], ref: JournalRef): MCPToolResponse {
+  const response = createToolResponse(text, true);
+  if (changes.length > 0) response.content[0].text += `\n${formatSchemaChanges(changes)}`;
+  return attachJournal(response, ref, changes);
+}
+
+/**
  *
  */
 export async function handleSqlQuery(
@@ -47,6 +57,7 @@ export async function handleSqlQuery(
   args: SQLQueryArgs
 ): Promise<MCPToolResponse> {
   const { database, query, params = [] } = args;
+  let schemaChanges: SchemaChange[] = [];
 
   try {
     const dbConfig = requireDbConfig(ctx.config, database);
@@ -76,7 +87,7 @@ export async function handleSqlQuery(
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
 
-    const schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+    schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
 
     const result = await ctx.connectionManager.executeQuery(database, query, params);
 
@@ -114,7 +125,12 @@ export async function handleSqlQuery(
     );
     return withSchemaChanges(createToolResponse(responseText), schemaChanges, ref);
   } catch (error) {
-    const ref = await journalFailure(ctx, { database, tool: 'sql_query', sql: query }, error);
+    const ref = await journalFailure(
+      ctx,
+      { database, tool: 'sql_query', sql: query },
+      error,
+      schemaChanges
+    );
     // Sanitize before returning to the client — raw driver errors can leak data,
     // schema, or connection details. SecurityViolationError messages are preserved.
     const errorMessage = sanitizeError(error);
@@ -127,7 +143,7 @@ export async function handleSqlQuery(
       responseText += 'To modify data, use a database configured with full access permissions.';
     }
 
-    return attachJournal(createToolResponse(responseText, true), ref);
+    return failureResponse(responseText, schemaChanges, ref);
   }
 }
 
@@ -151,6 +167,7 @@ export async function handleBatchQuery(
 
   const batchId = ctx.paneStore ? ctx.paneStore.newId() : undefined;
   let offending: string | null = null;
+  let schemaChanges: SchemaChange[] = [];
 
   try {
     const dbConfig = requireDbConfig(ctx.config, database);
@@ -188,7 +205,7 @@ export async function handleBatchQuery(
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
 
-    const schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+    schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
 
     const result = await ctx.connectionManager.executeBatch(
       database,
@@ -262,7 +279,12 @@ export async function handleBatchQuery(
               queryResult.data,
               i === 0 ? schemaChanges : []
             )
-          : await journalFailure(ctx, base, new Error(queryResult.error || 'Query failed'));
+          : await journalFailure(
+              ctx,
+              base,
+              new Error(queryResult.error || 'Query failed'),
+              i === 0 ? schemaChanges : []
+            );
       if (i === 0) first = ref;
     }
     return withSchemaChanges(createToolResponse(responseText), schemaChanges, first);
@@ -275,7 +297,8 @@ export async function handleBatchQuery(
         const r = await journalFailure(
           ctx,
           { database, tool: 'sql_batch_query', sql, batchId },
-          error
+          error,
+          i === 0 ? schemaChanges : []
         );
         if (i === 0) ref = r;
       }
@@ -290,7 +313,7 @@ export async function handleBatchQuery(
       responseText += 'All queries in the batch must comply with security restrictions.';
     }
 
-    return attachJournal(createToolResponse(responseText, true), ref);
+    return failureResponse(responseText, schemaChanges, ref);
   }
 }
 
@@ -302,6 +325,7 @@ export async function handleAnalyzePerformance(
   args: SQLAnalyzePerformanceArgs
 ): Promise<MCPToolResponse> {
   const { database, query } = args;
+  let schemaChanges: SchemaChange[] = [];
 
   try {
     const dbConfig = requireDbConfig(ctx.config, database);
@@ -325,7 +349,7 @@ export async function handleAnalyzePerformance(
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
 
-    const schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+    schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
 
     const analysis = await ctx.connectionManager.analyzePerformance(database, query);
 
@@ -358,11 +382,13 @@ export async function handleAnalyzePerformance(
     const ref = await journalFailure(
       ctx,
       { database, tool: 'sql_analyze_performance', sql: query },
-      error
+      error,
+      schemaChanges
     );
     const errorMessage = sanitizeError(error);
-    return attachJournal(
-      createToolResponse(` Performance analysis failed for ${database}: ${errorMessage}`, true),
+    return failureResponse(
+      ` Performance analysis failed for ${database}: ${errorMessage}`,
+      schemaChanges,
       ref
     );
   }

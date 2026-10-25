@@ -75,11 +75,12 @@ export function journalOk(
   });
 }
 
-/** Record a blocked or failed statement (no spool). */
+/** Record a blocked or failed statement (no spool), with any schema change noticed first. */
 export function journalFailure(
   ctx: ToolHandlerContext,
   base: Base,
-  error: unknown
+  error: unknown,
+  schemaChange: SchemaChange[] = []
 ): Promise<JournalRef> {
   return guarded(ctx, 'record', async () => {
     const store = ctx.paneStore;
@@ -94,6 +95,7 @@ export function journalFailure(
       rowCount: null,
       outcome: error instanceof SecurityViolationError ? 'blocked' : 'error',
       reason: sanitizeError(error),
+      ...(schemaChange.length > 0 ? { schemaChange } : {}),
       spool: null,
     });
     return { journalId: id, spool: null };
