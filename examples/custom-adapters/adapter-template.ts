@@ -246,6 +246,17 @@ export class TemplateAdapter extends DatabaseAdapter {
  return `EXPLAIN ${query}`; // Generic example
  }
 
+ /**
+ * Cheap query returning one row with a column named argos_fingerprint (plus an optional
+ * n) whose value changes whenever the schema changes. Argos runs it at most once a minute
+ * per connection to notice schema changes.
+ */
+ fingerprintQuery(): string {
+ // Replace with something cheap your database keeps current, e.g. a schema version
+ // counter or an aggregate over the catalog's column list.
+ return `SELECT COUNT(*) AS argos_fingerprint FROM information_schema.columns`;
+ }
+
  // ============================================================================
  // Result Processing (Required Abstract Method Implementations)
  // ============================================================================
