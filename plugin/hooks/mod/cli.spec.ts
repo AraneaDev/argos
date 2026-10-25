@@ -17,6 +17,19 @@ describe('running the argos CLI', () => {
     expect(port.runs).toEqual([{ argv: [ENV.node, ENV.cli, 'connections', '--config', ENV.config], timeoutMs: CLI_TIMEOUT_MS }])
   })
 
+  it('turns control characters in what the CLI printed into U+FFFD before the pane sees them', async () => {
+    // A name from the database carrying an OSC 52 clipboard write and a CSI cursor move.
+    const hostile = { ...CONNECTION, name: 'demo\u001b]52;c;cHduZWQ=\u0007\u001b[2J' }
+    const port = fakePort({ run: () => ({ exitCode: 0, stdout: JSON.stringify([hostile]) }) })
+    const answer = await runCli(port.io, ['connections'], parseConnections)
+    expect(answer).toEqual({ ok: true, value: [{ ...CONNECTION, name: 'demo\ufffd]52;c;cHduZWQ=\ufffd\ufffd[2J' }] })
+  })
+
+  it('turns control characters in a stderr line it passes on into U+FFFD too', async () => {
+    const port = fakePort({ run: () => ({ exitCode: 2, stdout: '', stderr: 'boom\u001b[2J' }) })
+    expect(await runCli(port.io, ['connections'], parseConnections)).toEqual({ ok: false, reason: 'argos: could not run the argos CLI (exit 2: boom\ufffd[2J)' })
+  })
+
   it('says the output was too large when the engine cut it short, whatever was left of it', async () => {
     const port = fakePort({ run: () => ({ exitCode: 0, stdout: '{"id":"e1","fields":["a"],"rows":[["xxxx', isStdoutTruncated: true }) })
     expect(await runCli(port.io, ['result', 'e1'], parseConnections)).toEqual({ ok: false, reason: OUTPUT_TOO_LARGE })
