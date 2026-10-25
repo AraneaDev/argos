@@ -324,7 +324,6 @@ export class Logger {
     }
   }
 
-   
   private getConsoleMethod(level: LogEntry['level']): (..._args: unknown[]) => void {
     switch (level) {
       case 'INFO':
@@ -333,7 +332,7 @@ export class Logger {
         return console.warn; // eslint-disable-line no-console
       case 'ERROR':
       case 'CRITICAL':
-        return console.error;  
+        return console.error;
       default:
         return console.log; // eslint-disable-line no-console
     }

@@ -95,14 +95,10 @@ export function getErrorMessage(error: unknown): string {
 /**
  * Error categories for classification
  */
- 
- 
 
 /**
  * Error severity levels
  */
- 
- 
 
 /**
  * Create a sanitized error message for security
