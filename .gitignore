@@ -159,6 +159,9 @@ CLAUDE.md
 /.chaos-mcp/
 /artifacts/
 
+# Argos pane data (journal SQL text, spooled result rows, pins)
+.argos/
+
 # brainstorming mockups
 .superpowers/
 

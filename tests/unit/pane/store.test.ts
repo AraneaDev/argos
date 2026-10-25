@@ -161,6 +161,22 @@ describe('PaneStore', () => {
     expect((await stat(base)).mode & 0o777).toBe(0o700);
   });
 
+  it('creates .argos/.gitignore ignoring everything, and keeps an existing one', async () => {
+    await store.ensure();
+    const ignore = join(dir, '.argos', '.gitignore');
+    expect(await readFile(ignore, 'utf8')).toBe('*\n');
+    expect((await stat(join(dir, '.argos', 'spool'))).isDirectory()).toBe(true);
+
+    await writeFile(ignore, '# mine\n');
+    await new PaneStore(join(dir, '.argos')).append(entry('a1'));
+    expect(await readFile(ignore, 'utf8')).toBe('# mine\n');
+  });
+
+  it('creates .gitignore on first write without an explicit ensure', async () => {
+    await store.append(entry('a1'));
+    expect(await readFile(join(dir, '.argos', '.gitignore'), 'utf8')).toBe('*\n');
+  });
+
   it('two processes appending 500 entries each yield 1000 parseable lines', async () => {
     const src = await readFile(join(__dirname, '../../../src/pane/store.ts'), 'utf8');
     const js = transformSync(src, {

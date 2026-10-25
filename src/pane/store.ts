@@ -41,6 +41,7 @@ export class PaneStore {
   private readonly spoolBytes: number;
   private readonly spoolDays: number;
   private readonly now: () => number;
+  private ensured = false;
 
   constructor(
     private readonly dir: string,
@@ -68,8 +69,24 @@ export class PaneStore {
     return `${this.now().toString(36)}-${randomBytes(4).toString('hex')}`;
   }
 
-  private async ensureDirs(): Promise<void> {
+  /**
+   * Create the data directory (0700) with its spool folder, and a `.gitignore` of `*` so
+   * SQL text and result rows never end up in the repository the config lives in. An
+   * existing `.gitignore` is left alone.
+   */
+  async ensure(): Promise<void> {
+    if (this.ensured) return;
     await mkdir(this.spoolDir, { recursive: true, mode: DIR_MODE });
+    try {
+      await writeFile(join(this.dir, '.gitignore'), '*\n', { flag: 'wx', mode: FILE_MODE });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    this.ensured = true;
+  }
+
+  private ensureDirs(): Promise<void> {
+    return this.ensure();
   }
 
   /** One appendFile write per entry: O_APPEND keeps concurrent writers from interleaving. */

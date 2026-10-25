@@ -6,7 +6,6 @@
 
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
-import { mkdir } from 'fs/promises';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -207,9 +206,9 @@ export class SQLMCPServer extends EventEmitter {
   /** Journal store beside the config in use; null (journaling off) if its directory is unusable. */
   private async createPaneStore(): Promise<PaneStore | null> {
     try {
-      const dir = dataDirFor(this.configPath);
-      await mkdir(join(dir, 'spool'), { recursive: true, mode: 0o700 });
-      return new PaneStore(dir);
+      const store = new PaneStore(dataDirFor(this.configPath));
+      await store.ensure();
+      return store;
     } catch (error) {
       this.logger.warning('Pane journal disabled: data directory unavailable', {
         error: getErrorMessage(error),

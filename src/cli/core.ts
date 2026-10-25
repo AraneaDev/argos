@@ -4,7 +4,6 @@
  */
 
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ConnectionManager } from '../classes/ConnectionManager.js';
@@ -85,8 +84,8 @@ export async function openCore(args: string[], schemaPath?: string): Promise<Cor
   connectionManager.initialize(databases);
   await sshTunnelManager.initialize();
 
-  const dir = dataDirFor(configPath);
-  await mkdir(join(dir, 'spool'), { recursive: true, mode: 0o700 });
+  const store = new PaneStore(dataDirFor(configPath));
+  await store.ensure();
 
   return {
     config,
@@ -95,7 +94,7 @@ export async function openCore(args: string[], schemaPath?: string): Promise<Cor
     securityManager,
     schemaManager,
     schemaWatch,
-    store: new PaneStore(dir),
+    store,
     async close() {
       await connectionManager.closeAllConnections().catch(() => undefined);
       await sshTunnelManager.closeAllTunnels().catch(() => undefined);
