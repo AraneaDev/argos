@@ -35,12 +35,16 @@ switch (command.kind) {
   case 'result':
   case 'pin':
   case 'unpin':
-  case 'pins':
-  case 'install-plugin': {
+  case 'pins': {
     const { runPaneCommand } = await import('./cli/pane-commands.js');
     const { json, code } = await runPaneCommand(command.kind, command.args);
     process.stdout.write(JSON.stringify(json) + '\n');
     process.exitCode = code;
+    break;
+  }
+  case 'install-plugin': {
+    const { runInstallPlugin } = await import('./cli/install-plugin.js');
+    process.exitCode = await runInstallPlugin(command.args);
     break;
   }
   case 'unknown':

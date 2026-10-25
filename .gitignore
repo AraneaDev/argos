@@ -161,3 +161,6 @@ CLAUDE.md
 
 # brainstorming mockups
 .superpowers/
+
+# packaged Claude Code plugin
+.plugin/
