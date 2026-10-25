@@ -177,6 +177,16 @@ describe('PaneStore', () => {
     expect(await readFile(join(dir, '.argos', '.gitignore'), 'utf8')).toBe('*\n');
   });
 
+  it('persists fingerprint check times per connection, private to the user', async () => {
+    expect(await store.fingerprintCheckedAt('db')).toBeUndefined();
+    await store.recordFingerprintCheck('db', 1234);
+    await store.recordFingerprintCheck('other', 99);
+    const again = new PaneStore(join(dir, '.argos'));
+    expect(await again.fingerprintCheckedAt('db')).toBe(1234);
+    expect(await again.fingerprintCheckedAt('other')).toBe(99);
+    expect((await stat(join(dir, '.argos', 'schema-checks.json'))).mode & 0o777).toBe(0o600);
+  });
+
   it('two processes appending 500 entries each yield 1000 parseable lines', async () => {
     const src = await readFile(join(__dirname, '../../../src/pane/store.ts'), 'utf8');
     const js = transformSync(src, {

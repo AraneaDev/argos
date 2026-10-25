@@ -61,6 +61,9 @@ export class PaneStore {
   private get pinsPath(): string {
     return join(this.dir, 'pins.json');
   }
+  private get checksPath(): string {
+    return join(this.dir, 'schema-checks.json');
+  }
 
   /**
    *
@@ -231,6 +234,36 @@ export class PaneStore {
     };
   }
 
+  /** When this connection's schema fingerprint was last checked by any process (epoch ms). */
+  async fingerprintCheckedAt(database: string): Promise<number | undefined> {
+    const t = (await this.readChecks())[database];
+    return typeof t === 'number' ? t : undefined;
+  }
+
+  /** Record a fingerprint check so other processes sharing this directory honour the limit. */
+  async recordFingerprintCheck(database: string, at: number): Promise<void> {
+    await this.ensureDirs();
+    const checks = await this.readChecks();
+    checks[database] = at;
+    await this.writeAtomic(this.checksPath, JSON.stringify(checks));
+  }
+
+  private async readChecks(): Promise<Record<string, unknown>> {
+    try {
+      const parsed = JSON.parse(await readFile(this.checksPath, 'utf8'));
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** Write via a temp file and rename, so a concurrent reader never sees a torn file. */
+  private async writeAtomic(path: string, text: string): Promise<void> {
+    const tmp = `${path}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`;
+    await writeFile(tmp, text, { mode: FILE_MODE });
+    await rename(tmp, path);
+  }
+
   /**
    *
    */
@@ -245,9 +278,7 @@ export class PaneStore {
 
   private async savePins(pins: Pin[]): Promise<void> {
     await this.ensureDirs();
-    const tmp = `${this.pinsPath}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`;
-    await writeFile(tmp, JSON.stringify(pins, null, 2), { mode: FILE_MODE });
-    await rename(tmp, this.pinsPath);
+    await this.writeAtomic(this.pinsPath, JSON.stringify(pins, null, 2));
   }
 
   /**

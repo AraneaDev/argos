@@ -63,7 +63,6 @@ export async function openCore(args: string[], schemaPath?: string): Promise<Cor
     connectionManager,
     schemaPath ?? join(PROJECT_ROOT, 'schemas')
   );
-  const schemaWatch = new SchemaWatch(connectionManager, schemaManager);
 
   securityManager.initialize(config);
   await schemaManager.initialize();
@@ -86,6 +85,14 @@ export async function openCore(args: string[], schemaPath?: string): Promise<Cor
 
   const store = new PaneStore(dataDirFor(configPath));
   await store.ensure();
+  // each CLI run is a new process: the 60 s limit only holds through the shared check time
+  const schemaWatch = new SchemaWatch(
+    connectionManager,
+    schemaManager,
+    Date.now,
+    60_000,
+    () => store
+  );
 
   return {
     config,

@@ -139,7 +139,13 @@ export class SQLMCPServer extends EventEmitter {
       this.queryCache
     );
     this.schemaManager = new SchemaManager(this.connectionManager, join(PROJECT_ROOT, 'schemas'));
-    this.schemaWatch = new SchemaWatch(this.connectionManager, this.schemaManager);
+    this.schemaWatch = new SchemaWatch(
+      this.connectionManager,
+      this.schemaManager,
+      Date.now,
+      60_000,
+      () => this.paneStore
+    );
 
     this.setupEventListeners();
     this.registerMCPHandlers();
