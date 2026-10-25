@@ -2,7 +2,7 @@
 
 # Argos
 
-**A hundred eyes on your databases, and none of them blink.**
+**A hundred eyes on your databases, and none of them blink: beside Claude Code, and in front of every query it runs.**
 
 [![Release](https://img.shields.io/github/v/release/AraneaDev/argos?label=release)](https://github.com/AraneaDev/argos/releases)
 [![Tool page](https://img.shields.io/badge/tool%20page-aranea--development.nl-0b7285)](https://aranea-development.nl/en/tools/argos-mcp)
@@ -13,7 +13,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/AraneaDev/argos?label=last%20commit)](https://github.com/AraneaDev/argos/commits/main)
 [![Conventional Commits](https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/)
 [![MCP Observatory](https://mcpobservatory.com/servers/github:AraneaDev/argos/badge.svg)](https://mcpobservatory.com/servers/github:AraneaDev/argos/security)
-[![Status](https://img.shields.io/badge/status-in%20development-orange)](#quick-start)
+[![Status](https://img.shields.io/badge/status-in%20development-orange)](#installation)
 
 </div>
 
@@ -21,49 +21,56 @@
 > Hera to guard Io. Only some of his eyes slept at a time, so he was never fully asleep and
 > nothing passed him unseen. *Panoptes* means "all-seeing".
 
-**TL;DR:** Argos lets Claude Code query PostgreSQL, MySQL, SQLite, and SQL Server through
-one MCP server. It routes each request through validation, access controls, connection adapters,
-and an audit record before it reaches the database.
+**TL;DR:** Argos lets Claude Code query PostgreSQL, MySQL, SQLite and SQL Server through one
+MCP server. Every request passes validation, access controls and redaction, and leaves an audit
+record, before it reaches the database. In Claude Code, `/argos` opens a pane beside your
+session: your connections and their schema, every query Claude runs with its full result, and
+an editor for your own queries, which are always read-only.
 
-The result is multi-database access with strong security defaults, per-query auditing, and
-support for SSH tunnels. Every query is watched, and nothing reaches your data unlogged.
+Argos speaks any MCP client, not just Claude Code, and connects to databases you already run,
+directly or through an SSH tunnel.
 
 > **Status:** pre-release. Argos is **not yet published to npm**, and the publish step in
 > the release workflow is deliberately dormant. The source is public on
 > [GitHub](https://github.com/AraneaDev/argos), so install from source (see
-> [Quick start](#quick-start)). Any `npm install -g argos-mcp` command you find elsewhere will
+> [Installation](#installation)). Any `npm install -g argos-mcp` command you find elsewhere will
 > not resolve yet.
 
 ---
 
-## Why Argos?
+![Claude Code with the Argos pane: /argos opens it on Connections, Claude is asked which 10 customers spent the most in shop and its query lands in Queries with its result grid, the Schema tab shows orders with its primary and foreign keys and relations, and the Editor refuses DELETE FROM orders](docs/images/claude-code/hero.gif)
 
-### **Security First**
-- **SELECT-Only Mode** - Production-safe read-only database access
-- **Query Validation** - Bound parameters, stacked statements refused, comment- and literal-aware parsing, complexity limits
-- **SSH Tunneling** - Secure encrypted connections through bastion hosts
-- **Audit Logging** - One record per query: database, statement hash, duration, outcome, never the values
+A Claude Code session: `/argos` opening the pane, a question about the shop database whose
+query lands in Queries with its full result, a look at `orders` in Schema, and the Editor
+refusing a `DELETE` on a connection that allows writes.
 
-### **High Performance**
-- **Connection Pooling** - Efficient database connection management
-- **Schema Caching** - Captured once per database, reused for the session
-- **Query Optimization** - Built-in performance analysis and recommendations
-- **Batch Operations** - Execute multiple queries with transaction support
+## Features
 
-### **Universal Database Support**
-- **PostgreSQL** - Full support including advanced features
-- **MySQL/MariaDB** - Via mysql2, including Azure Database for MySQL/MariaDB
-- **SQLite** - Perfect for development and small applications
-- **SQL Server** - Enterprise-grade Microsoft SQL Server support, including Azure
-  SQL with passwordless sign-in through the Azure CLI
+- **The pane**: `/argos` opens your databases beside the chat on four tabs: Queries (every
+  query Claude or you ran, across sessions, with its full result, pins and reruns), Schema
+  (tables with their keys and relations), Editor (your own queries) and Connections
+- **Pane queries are always read-only**: whatever a connection allows Claude, what you run from
+  the pane opens read-only at the database where the engine supports it, behind the same
+  SELECT-only check the server uses
+- **SELECT-only mode**: production-safe read-only access per connection, which the model
+  cannot relax from a session
+- **Query validation**: bound parameters, stacked statements refused, comment- and
+  literal-aware parsing, complexity limits
+- **Field redaction**: emails, phone numbers and other protected columns are masked before a
+  result reaches Claude, or the pane
+- **Audit logging**: one record per query: database, statement hash, duration, outcome, never
+  the values
+- **Schema changes reach Claude**: when a connection's schema changed since Argos last looked,
+  the next query says what changed, so Claude doesn't work from an old picture of the tables
+- **SSH tunnels**: encrypted connections through bastion hosts, with a pinned host key
+- **Four engines**: PostgreSQL, MySQL/MariaDB (including Azure), SQLite, and SQL Server
+  (including Azure SQL with passwordless sign-in through the Azure CLI)
+- **Performance tools**: connection pooling, schema caching, batches with transactions, and
+  EXPLAIN plans with dialect-specific advice
+- **Runtime configuration**: add, update and lock connections through MCP tools, without a
+  restart, and never with write access the model granted itself
 
-### **Developer Experience**
-- **One-command install** - Registers with Claude Code via the native `claude mcp add`
-- **TypeScript Native** - Full type safety and IntelliSense support
-- **Comprehensive Docs** - Detailed guides, tutorials, and API reference
-- **Extensive Testing** - Unit and integration suites, plus mutation testing on the security-critical paths
-
-## Quick start
+## Installation
 
 **Requirements:** Node.js >= 22 and the [Claude Code CLI](https://docs.claude.com/en/docs/claude-code).
 Connecting to Azure SQL with `authentication=azure-cli` additionally needs the
@@ -73,7 +80,7 @@ and a completed `az login`; nothing else does.
 ### 1. Build
 ```bash
 git clone https://github.com/AraneaDev/argos.git
-cd Argos
+cd argos
 npm install
 npm run build
 ```
@@ -98,91 +105,80 @@ Scopes:
 | Project | `--scope project` | `.mcp.json` in the repo | You want to share it with your team via git |
 | Local | *(default)* | Per-project, private | You're just trying it out |
 
-### 4. Verify
+### 4. Install the pane
+```bash
+node dist/cli.js install-plugin --config "$HOME/.config/argos/config.ini"            # preview
+node dist/cli.js install-plugin --config "$HOME/.config/argos/config.ini" --execute  # install
+```
+Use the same `config.ini` you registered the server with: the pane reads the history the server
+writes beside it. Start a new Claude Code session afterwards.
+
+### 5. Verify
 ```bash
 claude mcp list
 ```
-You should see `argos` listed as connected. Its tools appear in Claude Code as `mcp__argos__sql_query`, `mcp__argos__sql_get_schema`, and so on.
+You should see `argos` listed as connected. Its tools appear in Claude Code as `mcp__argos__sql_query`, `mcp__argos__sql_get_schema`, and so on, and `/argos` opens the pane.
 
 ### Removing it
 ```bash
+claude plugin uninstall argos
+claude plugin marketplace remove argos
 claude mcp remove argos --scope user
 ```
 
-## Claude Code pane
+## Quick start
 
-Argos ships a pane for Claude Code that sits beside the chat: your connections,
-their schema, every query Claude runs (with its result), and an Editor for your
-own read-only queries. After `npm run build`, install it with
-`argos install-plugin` (a preview) and `argos install-plugin --execute`, then
-type `/argos` in Claude Code. See [the pane guide](docs/claude-code/pane.md).
+Ask Claude about your data in plain words, and watch the queries land in the pane:
 
-![Claude Code with the Argos pane: /argos opens it on Connections, Claude is asked which 10 customers spent the most in shop and its query lands in Queries with its result grid, the Schema tab shows orders with its primary and foreign keys and relations, and the Editor refuses DELETE FROM orders](docs/images/claude-code/hero.gif)
+- *"Show me the top 10 customers by revenue this quarter, including their growth rate compared to last quarter"*
+- *"How many signups in the last 24 hours, and any error patterns?"*
+- *"Analyze the performance of our product catalog queries and suggest optimizations"*
+- *"Generate test data scenarios based on our current user demographics"*
 
-## Use cases
+Claude reads the schema first, then queries; each result comes back to it as a short table,
+and in full to you in the pane.
 
-### **Data Analytics & Business Intelligence**
-> "Show me the top 10 customers by revenue this quarter, including their growth rate compared to last quarter"
+## The pane
 
-### **Production Database Monitoring**
-> "Check the status of our user registration system - how many signups in the last 24 hours and any error patterns?"
+![The Queries tab beside Claude Code: seven queries across two sessions, one pinned, one blocked DELETE, the history tagged claude or you, and the selected query's SQL and its result grid](docs/images/claude-code/queries.png)
 
-### **Database Administration**
-> "Analyze the performance of our product catalog queries and suggest optimizations"
+Queries: every query Claude or you ran, newest first and kept across sessions, with the selected
+one's SQL and its full result. `r` reruns it read-only, `p` pins it, `c` copies the result as
+markdown, CSV or JSON, and `s` puts one of your own results into your next message to Claude.
 
-### **Development & Testing**
-> "Generate test data scenarios based on our current user demographics"
+![The Schema tab: the shop database's tables on the left, orders open on the right with its primary and foreign keys, and its relations in and out](docs/images/claude-code/schema.png)
 
-## Architecture
+Schema: each connection's tables and views, the open table's columns with their keys, and its
+relations in and out.
 
-```mermaid
-graph TB
- Claude[Claude Code] --> MCP[MCP Protocol]
- MCP --> Security[Security Layer]
- Security --> Connection[Connection Manager]
- Connection --> Adapters[Database Adapters]
+![The Editor tab: a query typed against shop and its result below](docs/images/claude-code/editor.png)
 
- Adapters --> PostgreSQL[(PostgreSQL)]
- Adapters --> MySQL[(MySQL)]
- Adapters --> SQLite[(SQLite)]
- Adapters --> MSSQL[(SQL Server)]
+Editor: type SQL against any connection and run it. A write is refused with the reason, even on
+a connection that allows Claude to write.
 
- Security --> SSH[SSH Tunneling]
- SSH --> Bastion[Bastion Host]
- Bastion --> RemoteDB[(Remote Database)]
-```
+![The Connections tab: one card per connection with its engine, host, tunnel, access and when its schema was captured](docs/images/claude-code/connections.png)
 
-**Built on solid foundations:**
-- **TypeScript** - Full type safety and modern development experience
-- **Node.js** - Cross-platform compatibility and excellent ecosystem
-- **MCP Protocol** - Standard protocol for AI tool integration
-- **Industry-standard drivers** - Proven database connectivity libraries
+Connections: each database with its engine, host, tunnel, access and schema age.
 
-## Documentation hub
+Every tab, key, setting and limit is in [the pane guide](docs/claude-code/pane.md).
 
-### **Getting Started**
-- **[5-Minute Quick Start](docs/guides/quick-start.md)** - Get running fast
-- **[Installation Guide](docs/guides/installation-guide.md)** - Detailed setup instructions
-- **[First Database Tutorial](docs/tutorials/02-first-database.md)** - Connect your first database
-- **[Claude Integration](docs/tutorials/03-claude-integration.md)** - Register with Claude Code
+## CLI
 
-### **Architecture & Design**
-- **[System Architecture](docs/architecture/system-architecture.md)** - How it all works together
-- **[Security Architecture](docs/architecture/security-architecture.md)** - Defense-in-depth security model
-- **[Database Layer](docs/architecture/database-layer.md)** - Adapter pattern implementation
+| Command | Description |
+|---------|-------------|
+| `argos serve` | Start the Argos MCP server on stdio (this is what Claude Code invokes) |
+| `argos setup` | Run the interactive configuration wizard |
+| `argos install-plugin` | Install the [Claude Code pane](docs/claude-code/pane.md) (preview; `--execute` to install) |
+| `argos connections` | List the configured connections as JSON |
+| `argos schema <db> [--refresh]` | Print a database's schema as JSON |
+| `argos query <db> --sql <sql>` | Run a read-only query and record it in the history |
+| `argos history`, `argos result <id>` | Page through the history and a saved result |
+| `argos pin`, `argos unpin <id>`, `argos pins` | Manage pinned queries |
+| `argos help` | Show usage (also what plain `argos` does) |
+| `argos version` | Show the version |
 
-### **API Reference**
-- **[MCP Tools Reference](docs/api/mcp-tools-reference.md)** - Complete tool documentation
-- **[TypeScript API](docs/api/typescript-api.md)** - Developer API reference
-- **[Configuration Reference](docs/guides/configuration-guide.md)** - All configuration options
-
-### **Advanced Guides**
-- **[Multi-Database Setup](docs/tutorials/advanced-01-multi-database.md)** - Managing multiple databases
-- **[SSH Tunneling](docs/tutorials/advanced-02-ssh-tunnels.md)** - Secure remote access
-- **[Security Hardening](docs/operations/security-hardening.md)** - Production security guide
-- **[Performance Tuning](docs/operations/performance-tuning.md)** - Optimization strategies
-
-**[Browse All Documentation](docs/README.md)**
+The pane runs the JSON commands for you; they are there for scripts too. `argos` is exposed as a
+`bin` entry, so `npm link` (or a global install) puts it on your `PATH`.
 
 ## Configuration examples
 
@@ -272,19 +268,23 @@ max_rows=1000
 query_timeout=30000
 ```
 
-## Security features
+## Safety model
 
-### Multi-Layer Security Model
-1. **Query Validation** - SQL injection prevention and syntax analysis
-2. **Complexity Limits** - Prevent resource-intensive queries
-3. **SELECT-Only Mode** - Read-only database access for production safety
-4. **Connection Encryption** - SSL/TLS and SSH tunnel support
-5. **Audit Logging** - Comprehensive security event tracking
-6. **[Field Redaction](docs/features/field-redaction.md)** - Automatic masking of sensitive data in query results
+1. **Query validation**: SQL injection prevention and syntax analysis
+2. **Complexity limits**: resource-intensive queries are refused
+3. **SELECT-only mode**: read-only database access for production safety
+4. **Read-only pane**: what you run from the pane opens read-only at the database (SQLite
+   read-only mode, a read-only PostgreSQL or MySQL session) behind the SELECT-only check; SQL
+   Server has no session-level equivalent and relies on the check. The
+   [pane guide](docs/claude-code/pane.md#pane-queries-are-always-read-only) says exactly what
+   each engine guarantees
+5. **Connection encryption**: SSL/TLS and SSH tunnel support
+6. **Audit logging**: comprehensive security event tracking
+7. **[Field redaction](docs/features/field-redaction.md)**: automatic masking of sensitive data in query results
 
 ### Field Redaction
 
-Automatically mask, replace, or partially obscure sensitive fields (emails, phone numbers, SSNs, etc.) in query results before they reach Claude or other clients. Redaction is configured per-database in `config.ini`:
+Automatically mask, replace, or partially obscure sensitive fields (emails, phone numbers, SSNs, etc.) in query results before they reach Claude, the pane, or other clients. Redaction is configured per-database in `config.ini`:
 
 ```ini
 [database.production]
@@ -325,13 +325,14 @@ evidence that such a regime asks for:
 - An audit record per query: timestamp, database, statement hash, duration,
   outcome, with no values and no SQL
 - Secrets scrubbed from logs and error messages
-- Owner-only file modes on the log, the audit records and the configuration
+- Owner-only file modes on the log, the audit records, the configuration and the pane's history
 
-## Dynamic database management
+The pane's history (`.argos/` beside your `config.ini`) holds query text and redacted results
+for up to 30 days, so it is git-ignored and owner-only.
+
+## Runtime database management
 
 Argos supports runtime database management through dedicated MCP tools. This allows you to add, update, and remove database connections without restarting the server.
-
-### Available MCP Tools
 
 | Tool | Description | Requirements |
 |------|-------------|--------------|
@@ -340,8 +341,6 @@ Argos supports runtime database management through dedicated MCP tools. This all
 | `sql_remove_database` | Remove database connections via MCP | `mcp_configurable=true` on the target database |
 | `sql_get_config` | View database configuration (passwords are automatically redacted) | None |
 | `sql_set_mcp_configurable` | Lock a database from MCP changes | One-way operation: can only lock (`false`), unlocking requires manual config edit |
-
-### Usage Notes
 
 - Set `mcp_configurable=true` in your database config to allow MCP-driven updates and removal.
 - The `sql_set_mcp_configurable` tool is a one-way lock: once set to `false`, the database can no longer be modified or removed via MCP. Unlocking requires a manual edit to the configuration file.
@@ -355,26 +354,104 @@ around a normal client connection. `sql_get_metrics` reports the latency it
 actually observed (min, max, avg, p95), and `sql_analyze_performance` returns the
 execution plan with dialect-specific advice when something is slow.
 
-### Performance Features
-- **Connection Pooling** - Reuse database connections efficiently
-- **Schema Caching** - Instant metadata access after initial capture
-- **Query Optimization** - Built-in EXPLAIN plan analysis
-- **Result Streaming** - Handle large datasets efficiently
-- **Batch Operations** - Execute multiple queries optimally
+- **Connection pooling**: reuse database connections efficiently
+- **Schema caching**: captured once per database, checked cheaply for changes at most once a minute
+- **Result streaming**: large result sets never fully materialise in memory
+- **Batch operations**: several queries in one call, optionally in one transaction
 
-## CLI commands
+## Architecture
 
-| Command | Description |
-|---------|-------------|
-| `argos serve` | Start the Argos MCP server on stdio (this is what Claude Code invokes) |
-| `argos setup` | Run the interactive configuration wizard |
-| `argos help` | Show usage (also what plain `argos` does) |
-| `argos version` | Show the version |
-| `argos install-plugin` | Install the [Claude Code pane](docs/claude-code/pane.md) (preview; `--execute` to install) |
+```mermaid
+graph TB
+ Claude[Claude Code] --> MCP[MCP Protocol]
+ MCP --> Security[Security Layer]
+ Security --> Connection[Connection Manager]
+ Connection --> Adapters[Database Adapters]
 
-`argos` is exposed as a `bin` entry, so `npm link` (or a global install) puts it on your `PATH`. Registration with Claude Code is handled by `claude mcp add`, see [Quick start](#quick-start).
+ Adapters --> PostgreSQL[(PostgreSQL)]
+ Adapters --> MySQL[(MySQL)]
+ Adapters --> SQLite[(SQLite)]
+ Adapters --> MSSQL[(SQL Server)]
 
-### Migrating from Argos-MCP
+ Security --> SSH[SSH Tunneling]
+ SSH --> Bastion[Bastion Host]
+ Bastion --> RemoteDB[(Remote Database)]
+
+ Connection --> History[(.argos history)]
+ Pane[Claude Code pane] --> CLI[argos CLI, read-only]
+ CLI --> Security
+ CLI --> History
+```
+
+The pane cannot reach the MCP server over stdio, so it runs the `argos` CLI, which reads the same
+`config.ini` and history and goes through the same security, redaction and audit layers.
+
+## Documentation
+
+### Getting started
+- **[5-Minute Quick Start](docs/guides/quick-start.md)**: get running fast
+- **[Installation Guide](docs/guides/installation-guide.md)**: detailed setup instructions
+- **[First Database Tutorial](docs/tutorials/02-first-database.md)**: connect your first database
+- **[Claude Integration](docs/tutorials/03-claude-integration.md)**: register with Claude Code
+- **[The Claude Code pane](docs/claude-code/pane.md)**: every tab, key and setting
+
+### Architecture and design
+- **[System Architecture](docs/architecture/system-architecture.md)**: how it all works together
+- **[Security Architecture](docs/architecture/security-architecture.md)**: defense-in-depth security model
+- **[Database Layer](docs/architecture/database-layer.md)**: adapter pattern implementation
+
+### API reference
+- **[MCP Tools Reference](docs/api/mcp-tools-reference.md)**: complete tool documentation
+- **[TypeScript API](docs/api/typescript-api.md)**: developer API reference
+- **[Configuration Reference](docs/guides/configuration-guide.md)**: all configuration options
+
+### Advanced guides
+- **[Multi-Database Setup](docs/tutorials/advanced-01-multi-database.md)**: managing multiple databases
+- **[SSH Tunneling](docs/tutorials/advanced-02-ssh-tunnels.md)**: secure remote access
+- **[Security Hardening](docs/operations/security-hardening.md)**: production security guide
+- **[Performance Tuning](docs/operations/performance-tuning.md)**: optimization strategies
+
+**[Browse all documentation](docs/README.md)**
+
+## Development
+
+```bash
+git clone https://github.com/AraneaDev/argos.git
+cd argos
+npm install
+npm run dev
+npm test           # the server and CLI (jest)
+npm run test:mod   # the Claude Code pane (vitest)
+npm run validate   # everything CI runs
+```
+
+The README and pane guide images come from `node tools/capture/shoot.mjs`, which drives an
+isolated Claude Code session on demo data; see `tools/capture/`.
+
+**[Full Development Guide](docs/development/development-setup.md)**
+
+### Layers
+
+The source is layered, and a lower layer may never depend on a higher one:
+
+| layer | directory | may depend on |
+|---|---|---|
+| `types` | `src/types` | nothing in `src` |
+| `utils` | `src/utils` | `types` |
+| `adapters` | `src/database` | `types`, `utils` |
+| `domain` | `src/classes`, `src/schema`, `src/pane` | `types`, `utils`, `adapters` |
+| `mcp-tools` | `src/tools` | everything below |
+| `cli` | `src/cli`, `src/setup` | everything below, and nothing depends on it |
+
+Nothing in `src` imports from `tests` or `examples`, and the pane (`plugin/`) imports nothing from
+`src`: it talks to the CLI's JSON.
+
+These rules are not enforced by CI. They are a design constraint, checked by
+hand or by whatever analysis tool you point at the checkout, so read the table
+before adding an import that reaches upward. A cycle between layers is the
+signal that something belongs in a lower one.
+
+## Migrating from Argos-MCP
 
 The project was renamed from Argos-MCP to Argos. If you set it up before the rename:
 
@@ -395,39 +472,6 @@ The project was renamed from Argos-MCP to Argos. If you set it up before the ren
 - **Repository:** `AraneaDev/Argos-MCP` is now `AraneaDev/argos`; GitHub redirects the old URL,
   but update your remote with `git remote set-url origin https://github.com/AraneaDev/argos.git`.
 
-## Development
-
-### Development Setup
-```bash
-git clone https://github.com/AraneaDev/argos.git
-cd Argos
-npm install
-npm run dev
-npm test
-```
-
-**[Full Development Guide](docs/development/development-setup.md)**
-
-### Layers
-
-The source is layered, and a lower layer may never depend on a higher one:
-
-| layer | directory | may depend on |
-|---|---|---|
-| `types` | `src/types` | nothing in `src` |
-| `utils` | `src/utils` | `types` |
-| `adapters` | `src/database` | `types`, `utils` |
-| `domain` | `src/classes` | `types`, `utils`, `adapters` |
-| `mcp-tools` | `src/tools` | everything below |
-| `setup-cli` | `src/setup` | everything below, and nothing depends on it |
-
-Nothing in `src` imports from `tests` or `examples`.
-
-These rules are not enforced by CI. They are a design constraint, checked by
-hand or by whatever analysis tool you point at the checkout, so read the table
-before adding an import that reaches upward. A cycle between layers is the
-signal that something belongs in a lower one.
-
 ## Further reading
 
 - [How to give Claude safe access to your SQL database](https://tim-schipper.nl/en/blog/claude-safe-database-access)
@@ -435,32 +479,13 @@ signal that something belongs in a lower one.
 ## License
 
 Released under the [MIT License](./LICENSE), free for any use, commercial
-included, with no warranty. It speaks any MCP client, not just Claude Code, and
-connects to databases you already run.
+included, with no warranty.
 
 ## Acknowledgments
 
-### Built With
-- **TypeScript** - Language and tooling
-- **Node.js** - Runtime platform
-- **Jest** - Testing framework
-- **ESLint** - Code quality
-- **MCP Protocol** - AI integration standard
-
-### Special Thanks
-- **[Anthropic](https://anthropic.com)** - For Claude AI and MCP protocol
-- **[TypeScript Team](https://www.typescriptlang.org/)** - For excellent tooling
-- **Database Driver Maintainers** - For reliable connectivity libraries
-
----
-
-<div align="center">
-
-**[Get Started Now](docs/guides/quick-start.md)** | **[Documentation](docs/README.md)**
-
-*Transform your database interactions with AI-powered SQL intelligence*
-
-</div>
+- **[Anthropic](https://anthropic.com)**: for Claude and the MCP protocol
+- **Database driver maintainers**: for reliable connectivity libraries
+- Built with TypeScript, Node.js, Jest and Vitest
 
 ---
 
