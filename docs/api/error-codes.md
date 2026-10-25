@@ -595,14 +595,6 @@ export class ConnectionError extends SQLMCPError {
  this.name = 'ConnectionError';
  }
 }
-
-// Query execution error
-export class QueryExecutionError extends SQLMCPError {
- constructor(message: string, details?: Record<string, any>) {
- super(message, 2001, details);
- this.name = 'QueryExecutionError';
- }
-}
 ```
 
 ---

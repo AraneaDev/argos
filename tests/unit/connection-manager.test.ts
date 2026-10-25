@@ -4,7 +4,7 @@ import { MockDatabaseFactory } from '../fixtures/mock-databases.js';
 import { TestConfigFixtures } from '../fixtures/test-configs.js';
 import { DatabaseType } from '../../src/types/database.js';
 import type { DatabaseConfig } from '../../src/types/database.js';
-import { ConnectionError, QueryExecutionError } from '../../src/utils/error-handler.js';
+import { ConnectionError } from '../../src/utils/error-handler.js';
 
 describe('ConnectionManager', () => {
   let connectionManager: ConnectionManager;
@@ -1552,7 +1552,7 @@ describe('ConnectionManager', () => {
       );
       jest
         .spyOn(mockAdapter, 'executeQuery')
-        .mockRejectedValue(new QueryExecutionError('Syntax error near SELECT'));
+        .mockRejectedValue(new Error('Syntax error near SELECT')); // what a driver throws
       jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
       connectionManager.on('error', () => {});
 
@@ -1566,7 +1566,7 @@ describe('ConnectionManager', () => {
         );
       }
 
-      // 11th should still be a QueryExecutionError (NOT CircuitOpenError)
+      // 11th should still be the query error (NOT CircuitOpenError)
       try {
         await connectionManager.executeQuery('test_db', 'BAD SQL');
         throw new Error('Expected error');

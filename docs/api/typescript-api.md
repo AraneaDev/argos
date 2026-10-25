@@ -611,10 +611,6 @@ export class SecurityViolationError extends SQLMCPError {
 export class ConnectionError extends SQLMCPError {
  constructor(message: string, details?: Record<string, any>);
 }
-
-export class QueryExecutionError extends SQLMCPError {
- constructor(message: string, details?: Record<string, any>);
-}
 ```
 
 ### TestConnectionResult

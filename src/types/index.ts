@@ -99,13 +99,9 @@ export {
   SQLMCPError,
   SecurityViolationError,
   ConnectionError,
-  QueryExecutionError,
   ConfigurationError,
-  SchemaError,
-  SSHTunnelError,
   CircuitOpenError,
   ValidationError,
-  TimeoutError,
 } from '../utils/error-handler.js';
 
 // Type guards

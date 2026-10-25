@@ -567,10 +567,9 @@ export class ConnectionManager extends EventEmitter {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const errorObj = err as any;
     const name = errorObj?.name ?? '';
-    if (name.includes('SSH') || name === 'SSHTunnelError') return 'SSH';
+    if (name.includes('SSH')) return 'SSH';
     if (name === 'ConnectionError') return 'CONNECTION';
     if (name === 'SecurityViolationError') return 'SECURITY';
-    if (name === 'QueryExecutionError') return 'QUERY';
     if (name === 'TimeoutError') return 'TIMEOUT';
 
     // Robust inspection of codes and messages for query-time network/connection/SSH failures
