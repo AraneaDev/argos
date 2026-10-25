@@ -1,6 +1,6 @@
 # Design Decisions
 
-This document records important architectural and design decisions made during the development of the Argos-MCP, along with the reasoning, alternatives considered, and trade-offs involved.
+This document records important architectural and design decisions made during the development of the Argos, along with the reasoning, alternatives considered, and trade-offs involved.
 
 ## Table of Contents
 
@@ -626,7 +626,7 @@ Implement interactive CLI wizard that guides users through:
 - Configuration validation and testing
 
 ```bash
-argos-setup
+argos setup
 ? Select database type: PostgreSQL
 ? Database host: db.example.com
 ? Enable SELECT-only mode? Yes (recommended)
@@ -913,4 +913,4 @@ Areas that may require future architectural decisions:
 4. **Team Review**: Get input from affected stakeholders
 5. **Decision**: Update ADR with new status (superseded, amended, etc.)
 
-This living document of design decisions provides crucial context for understanding the Argos-MCP architecture and guides future development decisions.
+This living document of design decisions provides crucial context for understanding the Argos architecture and guides future development decisions.

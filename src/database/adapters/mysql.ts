@@ -14,6 +14,7 @@ import type {
   QueryResult,
   DatabaseSchema,
   ColumnInfo,
+  ForeignKey,
   TableInfo,
 } from '../../types/index.js';
 
@@ -91,6 +92,15 @@ export class MySQLAdapter extends DatabaseAdapter {
     try {
       const conn: MySQLPoolConnection = await this.getPool().getConnection();
       await this.applyStatementTimeout(conn);
+      if (this.config.read_only_session) {
+        try {
+          // Database-enforced: writes to tables fail with ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION.
+          await conn.query('SET SESSION TRANSACTION READ ONLY');
+        } catch (error) {
+          conn.release();
+          throw error;
+        }
+      }
       return conn as DatabaseConnection;
     } catch (error) {
       throw this.createError('Failed to acquire MySQL connection from pool', error as Error);
@@ -301,6 +311,13 @@ export class MySQLAdapter extends DatabaseAdapter {
     return `EXPLAIN FORMAT=JSON ${query}`;
   }
 
+  /**
+   * Cheap query whose single row changes when the schema changes.
+   */
+  fingerprintQuery(): string {
+    return `SELECT COUNT(*) AS n, SUM(CRC32(CONCAT_WS(':', table_name, column_name, column_type, is_nullable))) AS argos_fingerprint FROM information_schema.columns WHERE table_schema = DATABASE()`;
+  }
+
   private static readonly FULL_SCAN = ' MYSQL: Full table scan detected - add appropriate indexes';
   private static readonly FILESORT =
     ' MYSQL: Filesort operation - consider adding index on ORDER BY columns';
@@ -415,11 +432,67 @@ export class MySQLAdapter extends DatabaseAdapter {
         }
       }
 
+      await this.captureRelations(connection, schema);
+
       this.updateSchemaSummary(schema);
       return schema;
     } catch (error) {
       throw this.createError('Failed to capture MySQL schema', error as Error);
     }
+  }
+
+  private async captureRelations(
+    connection: DatabaseConnection,
+    schema: DatabaseSchema
+  ): Promise<void> {
+    const mysql = connection as MySQLConnection;
+    const database = this.config.database ?? '';
+
+    const [keyRows] = await mysql.execute(
+      `SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+ FROM information_schema.KEY_COLUMN_USAGE
+ WHERE TABLE_SCHEMA = ? AND (CONSTRAINT_NAME = 'PRIMARY' OR REFERENCED_TABLE_NAME IS NOT NULL)
+ ORDER BY TABLE_NAME, ORDINAL_POSITION`,
+      [database]
+    );
+    const [estimateRows] = await mysql.execute(
+      `SELECT TABLE_NAME, TABLE_ROWS FROM information_schema.TABLES
+ WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'`,
+      [database]
+    );
+
+    const primaryKeys = new Map<string, string[]>();
+    const foreignKeys = new Map<string, ForeignKey[]>();
+    for (const row of keyRows as Array<{
+      TABLE_NAME: string;
+      COLUMN_NAME: string;
+      CONSTRAINT_NAME: string;
+      REFERENCED_TABLE_NAME: string | null;
+      REFERENCED_COLUMN_NAME: string | null;
+    }>) {
+      if (row.CONSTRAINT_NAME === 'PRIMARY') {
+        primaryKeys.set(row.TABLE_NAME, [
+          ...(primaryKeys.get(row.TABLE_NAME) ?? []),
+          row.COLUMN_NAME,
+        ]);
+      } else if (row.REFERENCED_TABLE_NAME && row.REFERENCED_COLUMN_NAME) {
+        foreignKeys.set(row.TABLE_NAME, [
+          ...(foreignKeys.get(row.TABLE_NAME) ?? []),
+          {
+            column: row.COLUMN_NAME,
+            references: { table: row.REFERENCED_TABLE_NAME, column: row.REFERENCED_COLUMN_NAME },
+          },
+        ]);
+      }
+    }
+    const estimates = new Map<string, unknown>(
+      (estimateRows as Array<{ TABLE_NAME: string; TABLE_ROWS: unknown }>).map((row) => [
+        row.TABLE_NAME,
+        row.TABLE_ROWS,
+      ])
+    );
+
+    this.applyTableRelations(schema, primaryKeys, foreignKeys, estimates);
   }
 
   private async captureTableColumns(

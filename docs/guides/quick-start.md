@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get Argos-MCP up and running with Claude Code in less than 5 minutes.
+Get Argos up and running with Claude Code in less than 5 minutes.
 
 ## Prerequisites
 
@@ -17,8 +17,8 @@ Before you begin, ensure you have:
 ### Step 1: Build the Server
 
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git
-cd Argos-MCP
+git clone https://github.com/AraneaDev/argos.git
+cd Argos
 
 # Install dependencies
 npm install
@@ -101,7 +101,7 @@ From the repository root:
 
 ```bash
 claude mcp add argos --scope user -- \
-  node "$(pwd)/dist/index.js" --config "$HOME/.config/argos/config.ini"
+  node "$(pwd)/dist/cli.js" serve --config "$HOME/.config/argos/config.ini"
 ```
 
 `--scope user` registers Argos for every project. Use `--scope project` instead to write a `.mcp.json` your team can commit, or omit the flag to keep it local to the current project.
@@ -115,10 +115,10 @@ claude mcp list
 You should see `argos` reported as connected. Claude Code starts the server itself over stdio — there is no long-running process for you to launch. To check it by hand:
 
 ```bash
-node dist/index.js --config ~/.config/argos/config.ini
+node dist/cli.js serve --config ~/.config/argos/config.ini
 ```
 
-The process will sit waiting for JSON-RPC on stdin; `Ctrl+C` to exit. Errors surface in `argos-mcp.log` in the repository root.
+The process will sit waiting for JSON-RPC on stdin; `Ctrl+C` to exit. Errors surface in `argos.log` in the repository root.
 
 ## Your First Query
 
@@ -270,7 +270,7 @@ npm run setup
 # Choose option 2: "Test existing connections"
 
 # Check logs
-tail -f argos-mcp.log
+tail -f argos.log
 ```
 
 ### Claude Code Not Recognizing the Server
@@ -281,9 +281,9 @@ tail -f argos-mcp.log
  ```bash
  claude mcp remove argos --scope user
  claude mcp add argos --scope user -- \
-   node "$(pwd)/dist/index.js" --config "$HOME/.config/argos/config.ini"
+   node "$(pwd)/dist/cli.js" serve --config "$HOME/.config/argos/config.ini"
  ```
-5. Check `argos-mcp.log` in the repository root for startup errors
+5. Check `argos.log` in the repository root for startup errors
 
 ### Permission Denied
 ```sql
@@ -330,4 +330,4 @@ Once you have the basic setup working:
 
 ---
 
-**Need help?** Check the [troubleshooting guide](troubleshooting-guide.md) or [join our discussions](https://github.com/AraneaDev/Argos-MCP/discussions).
+**Need help?** Check the [troubleshooting guide](troubleshooting-guide.md) or [join our discussions](https://github.com/AraneaDev/argos/discussions).

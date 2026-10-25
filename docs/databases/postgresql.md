@@ -1,6 +1,6 @@
 # PostgreSQL Database Guide
 
-This guide provides comprehensive information for connecting the Argos-MCP to PostgreSQL databases, including configuration, optimization, and best practices.
+This guide provides comprehensive information for connecting the Argos to PostgreSQL databases, including configuration, optimization, and best practices.
 
 ## Table of Contents
 
@@ -34,10 +34,10 @@ select_only=true
 ### Test Your Connection
 ```bash
 # Start the setup wizard
-argos-setup
+argos setup
 
 # Or test existing configuration
-node dist/index.js
+node dist/cli.js serve
 ```
 
 ---
@@ -65,7 +65,7 @@ node dist/index.js
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | `sslmode` | SSL mode | `require` |
-| `application_name` | Application identifier | `argos-mcp` |
+| `application_name` | Application identifier | `argos` |
 | `statement_timeout` | Query timeout | `30000` |
 | `idle_in_transaction_session_timeout` | Transaction timeout | `600000` |
 
@@ -131,7 +131,7 @@ select_only=true
 ## PostgreSQL-Specific Features
 
 ### Supported Data Types
-The Argos-MCP fully supports all PostgreSQL data types:
+The Argos fully supports all PostgreSQL data types:
 
 #### Numeric Types
 - `smallint`, `integer`, `bigint`
@@ -236,7 +236,7 @@ WHERE tags && ARRAY['sale', 'featured'];
 ## Performance Optimization
 
 ### Connection Pooling
-The Argos-MCP automatically manages connection pooling for PostgreSQL:
+The Argos automatically manages connection pooling for PostgreSQL:
 
 ```typescript
 // Automatic connection reuse
@@ -435,7 +435,7 @@ ssh_private_key=/secure/path/to/ssh_key
 ### SSH Key Setup
 ```bash
 # Generate SSH key pair
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/sql_mcp_key -C "Argos-MCP"
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/sql_mcp_key -C "Argos"
 
 # Copy public key to bastion host
 ssh-copy-id -i ~/.ssh/sql_mcp_key.pub tunnel_user@bastion.company.com
@@ -579,7 +579,7 @@ If schema capture returns no tables:
 ## Advanced Configuration
 
 ### PostgreSQL Extensions Support
-The Argos-MCP supports queries using PostgreSQL extensions:
+The Argos supports queries using PostgreSQL extensions:
 
 #### UUID Extension
 ```sql
@@ -709,4 +709,4 @@ WHERE name IN (
 );
 ```
 
-This comprehensive PostgreSQL guide provides everything needed to successfully connect, configure, and optimize PostgreSQL databases with the Argos-MCP.
+This comprehensive PostgreSQL guide provides everything needed to successfully connect, configure, and optimize PostgreSQL databases with the Argos.

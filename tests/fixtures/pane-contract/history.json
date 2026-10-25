@@ -1,0 +1,28 @@
+[
+  {
+    "id": "<id>",
+    "at": "2000-01-01T00:00:00.000Z",
+    "source": "pane",
+    "database": "full",
+    "tool": "pane_query",
+    "sql": "SELECT * FROM missing_table",
+    "durationMs": null,
+    "rowCount": null,
+    "outcome": "error",
+    "reason": "Unknown error occurred",
+    "spool": null
+  },
+  {
+    "id": "<id>",
+    "at": "2000-01-01T00:00:00.000Z",
+    "source": "pane",
+    "database": "full",
+    "tool": "pane_query",
+    "sql": "SELECT 1; DROP TABLE t",
+    "durationMs": null,
+    "rowCount": null,
+    "outcome": "blocked",
+    "reason": "Multiple SQL statements are not allowed in SELECT-only mode. Submit a single SELECT statement.",
+    "spool": null
+  }
+]

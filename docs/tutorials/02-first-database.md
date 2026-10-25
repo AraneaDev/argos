@@ -1,6 +1,6 @@
 # Tutorial 2: Connecting Your First Database
 
-This tutorial walks you through connecting your first database to the Argos-MCP, from initial setup to running your first query with Claude Code.
+This tutorial walks you through connecting your first database to the Argos, from initial setup to running your first query with Claude Code.
 
 ## What You'll Learn
 
@@ -11,7 +11,7 @@ This tutorial walks you through connecting your first database to the Argos-MCP,
 
 ## Prerequisites
 
-- Argos-MCP installed ([Tutorial 1: Installation](01-installation.md))
+- Argos installed ([Tutorial 1: Installation](01-installation.md))
 - A database to connect to (PostgreSQL, MySQL, SQLite, or SQL Server)
 - Database credentials and network access
 
@@ -229,7 +229,7 @@ npm start
 
 You should see:
 ```
-Argos-MCP running on stdio
+Argos running on stdio
 Connection established: production
 Schema cached: production
 Server ready for Claude Code integration
@@ -525,4 +525,4 @@ Once you have a working database connection:
 
 ---
 
-**Need help?** Check the [troubleshooting guide](../guides/troubleshooting-guide.md) or ask in [GitHub Discussions](https://github.com/AraneaDev/Argos-MCP/discussions).
+**Need help?** Check the [troubleshooting guide](../guides/troubleshooting-guide.md) or ask in [GitHub Discussions](https://github.com/AraneaDev/argos/discussions).

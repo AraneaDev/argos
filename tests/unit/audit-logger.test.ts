@@ -30,7 +30,7 @@ describe('writeAuditLog', () => {
   it('calls mkdir and appendFile with correct paths', async () => {
     await writeAuditLog('mydb', 'SELECT 1', 42, 'success');
     // Named for the product, not for what it was called before the rebrand.
-    expect(mkdir).toHaveBeenCalledWith(expect.stringContaining('.argos-mcp/audit'), {
+    expect(mkdir).toHaveBeenCalledWith(expect.stringContaining('.argos/audit'), {
       recursive: true,
       mode: 0o700,
     });

@@ -1,4 +1,4 @@
-# Argos-MCP Configuration Template
+# Argos Configuration Template
 # Copy this file to config.ini and update with your database settings
 
 [database.example]

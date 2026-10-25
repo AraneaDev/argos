@@ -102,20 +102,21 @@ jobs:
 
       # The MCP server speaks JSON-RPC on stdio and never exits on its own, so
       # it cannot be smoke-tested by running it. Assert the shipped artifacts
-      # instead: both bin targets exist and the server entry keeps its shebang,
-      # which is what makes `claude mcp add argos -- node dist/index.js` work.
+      # instead: every bin target exists and the `argos` entry keeps its shebang,
+      # which is what makes `claude mcp add argos -- node dist/cli.js serve` work.
       - name: Verify release artifacts
         if: ${{ steps.release.outputs.release_created }}
         run: |
+          test -f dist/cli.js
           test -f dist/index.js
           test -f dist/setup.js
-          head -n 1 dist/index.js | grep -qF '#!/usr/bin/env node'
+          head -n 1 dist/cli.js | grep -qF '#!/usr/bin/env node'
 
       - name: Package release assets
         if: ${{ steps.release.outputs.release_created }}
         run: |
           npm pack
-          zip -r "argos-mcp-${{ steps.release.outputs.tag_name }}.zip" \
+          zip -r "argos-${{ steps.release.outputs.tag_name }}.zip" \
             dist package.json README.md CHANGELOG.md
 
       - name: Attach assets to the GitHub Release
@@ -125,7 +126,7 @@ jobs:
           tag_name: ${{ steps.release.outputs.tag_name }}
           files: |
             argos-mcp-*.tgz
-            argos-mcp-*.zip
+            argos-*.zip
 
       # Pre-release: not on npm yet. Intentionally dormant. To go public:
       # remove `if: false` and set up auth (Trusted Publishing / OIDC, or NPM_TOKEN).

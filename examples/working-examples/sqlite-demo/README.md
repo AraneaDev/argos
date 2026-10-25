@@ -1,6 +1,6 @@
 # SQLite Working Demo - 5 Minute Setup
 
-**Objective**: Get Argos-MCP running with zero external dependencies in under 5 minutes.
+**Objective**: Get Argos running with zero external dependencies in under 5 minutes.
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ cd examples/working-examples/sqlite-demo
 
 # Or run manually step-by-step
 ./setup-demo.sh # Create database and config
-./start-server.sh # Start Argos-MCP
+./start-server.sh # Start Argos
 ./test-queries.sh # Test sample queries
 ./stop-server.sh # Clean shutdown
 ```
@@ -29,7 +29,7 @@ cd examples/working-examples/sqlite-demo
 After running the demo, you should see:
 ```
  SQLite database created with sample data
- Argos-MCP started successfully
+ Argos started successfully
  5 test queries executed successfully
  Server responded to MCP protocol
  Demo completed successfully
@@ -64,7 +64,7 @@ After running the demo, you should see:
 - `start-server.sh` - Server startup script
 - `test-queries.sh` - Query test suite
 - `stop-server.sh` - Clean shutdown script
-- `config.ini` - Argos-MCP configuration
+- `config.ini` - Argos configuration
 - `sample-queries.sql` - Test SQL queries
 - `create-database.sql` - Database schema
 - `register-with-claude.sh` - Registers the demo with Claude Code
@@ -85,9 +85,9 @@ sqlite3 demo.db "SELECT COUNT(*) as order_count FROM orders;"
 # Expected output: 8
 ```
 
-### 3. Start Argos-MCP
+### 3. Start Argos
 ```bash
-argos-mcp --config config.ini &
+argos serve --config config.ini &
 SERVER_PID=$!
 echo "Server started with PID: $SERVER_PID"
 ```
@@ -95,13 +95,13 @@ echo "Server started with PID: $SERVER_PID"
 ### 4. Test MCP Protocol
 ```bash
 # List tools
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | argos-mcp --test
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | argos serve --test
 
 # List databases
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"sql_list_databases","arguments":{}}}' | argos-mcp --test
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"sql_list_databases","arguments":{}}}' | argos serve --test
 
 # Execute query
-echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sql_query","arguments":{"database":"demo","query":"SELECT COUNT(*) as total FROM users"}}}' | argos-mcp --test
+echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sql_query","arguments":{"database":"demo","query":"SELECT COUNT(*) as total FROM users"}}}' | argos serve --test
 ```
 
 ### 5. Shutdown
@@ -152,7 +152,7 @@ sqlite3 demo.db < create-database.sql
 lsof -i :3000
 
 # Try different port
-argos-mcp --config config.ini --port 3001
+argos serve --config config.ini --port 3001
 ```
 
 ### Permission Errors
@@ -167,7 +167,7 @@ chmod 644 demo.db config.ini
 ### MCP Protocol Test Fails
 ```bash
 # Check server logs
-tail -f argos-mcp.log
+tail -f argos.log
 
 # Test with curl instead
 curl -X POST http://localhost:3000/mcp \
@@ -202,7 +202,7 @@ Use this checklist to verify the demo works:
 - [ ] 5 users inserted into users table
 - [ ] 8 orders inserted into orders table
 - [ ] config.ini file created and valid
-- [ ] Argos-MCP starts without errors
+- [ ] Argos starts without errors
 - [ ] Server responds to health check
 - [ ] MCP protocol tools/list works
 - [ ] Sample queries execute successfully
@@ -215,7 +215,7 @@ Use this checklist to verify the demo works:
 
 By completing this demo, you'll understand:
 
-- How to configure Argos-MCP with SQLite
+- How to configure Argos with SQLite
 - Basic MCP protocol communication
 - SQL query execution and results
 - Error handling and validation
@@ -225,5 +225,5 @@ By completing this demo, you'll understand:
 ## Related Resources
 
 - [SQLite Documentation](https://www.sqlite.org/docs.html)
-- [Argos-MCP Configuration Guide](../../../docs/guides/configuration-guide.md)
+- [Argos Configuration Guide](../../../docs/guides/configuration-guide.md)
 - [MCP Protocol Reference](../../../docs/api/mcp-tools-reference.md)

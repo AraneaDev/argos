@@ -21,14 +21,49 @@ import {
   sanitizeMessage,
   ValidationError,
 } from '../../utils/error-handler.js';
+import { formatSchemaChanges, type SchemaChange } from '../../schema/diff.js';
+import {
+  attachJournal,
+  journalFailure,
+  journalOk,
+  paramsFlag,
+  type JournalRef,
+} from './journal.js';
 import type { ToolHandlerContext } from './types.js';
 import { requireDbConfig } from './types.js';
 
+/** Append the schema-change line and structured `_meta.argos` when something changed. */
+function withSchemaChanges(
+  response: MCPToolResponse,
+  changes: SchemaChange[],
+  ref: JournalRef = { journalId: null, spool: null }
+): MCPToolResponse {
+  if (changes.length > 0) {
+    response.content[0].text += `\n${formatSchemaChanges(changes)}`;
+  }
+  if (changes.length === 0 && ref.journalId === null) return response;
+  return attachJournal(response, ref, changes);
+}
+
+/**
+ * Failure response: the schema-change line (if any) is kept, because `check` has already
+ * refreshed the cache and will not report the same change again.
+ */
+function failureResponse(text: string, changes: SchemaChange[], ref: JournalRef): MCPToolResponse {
+  const response = createToolResponse(text, true);
+  if (changes.length > 0) response.content[0].text += `\n${formatSchemaChanges(changes)}`;
+  return attachJournal(response, ref, changes);
+}
+
+/**
+ *
+ */
 export async function handleSqlQuery(
   ctx: ToolHandlerContext,
   args: SQLQueryArgs
 ): Promise<MCPToolResponse> {
   const { database, query, params = [] } = args;
+  let schemaChanges: SchemaChange[] = [];
 
   try {
     const dbConfig = requireDbConfig(ctx.config, database);
@@ -58,6 +93,8 @@ export async function handleSqlQuery(
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
 
+    schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+
     const result = await ctx.connectionManager.executeQuery(database, query, params);
 
     // Capture schema if not cached
@@ -85,8 +122,21 @@ export async function handleSqlQuery(
       responseText += 'No results returned.\n';
     }
 
-    return createToolResponse(responseText);
+    const ref = await journalOk(
+      ctx,
+      { database, tool: 'sql_query', sql: query, ...paramsFlag(params) },
+      { rowCount: result.rowCount, durationMs: result.execution_time_ms },
+      result,
+      schemaChanges
+    );
+    return withSchemaChanges(createToolResponse(responseText), schemaChanges, ref);
   } catch (error) {
+    const ref = await journalFailure(
+      ctx,
+      { database, tool: 'sql_query', sql: query, ...paramsFlag(params) },
+      error,
+      schemaChanges
+    );
     // Sanitize before returning to the client — raw driver errors can leak data,
     // schema, or connection details. SecurityViolationError messages are preserved.
     const errorMessage = sanitizeError(error);
@@ -99,10 +149,13 @@ export async function handleSqlQuery(
       responseText += 'To modify data, use a database configured with full access permissions.';
     }
 
-    return createToolResponse(responseText, true);
+    return failureResponse(responseText, schemaChanges, ref);
   }
 }
 
+/**
+ *
+ */
 export async function handleBatchQuery(
   ctx: ToolHandlerContext,
   args: SQLBatchQueryArgs
@@ -118,11 +171,16 @@ export async function handleBatchQuery(
     throw new ValidationError(`Batch size exceeds maximum of ${maxBatchSize} queries`);
   }
 
+  const batchId = ctx.paneStore ? ctx.paneStore.newId() : undefined;
+  let offending: SQLBatchQueryArgs['queries'][number] | null = null;
+  let schemaChanges: SchemaChange[] = [];
+
   try {
     const dbConfig = requireDbConfig(ctx.config, database);
 
     if (dbConfig.select_only) {
       for (const query of queries) {
+        offending = query;
         const validation = ctx.securityManager.validateSelectOnlyQuery(query.query, dbConfig.type);
         if (!validation.allowed) {
           throw new SecurityViolationError(`Batch contains blocked query: ${validation.reason}`, {
@@ -135,6 +193,7 @@ export async function handleBatchQuery(
     } else {
       // Even in write mode, validate each query for always-blocked commands
       for (const query of queries) {
+        offending = query;
         const validation = ctx.securityManager.validateAnyQuery(query.query, dbConfig.type);
         if (!validation.allowed) {
           throw new SecurityViolationError(`Batch contains blocked query: ${validation.reason}`, {
@@ -146,9 +205,13 @@ export async function handleBatchQuery(
       }
     }
 
+    offending = null;
+
     if (dbConfig.ssh_host) {
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
+
+    schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
 
     const result = await ctx.connectionManager.executeBatch(
       database,
@@ -202,8 +265,51 @@ export async function handleBatchQuery(
       responseText += ` Query: \`${queryResult.query?.substring(0, 100)}${queryResult.query && queryResult.query.length > 100 ? '...' : ''}\`\n\n`;
     }
 
-    return createToolResponse(responseText);
+    let first: JournalRef = { journalId: null, spool: null };
+    for (const [i, queryResult] of result.results.entries()) {
+      const base = {
+        database,
+        tool: 'sql_batch_query' as const,
+        sql: queryResult.query ?? queries[i]?.query ?? '',
+        batchId,
+        ...paramsFlag(queries[i]?.params),
+      };
+      const ref =
+        queryResult.success && queryResult.data
+          ? await journalOk(
+              ctx,
+              base,
+              {
+                rowCount: queryResult.data.rowCount,
+                durationMs: queryResult.data.execution_time_ms,
+              },
+              queryResult.data,
+              i === 0 ? schemaChanges : []
+            )
+          : await journalFailure(
+              ctx,
+              base,
+              new Error(queryResult.error || 'Query failed'),
+              i === 0 ? schemaChanges : []
+            );
+      if (i === 0) first = ref;
+    }
+    return withSchemaChanges(createToolResponse(responseText), schemaChanges, first);
   } catch (error) {
+    let ref: JournalRef = { journalId: null, spool: null };
+    if (offending !== null || !(error instanceof SecurityViolationError)) {
+      // A blocked batch records the offending statement; any other failure records each one.
+      const stmts = offending !== null ? [offending] : queries;
+      for (const [i, q] of stmts.entries()) {
+        const r = await journalFailure(
+          ctx,
+          { database, tool: 'sql_batch_query', sql: q.query, batchId, ...paramsFlag(q.params) },
+          error,
+          i === 0 ? schemaChanges : []
+        );
+        if (i === 0) ref = r;
+      }
+    }
     const errorMessage = sanitizeError(error);
     let responseText = ` **Batch Query Failed** (${database})\n\n`;
     responseText += ` **Error:** ${errorMessage}\n\n`;
@@ -214,15 +320,19 @@ export async function handleBatchQuery(
       responseText += 'All queries in the batch must comply with security restrictions.';
     }
 
-    return createToolResponse(responseText, true);
+    return failureResponse(responseText, schemaChanges, ref);
   }
 }
 
+/**
+ *
+ */
 export async function handleAnalyzePerformance(
   ctx: ToolHandlerContext,
   args: SQLAnalyzePerformanceArgs
 ): Promise<MCPToolResponse> {
   const { database, query } = args;
+  let schemaChanges: SchemaChange[] = [];
 
   try {
     const dbConfig = requireDbConfig(ctx.config, database);
@@ -246,6 +356,8 @@ export async function handleAnalyzePerformance(
       ctx.logger.info(`SSH tunnel will be managed by ConnectionManager for '${database}'`);
     }
 
+    schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+
     const analysis = await ctx.connectionManager.analyzePerformance(database, query);
 
     let responseText = ` **Query Performance Analysis** (${database})\n\n`;
@@ -265,12 +377,26 @@ export async function handleAnalyzePerformance(
     responseText += ` **Performance Recommendations:**\n`;
     responseText += analysis.recommendations;
 
-    return createToolResponse(responseText);
+    const ref = await journalOk(
+      ctx,
+      { database, tool: 'sql_analyze_performance', sql: query },
+      { rowCount: analysis.rowCount, durationMs: analysis.executionTime },
+      null,
+      schemaChanges
+    );
+    return withSchemaChanges(createToolResponse(responseText), schemaChanges, ref);
   } catch (error) {
+    const ref = await journalFailure(
+      ctx,
+      { database, tool: 'sql_analyze_performance', sql: query },
+      error,
+      schemaChanges
+    );
     const errorMessage = sanitizeError(error);
-    return createToolResponse(
+    return failureResponse(
       ` Performance analysis failed for ${database}: ${errorMessage}`,
-      true
+      schemaChanges,
+      ref
     );
   }
 }

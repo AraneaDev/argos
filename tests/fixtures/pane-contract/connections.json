@@ -1,0 +1,22 @@
+[
+  {
+    "name": "demo",
+    "type": "sqlite",
+    "host": null,
+    "ssh": false,
+    "ssl": false,
+    "selectOnly": true,
+    "mcpConfigurable": false,
+    "schemaCapturedAt": null
+  },
+  {
+    "name": "writable",
+    "type": "sqlite",
+    "host": null,
+    "ssh": false,
+    "ssl": false,
+    "selectOnly": false,
+    "mcpConfigurable": false,
+    "schemaCapturedAt": null
+  }
+]

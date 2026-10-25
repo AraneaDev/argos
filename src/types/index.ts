@@ -1,5 +1,5 @@
 /**
- * Main type exports for Argos-MCP
+ * Main type exports for Argos
  */
 
 // Database types
@@ -13,6 +13,7 @@ export type {
   QueryResult,
   ColumnInfo,
   TableInfo,
+  ForeignKey,
   DatabaseSchema,
   SchemaInfo,
   QueryObject,
@@ -163,7 +164,7 @@ export {
 
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 export const SERVER_VERSION = '4.1.8'; // x-release-please-version
-export const SERVER_NAME = 'argos-mcp';
+export const SERVER_NAME = 'argos';
 
 // ============================================================================
 // Common Enums (as const assertions for better type safety)

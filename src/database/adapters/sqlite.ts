@@ -18,8 +18,29 @@ import type {
   QueryResult,
   DatabaseSchema,
   ColumnInfo,
+  ForeignKey,
   TableInfo,
 } from '../../types/index.js';
+
+/**
+ * A promise for a sqlite3 callback, settled on the next turn of the event loop.
+ *
+ * sqlite3 6.x runs its completion callbacks without draining the microtask queue, so a
+ * promise settled directly inside one resumes its `await` only at the next macrotask. In
+ * an idle MCP server reading stdin that was 8-30 s later, for every query, schema capture
+ * and EXPLAIN. setImmediate settles it in the check phase that follows the callback, after
+ * which the microtasks run.
+ */
+function onNextTurn<T>(
+  executor: (resolve: (value: T) => void, reject: (error: unknown) => void) => void
+): Promise<T> {
+  return new Promise<T>((resolve, reject) =>
+    executor(
+      (value) => setImmediate(resolve, value),
+      (error) => setImmediate(reject, error)
+    )
+  );
+}
 
 // ============================================================================
 // SQLite Adapter Implementation
@@ -49,7 +70,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
       ? sqlite3.OPEN_READONLY
       : sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE;
 
-    return new Promise<DatabaseConnection>((resolve, reject) => {
+    return onNextTurn<DatabaseConnection>((resolve, reject) => {
       const db = new Database(file, mode, (err) => {
         if (err) {
           reject(this.createError('Failed to connect to SQLite database', err));
@@ -64,7 +85,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
    *
    */
   async disconnect(connection: DatabaseConnection): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return onNextTurn<void>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
       sqliteDb.close((err) => {
         if (err) {
@@ -107,7 +128,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
     const cap = this.getMaxRows();
     const timeoutMs = this.getStatementTimeoutMs();
 
-    return new Promise<QueryResult>((resolve, reject) => {
+    return onNextTurn<QueryResult>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
       const kept: Record<string, unknown>[] = [];
       let observed = 0;
@@ -187,7 +208,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
    *
    */
   async beginTransaction(connection: DatabaseConnection): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return onNextTurn<void>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
       sqliteDb.run('BEGIN TRANSACTION', (err) => {
         if (err) {
@@ -203,7 +224,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
    *
    */
   async commitTransaction(connection: DatabaseConnection): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return onNextTurn<void>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
       sqliteDb.run('COMMIT', (err) => {
         if (err) {
@@ -219,7 +240,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
    *
    */
   async rollbackTransaction(connection: DatabaseConnection): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return onNextTurn<void>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
       sqliteDb.run('ROLLBACK', (err) => {
         if (err) {
@@ -240,6 +261,13 @@ export class SQLiteAdapter extends DatabaseAdapter {
    */
   buildExplainQuery(query: string): string {
     return `EXPLAIN QUERY PLAN ${query}`;
+  }
+
+  /**
+   * Cheap query whose single row changes when the schema changes.
+   */
+  fingerprintQuery(): string {
+    return `SELECT schema_version AS argos_fingerprint FROM pragma_schema_version`;
   }
 
   /**
@@ -296,6 +324,18 @@ export class SQLiteAdapter extends DatabaseAdapter {
         }
       }
 
+      const primaryKeys = new Map<string, string[]>();
+      const foreignKeys = new Map<string, ForeignKey[]>();
+      for (const table of Object.values(schema.tables)) {
+        primaryKeys.set(
+          table.name,
+          table.columns.filter((col) => col.key === 'PRI').map((col) => col.name)
+        );
+        foreignKeys.set(table.name, await this.captureForeignKeys(connection, table.name));
+      }
+      // SQLite keeps no row statistics short of scanning the table
+      this.applyTableRelations(schema, primaryKeys, foreignKeys, new Map());
+
       this.updateSchemaSummary(schema);
       return schema;
     } catch (error) {
@@ -306,7 +346,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
   private async getTables(
     connection: DatabaseConnection
   ): Promise<Array<{ name: string; type: string }>> {
-    return new Promise((resolve, reject) => {
+    return onNextTurn((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
 
       const query = `
@@ -327,11 +367,31 @@ export class SQLiteAdapter extends DatabaseAdapter {
     });
   }
 
+  private async captureForeignKeys(
+    connection: DatabaseConnection,
+    tableName: string
+  ): Promise<ForeignKey[]> {
+    return onNextTurn((resolve, reject) => {
+      (connection as SQLiteDatabase).all(`PRAGMA foreign_key_list(${tableName})`, (err, rows) => {
+        if (err) {
+          reject(this.createError(`Failed to get foreign keys for table ${tableName}`, err));
+          return;
+        }
+        resolve(
+          (rows as Array<{ id: number; seq: number; table: string; from: string; to: string }>)
+            .slice()
+            .sort((a, b) => a.id - b.id || a.seq - b.seq)
+            .map((fk) => ({ column: fk.from, references: { table: fk.table, column: fk.to } }))
+        );
+      });
+    });
+  }
+
   private async captureTableColumns(
     connection: DatabaseConnection,
     tableName: string
   ): Promise<ColumnInfo[]> {
-    return new Promise((resolve, reject) => {
+    return onNextTurn((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
 
       // Use PRAGMA table_info to get column information
@@ -339,26 +399,29 @@ export class SQLiteAdapter extends DatabaseAdapter {
         if (err) {
           reject(this.createError(`Failed to get columns for table ${tableName}`, err));
         } else {
-          const columns = (
-            rows as Array<{
-              cid: number;
-              name: string;
-              type: string;
-              notnull: number;
-              dflt_value: unknown;
-              pk: number;
-            }>
-          ).map(
+          const found = rows as Array<{
+            cid: number;
+            name: string;
+            type: string;
+            notnull: number;
+            dflt_value: unknown;
+            pk: number;
+          }>;
+          const keyed = found.filter((col) => col.pk > 0).length;
+          const columns = found.map(
             (col): ColumnInfo => ({
               name: col.name,
               type: col.type,
-              nullable: col.notnull === 0,
+              // A lone INTEGER PRIMARY KEY is the rowid: never NULL, though table_info says notnull=0
+              nullable:
+                col.notnull === 0 &&
+                !(keyed === 1 && col.pk > 0 && col.type.trim().toUpperCase() === 'INTEGER'),
               default: col.dflt_value,
               max_length: null,
               precision: null,
               scale: null,
               comment: '', // SQLite doesn't support column comments
-              key: col.pk === 1 ? 'PRI' : '',
+              key: col.pk > 0 ? 'PRI' : '',
               extra: '',
             })
           );
@@ -377,7 +440,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
    * Get SQLite version information
    */
   async getVersion(connection: DatabaseConnection): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
+    return onNextTurn<string>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
       sqliteDb.get('SELECT sqlite_version() as version', (err, row) => {
         if (err) {
@@ -393,7 +456,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
    * Get database file size and page information
    */
   async getDatabaseInfo(connection: DatabaseConnection): Promise<Record<string, unknown>> {
-    return new Promise<Record<string, unknown>>((resolve, reject) => {
+    return onNextTurn<Record<string, unknown>>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
 
       const queries = ['PRAGMA page_count', 'PRAGMA page_size', 'PRAGMA database_list'];
@@ -437,7 +500,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
    * Analyze table for statistics (SQLite ANALYZE command)
    */
   async analyzeTable(connection: DatabaseConnection, tableName?: string): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return onNextTurn<void>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
       const query = tableName ? `ANALYZE ${tableName}` : 'ANALYZE';
 
@@ -455,7 +518,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
    * Vacuum database to optimize storage
    */
   async vacuum(connection: DatabaseConnection): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return onNextTurn<void>((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
 
       sqliteDb.run('VACUUM', (err) => {

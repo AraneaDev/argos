@@ -10,10 +10,10 @@ correspondingly small: restore two things and rebuild, and it is back.
 |------|-------|--------------|
 | `config.ini` | Wherever `--config` points, `~/.config/argos/config.ini` by convention | No — credentials and security settings |
 | SSH private keys it references | The paths in `ssh_private_key` | No |
-| Audit log | `~/.argos-mcp/audit/` | No, if you keep it for review |
+| Audit log | `~/.argos/audit/` | No, if you keep it for review |
 | Schema cache | `schemas/` in the install | Yes — rebuilt on demand |
 | `dist/` | The install | Yes — `npm run build` |
-| `argos-mcp.log` | The working directory | Yes, and rotated on every start anyway |
+| `argos.log` | The working directory | Yes, and rotated on every start anyway |
 
 The databases themselves are not Argos's to back up. Use their own tooling:
 `pg_dump`, `mysqldump`, `sqlcmd`/native backups, or a file copy for SQLite while
@@ -52,14 +52,14 @@ shred -u "$DEST.tar.gz"
 Add the audit log to the archive if you retain it:
 
 ```bash
-cp -r ~/.argos-mcp/audit "$DEST/audit"
+cp -r ~/.argos/audit "$DEST/audit"
 ```
 
 ## Restoring
 
 ```bash
 # 1. Reinstall and build
-git clone https://github.com/AraneaDev/Argos-MCP.git /opt/argos
+git clone https://github.com/AraneaDev/argos.git /opt/argos
 cd /opt/argos && npm ci && npm run build
 
 # 2. Put the configuration and keys back, owner-only
@@ -68,7 +68,7 @@ install -m 600 backup/tunnel_key ~/.ssh/tunnel_key
 
 # 3. Register with the client
 claude mcp add argos --scope user -- \
-  node /opt/argos/dist/index.js --config "$HOME/.config/argos/config.ini"
+  node /opt/argos/dist/cli.js serve --config "$HOME/.config/argos/config.ini"
 ```
 
 Then confirm it works, which is the whole of the verification:

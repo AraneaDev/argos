@@ -3,6 +3,7 @@
  * Tests routing of tool calls to the correct handler
  */
 
+import type { SchemaWatch } from '../../../src/schema/watch.js';
 import { createToolDispatcher } from '../../../src/tools/dispatcher.js';
 import type { ToolHandlerContext } from '../../../src/tools/handlers/types.js';
 import type {
@@ -108,6 +109,8 @@ function createMockContext(): ToolHandlerContext {
     } as any,
     config: { databases: {} } as ParsedServerConfig,
     configPath: '/tmp/test-config.ini',
+    schemaWatch: { check: jest.fn().mockResolvedValue([]) } as unknown as SchemaWatch,
+    paneStore: null,
     logger: {
       info: jest.fn(),
       debug: jest.fn(),

@@ -1,5 +1,5 @@
 /**
- * Main Argos-MCP Class
+ * Main Argos Class
  * Slim lifecycle coordinator - tool definitions, handlers, and formatting
  * are extracted into src/tools/ and src/utils/response-formatter.ts
  */
@@ -30,12 +30,14 @@ import { MetricsManager } from './MetricsManager.js';
 import { QueryCache } from './QueryCache.js';
 import { ConnectionManager } from './ConnectionManager.js';
 import { SecurityManager } from './SecurityManager.js';
+import { SchemaWatch } from '../schema/watch.js';
 import { SchemaManager } from './SchemaManager.js';
 import { EnhancedSSHTunnelManager } from './EnhancedSSHTunnelManager.js';
 import { Logger } from '../utils/logger.js';
 import { getErrorMessage, sanitizeError, sanitizeMessage } from '../utils/error-handler.js';
 import { getToolDefinitions } from '../tools/tool-definitions.js';
 import { createToolDispatcher, type ToolDispatchFn } from '../tools/dispatcher.js';
+import { PaneStore, dataDirFor } from '../pane/store.js';
 import type { ToolHandlerContext } from '../tools/handlers/types.js';
 
 /**
@@ -58,7 +60,7 @@ function safeToolArgs(args: unknown): unknown {
 }
 
 /**
- * Main Argos-MCP class that coordinates all operations
+ * Main Argos class that coordinates all operations
  */
 /**
  * Read the configuration path from the command line.
@@ -101,6 +103,7 @@ export class SQLMCPServer extends EventEmitter {
   private readonly connectionManager: ConnectionManager;
   private readonly securityManager: SecurityManager;
   private readonly schemaManager: SchemaManager;
+  private readonly schemaWatch: SchemaWatch;
   private readonly sshTunnelManager: EnhancedSSHTunnelManager;
   private readonly logger: Logger;
   private mcpServer: Server;
@@ -108,13 +111,14 @@ export class SQLMCPServer extends EventEmitter {
 
   private config: ParsedServerConfig | null = null;
   private configPath: string = '';
+  private paneStore: PaneStore | null = null;
   private initialized = false;
 
   constructor() {
     super();
 
     this.logger = new Logger({
-      logFile: join(PROJECT_ROOT, 'argos-mcp.log'),
+      logFile: join(PROJECT_ROOT, 'argos.log'),
       logLevel: 'INFO',
       component: 'SQLMCPServer',
       enableConsole: false,
@@ -135,6 +139,13 @@ export class SQLMCPServer extends EventEmitter {
       this.queryCache
     );
     this.schemaManager = new SchemaManager(this.connectionManager, join(PROJECT_ROOT, 'schemas'));
+    this.schemaWatch = new SchemaWatch(
+      this.connectionManager,
+      this.schemaManager,
+      Date.now,
+      60_000,
+      () => this.paneStore
+    );
 
     this.setupEventListeners();
     this.registerMCPHandlers();
@@ -144,10 +155,11 @@ export class SQLMCPServer extends EventEmitter {
    * Initialize the MCP server
    */
   public async initialize(configPath?: string): Promise<void> {
-    this.logger.info('Initializing Argos-MCP...');
+    this.logger.info('Initializing Argos...');
 
     try {
       this.loadConfig(configPath);
+      this.paneStore = await this.createPaneStore();
       await this.initializeManagers();
 
       // Create the tool dispatcher with a late-binding context
@@ -163,6 +175,12 @@ export class SQLMCPServer extends EventEmitter {
         },
         get schemaManager() {
           return server.schemaManager;
+        },
+        get schemaWatch() {
+          return server.schemaWatch;
+        },
+        get paneStore() {
+          return server.paneStore;
         },
         get sshTunnelManager() {
           return server.sshTunnelManager;
@@ -183,11 +201,25 @@ export class SQLMCPServer extends EventEmitter {
       this.dispatchToolCall = createToolDispatcher(ctx);
 
       this.initialized = true;
-      this.logger.info('Argos-MCP initialization complete');
+      this.logger.info('Argos initialization complete');
       this.emit('initialized');
     } catch (error) {
       this.logger.error('Failed to initialize server', error as Error);
       throw error;
+    }
+  }
+
+  /** Journal store beside the config in use; null (journaling off) if its directory is unusable. */
+  private async createPaneStore(): Promise<PaneStore | null> {
+    try {
+      const store = new PaneStore(dataDirFor(this.configPath));
+      await store.ensure();
+      return store;
+    } catch (error) {
+      this.logger.warning('Pane journal disabled: data directory unavailable', {
+        error: getErrorMessage(error),
+      });
+      return null;
     }
   }
 
@@ -218,7 +250,7 @@ export class SQLMCPServer extends EventEmitter {
       await this.initialize(resolveConfigPathFromArgv());
       const transport = new StdioServerTransport();
       await this.mcpServer.connect(transport);
-      this.logger.info('Argos-MCP running on stdio (MCP SDK transport)');
+      this.logger.info('Argos running on stdio (MCP SDK transport)');
     } catch (error) {
       this.logger.error('Server initialization failed', error as Error);
       // Write to stderr so the MCP client can see why startup failed

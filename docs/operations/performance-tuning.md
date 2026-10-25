@@ -71,7 +71,7 @@ queries, plus per-category error counts and circuit-breaker transitions.
   run `sql_analyze_performance` on one.
 - **Circuit events** — the database was failing often enough to trip the
   breaker, so queries were rejected without being sent. Look at `errors` for the
-  category, and `argos-mcp.log` for the driver's message.
+  category, and `argos.log` for the driver's message.
 - **avg climbing over a session** — usually the database under load rather than
   anything here, since Argos keeps no state that grows.
 

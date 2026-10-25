@@ -1,5 +1,5 @@
 /**
- * Core type definitions for Argos-MCP
+ * Core type definitions for Argos
  */
 
 import type { Client as PgClient, PoolClient as PgPoolClient } from 'pg';
@@ -55,6 +55,10 @@ export interface DatabaseConfig {
   ssl?: boolean;
   ssl_verify?: boolean; // Verify SSL certificates (default: true)
   select_only?: boolean;
+  // Ask the database itself to refuse writes for the whole session (PostgreSQL and
+  // MySQL only). Never read from config.ini: the pane CLI sets it on its own copy of
+  // each connection so the MCP server's behaviour is unchanged.
+  read_only_session?: boolean;
   timeout?: number;
   file?: string; // For SQLite
   encrypt?: boolean; // For MSSQL
@@ -135,17 +139,26 @@ export interface ColumnInfo {
   extra?: string;
 }
 
+export interface ForeignKey {
+  column: string;
+  references: { table: string; column: string };
+}
+
 export interface TableInfo {
   name: string;
   type: string;
   comment?: string;
   columns: ColumnInfo[];
+  primary_key?: string[];
+  foreign_keys?: ForeignKey[];
+  row_estimate?: number | null;
 }
 
 export interface DatabaseSchema {
   database: string;
   type: DatabaseTypeString;
   captured_at: string;
+  fingerprint?: string;
   tables: Record<string, TableInfo>;
   views: Record<string, TableInfo>;
   summary: {

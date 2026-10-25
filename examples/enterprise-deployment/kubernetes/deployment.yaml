@@ -1,16 +1,16 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: argos-mcp
+  name: argos
   labels:
-    name: argos-mcp
+    name: argos
     environment: production
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: argos-config
-  namespace: argos-mcp
+  namespace: argos
 data:
   config.ini: |
     [server]
@@ -70,13 +70,13 @@ data:
     [caching]
     enable_query_cache=true
     cache_ttl=300
-    redis_url=redis://redis.argos-mcp.svc.cluster.local:6379
+    redis_url=redis://redis.argos.svc.cluster.local:6379
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: argos-secrets
-  namespace: argos-mcp
+  namespace: argos
 type: Opaque
 data:
   # Base64 encoded database passwords
@@ -89,7 +89,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: argos-tls
-  namespace: argos-mcp
+  namespace: argos
 type: kubernetes.io/tls
 data:
   tls.crt: LS0tLS1CRUdJTi... # TLS certificate (base64)
@@ -98,10 +98,10 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: argos-mcp
-  namespace: argos-mcp
+  name: argos
+  namespace: argos
   labels:
-    app: argos-mcp
+    app: argos
     version: v1.0.0
 spec:
   replicas: 3
@@ -112,25 +112,25 @@ spec:
       maxUnavailable: 1
   selector:
     matchLabels:
-      app: argos-mcp
+      app: argos
   template:
     metadata:
       labels:
-        app: argos-mcp
+        app: argos
         version: v1.0.0
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9090"
         prometheus.io/path: "/metrics"
     spec:
-      serviceAccountName: argos-mcp
+      serviceAccountName: argos
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
         fsGroup: 1001
       containers:
-      - name: argos-mcp
-        image: argos-mcp:1.0.0
+      - name: argos
+        image: argos:1.0.0
         imagePullPolicy: Always
         ports:
         - name: http
@@ -257,7 +257,7 @@ spec:
                 - key: app
                   operator: In
                   values:
-                  - argos-mcp
+                  - argos
               topologyKey: kubernetes.io/hostname
       tolerations:
       - key: "node.kubernetes.io/unreachable"
@@ -272,10 +272,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: argos-mcp
-  namespace: argos-mcp
+  name: argos
+  namespace: argos
   labels:
-    app: argos-mcp
+    app: argos
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
     service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:region:account:certificate/cert-id"
@@ -296,15 +296,15 @@ spec:
     targetPort: http
     protocol: TCP
   selector:
-    app: argos-mcp
+    app: argos
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: argos-mcp-headless
-  namespace: argos-mcp
+  name: argos-headless
+  namespace: argos
   labels:
-    app: argos-mcp
+    app: argos
 spec:
   type: ClusterIP
   clusterIP: None
@@ -318,22 +318,22 @@ spec:
     targetPort: metrics
     protocol: TCP
   selector:
-    app: argos-mcp
+    app: argos
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: argos-mcp
-  namespace: argos-mcp
+  name: argos
+  namespace: argos
   labels:
-    app: argos-mcp
+    app: argos
 automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: argos-mcp
-  namespace: argos-mcp
+  name: argos
+  namespace: argos
 rules:
 - apiGroups: [""]
   resources: ["pods"]
@@ -348,27 +348,27 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: argos-mcp
-  namespace: argos-mcp
+  name: argos
+  namespace: argos
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: argos-mcp
+  name: argos
 subjects:
 - kind: ServiceAccount
-  name: argos-mcp
-  namespace: argos-mcp
+  name: argos
+  namespace: argos
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: argos-mcp-hpa
-  namespace: argos-mcp
+  name: argos-hpa
+  namespace: argos
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: argos-mcp
+    name: argos
   minReplicas: 3
   maxReplicas: 10
   metrics:
@@ -412,23 +412,23 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: argos-mcp-pdb
-  namespace: argos-mcp
+  name: argos-pdb
+  namespace: argos
 spec:
   minAvailable: 2
   selector:
     matchLabels:
-      app: argos-mcp
+      app: argos
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: argos-mcp-netpol
-  namespace: argos-mcp
+  name: argos-netpol
+  namespace: argos
 spec:
   podSelector:
     matchLabels:
-      app: argos-mcp
+      app: argos
   policyTypes:
   - Ingress
   - Egress

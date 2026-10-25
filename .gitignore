@@ -158,3 +158,15 @@ CLAUDE.md
 /.momus/
 /.chaos-mcp/
 /artifacts/
+
+# Argos pane data (journal SQL text, spooled result rows, pins)
+.argos/
+
+# brainstorming mockups
+.superpowers/
+
+# packaged Claude Code plugin
+.plugin/
+
+# Capture tool frames and failed-shot dumps (tools/capture)
+/tools/capture/out/

@@ -139,11 +139,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      # The bin entries in package.json point at these two files. A build that
+      # The bin entries in package.json point at these files. A build that
       # silently stops emitting one of them would ship a broken `claude mcp add`
-      # target, so assert both exist and that the server entry is executable.
+      # target, so assert they exist and that the `argos` entry is executable.
       - name: Verify dist output
         run: |
+          test -x dist/cli.js
           test -f dist/index.js
           test -f dist/setup.js
           test -x dist/index.js

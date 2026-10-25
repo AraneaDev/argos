@@ -10,6 +10,7 @@ import type {
   QueryResult,
   DatabaseSchema,
   ColumnInfo,
+  ForeignKey,
   TableInfo,
 } from '../../types/index.js';
 
@@ -77,6 +78,16 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
     this.validateConfig(['host', 'database', 'username', 'password']);
     try {
       const client: PoolClient = await this.getPool().connect();
+      if (this.config.read_only_session) {
+        try {
+          // Database-enforced: any write in this session fails with
+          // "cannot execute ... in a read-only transaction".
+          await client.query('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY');
+        } catch (error) {
+          client.release();
+          throw error;
+        }
+      }
       return client as DatabaseConnection;
     } catch (error) {
       throw this.createError('Failed to acquire PostgreSQL connection from pool', error as Error);
@@ -207,6 +218,13 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
   }
 
   /**
+   * Cheap query whose single row changes when the schema changes.
+   */
+  fingerprintQuery(): string {
+    return `SELECT md5(string_agg(table_schema||'.'||table_name||'.'||column_name||':'||data_type||':'||is_nullable, ',' ORDER BY table_schema, table_name, ordinal_position)) AS argos_fingerprint FROM information_schema.columns WHERE table_schema NOT IN ('pg_catalog','information_schema')`;
+  }
+
+  /**
    *
    */
   override getPerformanceRecommendations(explainResult: QueryResult, query: string): string[] {
@@ -273,11 +291,75 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
         }
       }
 
+      await this.captureRelations(connection, schema);
+
       this.updateSchemaSummary(schema);
       return schema;
     } catch (error) {
       throw this.createError('Failed to capture PostgreSQL schema', error as Error);
     }
+  }
+
+  private async captureRelations(
+    connection: DatabaseConnection,
+    schema: DatabaseSchema
+  ): Promise<void> {
+    const pgClient = connection as PgClient;
+
+    // pg_constraint pairs conkey/confkey by position, so composite foreign keys
+    // yield exactly their own column pairs and same-named constraints on
+    // different tables never mix (information_schema cannot guarantee either).
+    const keysResult = await pgClient.query(`
+ SELECT
+ CASE con.contype WHEN 'p' THEN 'PRIMARY KEY' ELSE 'FOREIGN KEY' END AS constraint_type,
+ cl.relname AS table_name,
+ att.attname AS column_name,
+ fcl.relname AS foreign_table_name,
+ fatt.attname AS foreign_column_name
+ FROM pg_constraint con
+ JOIN pg_class cl ON cl.oid = con.conrelid
+ JOIN pg_namespace n ON n.oid = cl.relnamespace
+ CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS k(attnum, fattnum, ord)
+ JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = k.attnum
+ LEFT JOIN pg_class fcl ON fcl.oid = con.confrelid
+ LEFT JOIN pg_attribute fatt ON fatt.attrelid = con.confrelid AND fatt.attnum = k.fattnum
+ WHERE n.nspname = 'public' AND con.contype IN ('p', 'f')
+ ORDER BY cl.relname, con.oid, k.ord
+ `);
+
+    const estimatesResult = await pgClient.query(`
+ SELECT c.relname AS table_name, c.reltuples AS row_estimate
+ FROM pg_class c
+ JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+ `);
+
+    const primaryKeys = new Map<string, string[]>();
+    const foreignKeys = new Map<string, ForeignKey[]>();
+    for (const row of keysResult.rows) {
+      if (row.constraint_type === 'PRIMARY KEY') {
+        primaryKeys.set(row.table_name, [
+          ...(primaryKeys.get(row.table_name) ?? []),
+          row.column_name,
+        ]);
+      } else {
+        foreignKeys.set(row.table_name, [
+          ...(foreignKeys.get(row.table_name) ?? []),
+          {
+            column: row.column_name,
+            references: { table: row.foreign_table_name, column: row.foreign_column_name },
+          },
+        ]);
+      }
+    }
+    const estimates = new Map<string, unknown>(
+      estimatesResult.rows.map((row: { table_name: string; row_estimate: unknown }) => [
+        row.table_name,
+        row.row_estimate,
+      ])
+    );
+
+    this.applyTableRelations(schema, primaryKeys, foreignKeys, estimates);
   }
 
   private async captureTableColumns(

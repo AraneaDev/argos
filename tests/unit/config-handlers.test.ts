@@ -36,6 +36,8 @@ function createMockContext(configOverrides: Partial<ParsedServerConfig>): ToolHa
     schemaManager: {} as never,
     sshTunnelManager: {} as never,
     metricsManager: {} as never,
+    schemaWatch: { check: jest.fn().mockResolvedValue([]) } as never,
+    paneStore: null,
     logger: {
       info: jest.fn(),
       warn: jest.fn(),

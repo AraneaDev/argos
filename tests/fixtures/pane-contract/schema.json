@@ -1,0 +1,121 @@
+{
+  "database": "demo",
+  "type": "sqlite",
+  "capturedAt": "2000-01-01T00:00:00.000Z",
+  "tables": [
+    {
+      "name": "posts",
+      "type": "table",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "max_length": null,
+          "precision": null,
+          "scale": null,
+          "comment": "",
+          "key": "PRI",
+          "extra": ""
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "max_length": null,
+          "precision": null,
+          "scale": null,
+          "comment": "",
+          "key": "",
+          "extra": ""
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null,
+          "max_length": null,
+          "precision": null,
+          "scale": null,
+          "comment": "",
+          "key": "",
+          "extra": ""
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "column": "user_id",
+          "references": {
+            "table": "users",
+            "column": "id"
+          }
+        }
+      ],
+      "row_estimate": null
+    },
+    {
+      "name": "users",
+      "type": "table",
+      "comment": "",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "max_length": null,
+          "precision": null,
+          "scale": null,
+          "comment": "",
+          "key": "PRI",
+          "extra": ""
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null,
+          "max_length": null,
+          "precision": null,
+          "scale": null,
+          "comment": "",
+          "key": "",
+          "extra": ""
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "row_estimate": null
+    }
+  ],
+  "views": [
+    {
+      "name": "user_names",
+      "type": "view",
+      "comment": "",
+      "columns": [
+        {
+          "name": "name",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null,
+          "max_length": null,
+          "precision": null,
+          "scale": null,
+          "comment": "",
+          "key": "",
+          "extra": ""
+        }
+      ]
+    }
+  ],
+  "lastChange": null
+}

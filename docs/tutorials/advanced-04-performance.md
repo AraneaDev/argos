@@ -2,7 +2,7 @@
 
 ## Overview
 
-This advanced tutorial focuses on comprehensive performance optimization strategies for Argos-MCP in production environments. You'll learn advanced query optimization, caching strategies, connection pooling, memory management, and system-level performance tuning.
+This advanced tutorial focuses on comprehensive performance optimization strategies for Argos in production environments. You'll learn advanced query optimization, caching strategies, connection pooling, memory management, and system-level performance tuning.
 
 ## Prerequisites
 
@@ -78,7 +78,7 @@ query_complexity_scoring=true
 
 ### 2. Query Caching System
 
-The Argos-MCP includes a high-performance in-memory TTL-LRU query cache for SELECT queries:
+The Argos includes a high-performance in-memory TTL-LRU query cache for SELECT queries:
 - **Per-Database Partitioning**: Caches are partitioned per database to prevent query collision.
 - **LRU Eviction**: Limits cache entries (default: 100 entries per database) using Least Recently Used replacement.
 - **Automatic Invalidation**: Automatically clears the cached partition for a database when a mutation query (INSERT, UPDATE, DELETE, etc.) is executed in a batch query.
@@ -351,4 +351,4 @@ After mastering performance optimization:
 
 ---
 
-*This tutorial completes the Argos-MCP Advanced Configuration Series. For questions or feedback, please refer to our [community discussions](https://github.com/AraneaDev/Argos-MCP/discussions).*
+*This tutorial completes the Argos Advanced Configuration Series. For questions or feedback, please refer to our [community discussions](https://github.com/AraneaDev/argos/discussions).*

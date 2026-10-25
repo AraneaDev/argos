@@ -3,6 +3,8 @@
  * Based on MCP Protocol 2025-06-18
  */
 
+import type { SchemaChange } from '../schema/diff.js';
+
 // ============================================================================
 // MCP Core Protocol Types
 // ============================================================================
@@ -67,6 +69,11 @@ export interface MCPToolResponse {
   isError?: boolean;
   _meta: {
     progressToken: null;
+    argos?: {
+      journalId: string | null;
+      spool: string | null;
+      schemaChange?: SchemaChange[];
+    };
   };
 }
 

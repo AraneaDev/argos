@@ -1,6 +1,6 @@
 # Interactive Configuration Wizard
 
-This interactive tool helps you generate configuration files for the Argos-MCP based on your specific requirements.
+This interactive tool helps you generate configuration files for the Argos based on your specific requirements.
 
 ## Usage
 
@@ -211,7 +211,7 @@ CMD ["node", "config-wizard.js"]
 # Generate ConfigMap from wizard output
 kubectl create configmap argos-config \
  --from-file=config.ini=wizard-output.ini \
- --namespace argos-mcp
+ --namespace argos
 ```
 
 ## Security Considerations
