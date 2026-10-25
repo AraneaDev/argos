@@ -60,13 +60,6 @@ export class AdapterFactory {
   }
 
   /**
-   * Get default port for a database type
-   */
-  static getDefaultPort(type: DatabaseTypeString): number {
-    return DEFAULT_DATABASE_PORTS[type.toLowerCase() as DatabaseTypeString] ?? 0;
-  }
-
-  /**
    * Get required configuration fields for a database type
    */
   static getRequiredFields(type: DatabaseTypeString, config?: DatabaseConfig): string[] {

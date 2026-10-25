@@ -158,28 +158,6 @@ describe('AdapterFactory', () => {
   // getDefaultPort (line 62)
   // ============================================================================
 
-  describe('getDefaultPort', () => {
-    it('should return correct default port for mysql', () => {
-      expect(AdapterFactory.getDefaultPort('mysql')).toBe(3306);
-    });
-
-    it('should return correct default port for postgresql', () => {
-      expect(AdapterFactory.getDefaultPort('postgresql')).toBe(5432);
-    });
-
-    it('should return correct default port for mssql', () => {
-      expect(AdapterFactory.getDefaultPort('mssql')).toBe(1433);
-    });
-
-    it('should return 0 for sqlite', () => {
-      expect(AdapterFactory.getDefaultPort('sqlite')).toBe(0);
-    });
-
-    it('should return 0 for unknown type', () => {
-      expect(AdapterFactory.getDefaultPort('unknown' as DatabaseTypeString)).toBe(0);
-    });
-  });
-
   // ============================================================================
   // getRequiredFields (lines 79, 90-91)
   // ============================================================================

@@ -84,14 +84,14 @@ describe('MySQLAdapter', () => {
   describe('constructor', () => {
     it('should initialize with valid MySQL config', () => {
       expect(adapter.getType()).toBe('mysql');
-      expect(adapter.getConfig().host).toBe('localhost');
-      expect(adapter.getConfig().port).toBe(3306);
+      expect((adapter as any).config.host).toBe('localhost');
+      expect((adapter as any).config.port).toBe(3306);
     });
 
     it('should handle port as string', () => {
       const stringPortConfig = { ...config, port: '3307' as any };
       const stringAdapter = new MySQLAdapter(stringPortConfig);
-      expect(stringAdapter.getConfig().port).toBe('3307');
+      expect((stringAdapter as any).config.port).toBe('3307');
     });
   });
 

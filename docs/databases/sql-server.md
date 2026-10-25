@@ -530,15 +530,8 @@ FROM sys.database_files;
 
 ### Health Checks
 
-The adapter provides SQL Server-specific monitoring:
-
-```javascript
-// Available through adapter methods
-const version = await adapter.getVersion(connection);
-const dbSize = await adapter.getDatabaseSize(connection);
-const tableStats = await adapter.getTableStats(connection);
-const connections = await adapter.getActiveConnections(connection);
-```
+`sql_test_connection` runs `SELECT 1` through the adapter; the queries in this section give
+the deeper picture.
 
 ### Wait Statistics
 
