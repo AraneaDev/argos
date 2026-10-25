@@ -1,0 +1,31 @@
+{
+  "name": "argos",
+  "displayName": "Argos",
+  "version": "0.0.0",
+  "description": "A pane beside the chat for Argos: the connections, the schema, and every query Claude runs against your databases.",
+  "author": { "name": "AraneaDev", "url": "https://github.com/AraneaDev" },
+  "homepage": "https://github.com/AraneaDev/argos",
+  "repository": "https://github.com/AraneaDev/argos",
+  "license": "MIT",
+  "keywords": ["sql", "database", "mcp", "pane", "queries"],
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "description": "Show the Argos pane.",
+      "default": true
+    },
+    "openPaneOnStart": {
+      "type": "boolean",
+      "title": "Open pane on start",
+      "description": "Open the Argos pane when a session starts.",
+      "default": false
+    },
+    "serverName": {
+      "type": "string",
+      "title": "MCP server name",
+      "description": "The name the Argos MCP server is registered under in Claude Code.",
+      "default": "argos"
+    }
+  }
+}

@@ -1,0 +1,551 @@
+import { describe, expect, it } from 'vitest'
+import { arrange, BALANCE_SLACK, balanceColumns, besideRows, cardInner, cardRows, DEFAULT_ROWS, equalColumns, figures, fitBlocks, GLYPHS, gridColumns, gridRows, LIST_SOFT, moreRows, paneHeight, scrolledTo, topRow, wheelMove, wheelTarget, windowedTable, windowOf } from './cards'
+import type { Block, Section } from './cards'
+import { rawText } from './__tests__/plain-text'
+import { button, rowWidth } from './rows'
+import { BAR_SHARE, barRange, percentile, tableSpec, tierOf } from './table'
+import { HEADING, TITLE } from './palette'
+import type { Row } from './types'
+import type { Tier } from './table'
+
+const WIDTHS = [40, 60, 80, 100, 130, 140, 200] as const
+const HEIGHTS = [16, 24, 40, 60, 120] as const
+
+const line = (key: string, text: string, extra: Partial<Row> = {}): Row => ({ key, segments: [{ text }], ...extra })
+
+/** A card listing `length` items, `limit` at a time around `selected`, as the pane's lists do. */
+const listBlock = (key: string, length: number, min: number, selected = -1): Block => ({
+  key,
+  grow: { length, min },
+  make: (columns, limit) => {
+    const window = windowOf(length, limit, selected)
+    const body = Array.from({ length: window.end - window.start }, (_, n) => line(`${key}-${window.start + n}`, `item ${window.start + n}`.padEnd(Math.min(columns, 30))))
+    return { key, title: `List ${key}`, note: [{ text: `${length}`, dim: true }], body: [...body, ...moreRows(`${key}-more`, window, length, columns)] }
+  },
+})
+const fixedBlock = (key: string, rows: number): Block => ({
+  key,
+  make: columns => ({ key, title: 'Fixed', body: Array.from({ length: rows }, (_, i) => line(`${key}-${i}`, 'x'.repeat(Math.min(columns, 12)))) }),
+})
+const items = (rows: Row[], key: string) => rows.filter(r => r.key.split('|').some(k => new RegExp(`^${key}-\\d+$`).test(k)))
+
+describe('tiers', () => {
+  it('switch at 80 and past 130', () => {
+    expect([40, 79, 80, 100, 130, 131, 200].map(tierOf)).toEqual(['narrow', 'narrow', 'medium', 'medium', 'medium', 'wide', 'wide'])
+  })
+  it('frame medium and wide cards, and leave a narrow card its every column', () => {
+    expect(cardInner(60, 'narrow')).toBe(60)
+    expect(cardInner(100, 'medium')).toBe(96)
+    expect(cardInner(140, 'wide')).toBe(136)
+  })
+})
+
+describe('cards', () => {
+  const section: Section = { key: 's', title: 'Most depended on', subtitle: 'sorted by in', note: [{ text: 'all in core · in', dim: true }], body: [line('s-0', 'StableId'), line('s-1', '›  ArchitectureQueryService')] }
+
+  for (const columns of WIDTHS) {
+    it(`exactly fill ${columns} columns with their edges, framed or not by the tier`, () => {
+      const tier = tierOf(columns)
+      const rows = cardRows(section, columns, tier)
+      expect(rowWidth(rows[0]!)).toBe(columns)
+      if (tier === 'narrow') {
+        // A top rule with the title in it, nothing at the sides and no bottom edge.
+        expect(rawText(rows[0]!)).toMatch(/^── Most depended/)
+        expect(rawText(rows[1]!).trim()).toBe('')
+        expect(rawText(rows[2]!)).toBe('StableId')
+        expect(rows).toHaveLength(4)
+      } else {
+        // The same rule, a blank row, the rows two cells in and as wide as the card, nothing closing it.
+        expect(rawText(rows[0]!)).toMatch(/^── Most depended on .*──$/)
+        expect(rawText(rows[1]!).trim()).toBe('')
+        for (const r of rows.slice(1)) expect(rowWidth(r), r.key).toBe(columns)
+        for (const r of rows.slice(2)) expect(rawText(r)).toMatch(/^ {2}\S/)
+        expect(rows).toHaveLength(4)
+      }
+    })
+  }
+
+  it('set the note against the right corner, and give way: subtitle, then the title is cut, then the note', () => {
+    expect(rawText(topRow(section, 100))).toMatch(/^── Most depended on · sorted by in ─+ all in core · in ──$/)
+    expect(rawText(topRow(section, 44))).toMatch(/^── Most depended on ─+ all in core · in ──$/)
+    expect(rawText(topRow(section, 40))).toBe('── Most depended… ── all in core · in ──')
+    expect(rawText(topRow(section, 34))).toMatch(/^── Most depended on ─+$/)
+    const tiny = topRow(section, 20)
+    expect(rowWidth(tiny)).toBeLessThanOrEqual(20)
+    expect(rawText(tiny)).toContain('Most')
+  })
+
+  it('cut a body row too wide for the frame, and leave a diff element unframed', () => {
+    const rows = cardRows({ key: 'd', title: 'Diff', body: [line('d-0', 'y'.repeat(200)), { key: 'd-hunk', segments: [], code: { source: '@@ -1 +1 @@\n-a\n+b', path: 'a.ts' } }] }, 100, 'medium')
+    expect(rowWidth(rows[2]!)).toBe(100)
+    expect(rows[3]).toEqual({ key: 'd-hunk', segments: [], code: { source: '@@ -1 +1 @@\n-a\n+b', path: 'a.ts' } })
+  })
+})
+
+describe('the wide grid', () => {
+  it('splits the width into two columns two apart', () => {
+    for (const columns of [131, 140, 200]) {
+      const [l, r] = gridColumns(columns)
+      expect(l + r + 2).toBe(columns)
+      expect(Math.abs(l - r)).toBeLessThanOrEqual(1)
+    }
+  })
+  it('puts every right card in the right half, the shorter column padded, no row wider than the pane', () => {
+    for (const columns of [140, 200]) {
+      const rows = arrange({ left: [fixedBlock('a', 2)], right: [fixedBlock('b', 6)] }, columns, 40)
+      const [lw] = gridColumns(columns)
+      for (const r of rows) expect(rowWidth(r)).toBeLessThanOrEqual(columns)
+      const right = rows.find(r => r.key.endsWith('|b-5'))!
+      expect(right.key).toMatch(/^pad-l-\d+\|b-5$/)
+      // The right card's row starts past the left column and the gap, its own content two cells in.
+      expect(rawText(right).search(/\S/)).toBe(lw + 2 + 2)
+      expect(rowWidth(right)).toBe(columns)
+    }
+  })
+  it('stacks the same cards in one column below the wide tier, in their own order when given', () => {
+    const rows = arrange({ top: [fixedBlock('t', 1)], left: [fixedBlock('a', 1)], right: [fixedBlock('b', 1)], order: [fixedBlock('b', 1), fixedBlock('a', 1)] }, 100, 40)
+    expect(rows.some(r => r.key.includes('|'))).toBe(false)
+    expect(rows.findIndex(r => r.key === 'b-head')).toBeLessThan(rows.findIndex(r => r.key === 'a-head'))
+    expect(rows.find(r => r.key === 't-head')).toBeUndefined()
+  })
+  it('draws a heat map as text where it shares rows with something pressable, as raster cells otherwise', () => {
+    const heat = (key: string): Row => ({ key, raster: 'heat', segments: [{ text: '▓▓', cell: { glyph: '▇', fg: 'heat-3' } }] })
+    const press = { key: 'p', segments: [button('row:0', 'open me')] }
+    expect(besideRows([press], [heat('h-0'), heat('h-1')], 20).every(r => r.raster === undefined)).toBe(true)
+    expect(besideRows([line('q', 'quiet')], [heat('h-0'), heat('h-1')], 20).every(r => r.raster === 'heat')).toBe(true)
+  })
+})
+
+describe('lists sized to the height', () => {
+  for (const columns of WIDTHS) {
+    for (const height of HEIGHTS) {
+      it(`fill ${height} rows at ${columns} columns without passing them, past their minimum`, () => {
+        const blocks = [fixedBlock('f', 3), listBlock('a', 50, 3), listBlock('b', 8, 2)]
+        const rows = arrange({ left: blocks.slice(0, 2), right: blocks.slice(2) }, columns, height)
+        for (const r of rows) expect(rowWidth(r), `${r.key}: ${rawText(r)}`).toBeLessThanOrEqual(columns)
+        const shown = items(rows, 'a').length
+        expect(shown).toBeGreaterThanOrEqual(3)
+        // Grown only while the whole fits: the minimum may pass a short pane, a grown list never does.
+        if (shown > 3) expect(rows.length).toBeLessThanOrEqual(height)
+        // A cut list says how many more there are.
+        if (shown < 50) expect(rows.some(r => /\d+ more ↓/.test(rawText(r)))).toBe(true)
+      })
+    }
+  }
+  it('grow with the height, and a taller pane shows at least as many', () => {
+    let last = 0
+    for (const height of HEIGHTS) {
+      const shown = items(fitBlocks([listBlock('a', 200, 3)], 80, 'medium', height), 'a').length
+      expect(shown).toBeGreaterThanOrEqual(last)
+      last = shown
+    }
+    // However tall the pane, a long list fills it: the drawn-text budget, not a row cap, bounds what the engine takes.
+    const rows = fitBlocks([listBlock('a', 200, 3)], 80, 'medium', 100)
+    expect(items(rows, 'a').length).toBeGreaterThan(80)
+    expect(rows.length).toBeLessThanOrEqual(100)
+  })
+  it('fill a tall pane in a few builds of each card, not one per row', () => {
+    for (const fit of [(b: Block[]) => fitBlocks(b, 80, 'medium', 400), (b: Block[]) => gridRows([b], 160, 'wide', 400)]) {
+      let builds = 0
+      const counted = (block: Block): Block => ({ ...block, make: (columns, limit) => (builds++, block.make(columns, limit)) })
+      builds = 0
+      const rows = fit([counted(listBlock('a', 1000, 3)), counted(listBlock('b', 1000, 3))])
+      expect(items(rows, 'a').length + items(rows, 'b').length).toBeGreaterThan(300)
+      expect(builds).toBeLessThan(120)
+    }
+    // Stacked, the two lists still split the height evenly.
+    const rows = fitBlocks([listBlock('a', 1000, 3), listBlock('b', 1000, 3)], 80, 'medium', 400)
+    expect(Math.abs(items(rows, 'a').length - items(rows, 'b').length)).toBeLessThanOrEqual(1)
+  })
+
+  it('share the rows between the lists in turn, each stopping at its length', () => {
+    const rows = fitBlocks([listBlock('a', 4, 2), listBlock('b', 100, 2)], 60, 'narrow', 40)
+    expect(items(rows, 'a')).toHaveLength(4)
+    expect(items(rows, 'b').length).toBeGreaterThan(20)
+    expect(rows.length).toBeLessThanOrEqual(40)
+  })
+  it('keep the marked row in sight, with how many are above and below', () => {
+    const rows = fitBlocks([listBlock('a', 30, 3, 20)], 60, 'narrow', 10)
+    const shown = items(rows, 'a').map(r => r.key)
+    expect(shown).toContain('a-20')
+    expect(rawText(rows.find(r => r.key === 'a-more')!)).toMatch(/^ {3}\d+ above ↑ · \d+ more ↓$/)
+  })
+  it('read the height from the pane, with a default where the surface gives none', () => {
+    expect(paneHeight({ bodyRows: 33 })).toBe(33)
+    expect(paneHeight({ bodyRows: 0 })).toBe(DEFAULT_ROWS)
+    expect(paneHeight(undefined)).toBe(DEFAULT_ROWS)
+  })
+  it('window a list around the marker', () => {
+    expect(windowOf(10, 20)).toEqual({ start: 0, end: 10 })
+    expect(windowOf(10, 4)).toEqual({ start: 0, end: 4 })
+    expect(windowOf(10, 4, 6)).toEqual({ start: 3, end: 7 })
+    // A start the wheel scrolled to wins over the marker, held inside the list.
+    expect(windowOf(10, 4, 0, 5)).toEqual({ start: 5, end: 9 })
+    expect(windowOf(10, 4, 9, 2)).toEqual({ start: 2, end: 6 })
+    expect(windowOf(10, 4, 0, 99)).toEqual({ start: 6, end: 10 })
+    expect(windowOf(10, 4, 0, -3)).toEqual({ start: 0, end: 4 })
+    expect(windowOf(3, 4, 0, 2)).toEqual({ start: 0, end: 3 })
+    expect(windowOf(10, 4, 9)).toEqual({ start: 6, end: 10 })
+  })
+  it('draw a table cut to its window, with the line that counts the rest', () => {
+    const items = Array.from({ length: 10 }, (_, i) => `item ${i}`)
+    const drawn: { shown: string[]; start: number }[] = []
+    const { rows, window } = windowedTable('t-window', items, { columns: 40, limit: 4, local: 6, walk: 3 }, (shown, start) => {
+      drawn.push({ shown, start })
+      return shown.map((text, n) => ({ key: `t-${start + n}`, segments: [{ text }] }))
+    })
+    expect(drawn).toEqual([{ shown: ['item 3', 'item 4', 'item 5', 'item 6'], start: 3 }])
+    expect(rows.map(r => r.key)).toEqual(['t-3', 't-4', 't-5', 't-6', 't-window'])
+    expect(rows.at(-1)).toEqual(moreRows('t-window', { start: 3, end: 7 }, 10, 40, 3)[0])
+    expect(window).toEqual({ start: 3, shown: 4, length: 10 })
+    // Where the wheel left it, and a list that shows whole: no line under it.
+    expect(windowedTable('t-window', items, { columns: 40, limit: 4, scrolled: 5 }, (shown, start) => shown.map((text, n) => ({ key: `t-${start + n}`, segments: [{ text }] }))).window).toEqual({ start: 5, shown: 4, length: 10 })
+    expect(windowedTable('t-window', items.slice(0, 2), { columns: 40, limit: 4 }, shown => shown.map(text => ({ key: text, segments: [{ text }] }))).rows).toHaveLength(2)
+  })
+})
+
+describe('bars', () => {
+  const tiers: Tier[] = ['narrow', 'medium', 'wide']
+  it('take a share of the table between a minimum and a maximum per tier', () => {
+    for (const tier of tiers) {
+      for (const columns of [40, 60, 100, 136, 196]) {
+        const range = barRange(columns, tier)
+        const spec = tableSpec(columns, ['Short'], ['core'], [3])
+        expect(range.min).toBeLessThanOrEqual(range.max)
+        const withTier = tableSpec(columns, ['Short'], ['core'], [3], undefined, { tier })
+        expect(withTier.bar).toBeLessThanOrEqual(range.max)
+        expect(withTier.bar).toBeGreaterThanOrEqual(range.min)
+        expect(spec.bar).toBeGreaterThan(0)
+      }
+    }
+    // Wider tiers draw longer gauges: past the old 24-cell cap.
+    expect(tableSpec(196, ['Short'], ['core'], [3], undefined, { tier: 'wide' }).bar).toBeGreaterThan(24)
+  })
+  it('never take more than a quarter of the table, nor past their tier cap however wide', () => {
+    for (const tier of tiers) {
+      for (const columns of [40, 60, 80, 96, 126, 136, 196, 400]) {
+        const bar = tableSpec(columns, ['Short'], ['core'], [3], undefined, { tier }).bar
+        expect(bar, `${tier} ${columns}`).toBeLessThanOrEqual(Math.max(4, Math.floor(columns / 4)))
+        expect(bar, `${tier} ${columns}`).toBeLessThanOrEqual(BAR_SHARE[tier].cap)
+      }
+    }
+    // A wide hubs card at 200 columns: the bar is a gauge, not the widest thing on the row.
+    expect(tableSpec(196, ['ArchitectureQueryService'], [], [3, 3, 5, 5], undefined, { tier: 'wide' }).bar).toBe(30)
+  })
+  it('make room for a place column, cutting only the few longest names', () => {
+    const names = [...Array.from({ length: 19 }, (_, i) => `Component${i}`), 'ArchitectureQueryService::architectureHealth']
+    const places = names.map(n => `${n}.php:12`.slice(0, 30))
+    const spec = tableSpec(115, names, [], [3, 3, 5, 5], undefined, { tier: 'wide', places })
+    expect(spec.place).toBeGreaterThan(0)
+    expect(spec.name).toBeGreaterThanOrEqual(percentile(names.map(n => n.length), 0.9))
+    expect(percentile([], 0.9)).toBe(1)
+    expect(percentile([5, 1, 3], 1)).toBe(5)
+  })
+  it('give way to a file column only while names stay whole, and drop it first', () => {
+    const places = ['ArchitectureQueryService.php:22']
+    expect(tableSpec(120, ['ArchitectureQueryService'], ['core'], [3, 3, 5], undefined, { tier: 'medium', places }).place).toBe(31)
+    expect(tableSpec(60, ['ArchitectureQueryService'], ['core'], [3, 3, 5], undefined, { tier: 'medium', places }).place).toBeUndefined()
+  })
+})
+
+describe('growth in phases', () => {
+  /** A chart that grows a step of `step` rows per limit, from nothing. */
+  const chartBlock = (key: string, steps: number, step: number): Block => ({
+    key,
+    grow: { length: steps, min: 0, late: true },
+    make: (columns, limit) => (limit === 0 ? null : { key, title: 'Chart', body: Array.from({ length: limit * step }, (_, i) => line(`${key}-${i}`, '█')) }),
+  })
+
+  it('gives lists their soft length first, then the late charts, then the lists the rest', () => {
+    const blocks = [listBlock('a', 50, 3), chartBlock('c', 3, 4)]
+    // Just room for the soft length and one chart step: the chart gets it, the list stops at its soft length.
+    const soft = fitBlocks(blocks, 100, 'medium', LIST_SOFT + 4 /* list title, the row under it, gap, more */ + 7 /* chart title, the row under it, gap, four rows */)
+    expect(items(soft, 'a')).toHaveLength(LIST_SOFT)
+    expect(items(soft, 'c')).toHaveLength(4)
+    // Taller, the chart takes all its steps and the list everything after.
+    const tall = fitBlocks(blocks, 100, 'medium', 60)
+    expect(items(tall, 'c')).toHaveLength(12)
+    expect(items(tall, 'a').length).toBeGreaterThan(LIST_SOFT)
+    expect(tall.length).toBeLessThanOrEqual(60)
+    // Short (the gap, the title, the row under it, three rows and the more line), the chart draws nothing and the list keeps its minimum.
+    const short = fitBlocks(blocks, 100, 'medium', 7)
+    expect(items(short, 'c')).toHaveLength(0)
+    expect(items(short, 'a')).toHaveLength(3)
+  })
+
+  it('holds the late charts to their own budget, never the lists', () => {
+    const blocks = [listBlock('a', 50, 3), chartBlock('c', 3, 4)]
+    // The list at its soft length takes 13 rows with its title, gap and more line; a chart step needs 6 more: 18 holds it off.
+    const held = fitBlocks(blocks, 100, 'medium', 60, 18)
+    expect(items(held, 'c')).toHaveLength(0)
+    expect(items(held, 'a').length).toBeGreaterThan(LIST_SOFT)
+  })
+})
+
+describe('balanced columns', () => {
+  const chartBlock = (key: string): Block => ({
+    key,
+    grow: { length: 2, min: 0, late: true },
+    make: (columns, limit) => ({ key, title: 'Map', body: Array.from({ length: 6 + limit * 8 }, (_, i) => line(`${key}-${i}`, 'x')) }),
+  })
+  /** Where each column of the grid ends: the last row whose left or right half holds anything. */
+  const ends = (rows: Row[], split: number): [number, number] => {
+    let left = -1
+    let right = -1
+    rows.forEach((r, i) => {
+      const text = rawText(r)
+      if (text.slice(0, split).trim() !== '') left = i
+      if (text.slice(split).trim() !== '') right = i
+    })
+    return [left, right]
+  }
+
+  it('place each floating card under the column that leaves the two closest in height', () => {
+    const [l, r] = balanceColumns([fixedBlock('l', 20)], [fixedBlock('r', 4)], [fixedBlock('f1', 6), fixedBlock('f2', 6)], [69, 69], 'wide', 60)
+    // Both floating cards go right: 22 rows against 8 + 16.
+    expect(r.some(row => row.key === 'f1-0') && r.some(row => row.key === 'f2-0')).toBe(true)
+    expect(Math.abs(l.length - r.length)).toBeLessThanOrEqual(BALANCE_SLACK)
+  })
+
+  it('hold a chart to its neighbour when growing it would leave that column short', () => {
+    const rows = arrange({ left: [chartBlock('map')], right: [fixedBlock('table', 12)] }, 140, 60)
+    const [left, right] = ends(rows, gridColumns(140)[0] + 1)
+    expect(Math.abs(left - right)).toBeLessThanOrEqual(BALANCE_SLACK)
+    // One column, nothing to even: the chart takes the spare rows.
+    const single = arrange({ left: [chartBlock('map')], right: [fixedBlock('table', 12)] }, 100, 60)
+    expect(items(single, 'map').length).toBe(22)
+  })
+
+  for (const columns of [140, 200]) {
+    for (const height of [24, 40, 60]) {
+      it(`end within ${BALANCE_SLACK} rows of each other at ${columns}x${height} when both columns have lists to grow`, () => {
+        const rows = arrange({ left: [fixedBlock('look', 3), listBlock('turn', 3, 3)], right: [listBlock('top', 80, 3)], float: [fixedBlock('map', 11), listBlock('files', 80, 3)] }, columns, height)
+        const [left, right] = ends(rows, gridColumns(columns)[0] + 1)
+        expect(Math.abs(left - right), `${left} ${right}`).toBeLessThanOrEqual(BALANCE_SLACK)
+        for (const r of rows) expect(rowWidth(r)).toBeLessThanOrEqual(columns)
+      })
+    }
+  }
+
+  it('weight the columns by a split: the left its share of the width', () => {
+    expect(gridColumns(200, 0.6)).toEqual([118, 80])
+    const rows = arrange({ left: [fixedBlock('a', 2)], right: [fixedBlock('b', 2)], split: 0.6 }, 200, 40)
+    const head = rows.find(r => r.key === 'a-head|b-head')!
+    expect(rowWidth({ key: 'x', segments: head.segments.slice(0, head.split) })).toBe(118 + 2)
+  })
+})
+
+describe('notes', () => {
+  it('draw their figures at full contrast and the words around them dim', () => {
+    expect(figures('3 files → 594 dependents · 1 test')).toEqual([
+      { text: '3', color: 'text' },
+      { text: ' files → ', dim: true },
+      { text: '594', color: 'text' },
+      { text: ' dependents · ', dim: true },
+      { text: '1', color: 'text' },
+      { text: ' test', dim: true },
+    ])
+    expect(figures('10+ boundaries · 31,796 deps').map(s => s.text)).toEqual(['10+', ' boundaries · ', '31,796', ' deps'])
+    expect(figures('')).toEqual([])
+    expect(figures('partial')).toEqual([{ text: 'partial', dim: true }])
+  })
+})
+
+describe('card glyphs', () => {
+  it('mark each kind of card with one one-cell glyph before its title, in the title\'s orange, the same on every tab', () => {
+    // One cell each, but the query card's `›_`, which is two: the rule is measured in cells, so it still fills the width.
+    for (const [key, glyph] of Object.entries(GLYPHS)) expect([...glyph], key).toHaveLength(key === 'query' ? 2 : 1)
+    expect(rowWidth(topRow({ key: 'query', title: 'Query', note: [{ text: '3' }], body: [] }, 40))).toBe(40)
+    expect(GLYPHS).toMatchObject({ look: '◬', turn: '▤', map: '▦', bounds: '▦', cycles: '↻', policy: '!', diag: '!', dead: '!', hotspots: '!', budget: '!', changes: '±' })
+    const head = topRow({ key: 'cycles', title: 'Cycles', note: [{ text: '2' }], body: [] }, 60)
+    expect(head.segments.find(s => s.text === '↻ ')).toMatchObject({ color: TITLE })
+    expect(rowWidth(head)).toBe(60)
+    // A card of no listed kind has none; a section may name its own.
+    expect(rawText(topRow({ key: 'x', title: 'Plain', body: [] }, 40))).toMatch(/^── Plain ─/)
+    expect(rawText(topRow({ key: 'x', title: 'Own', glyph: '✦', body: [] }, 40))).toMatch(/^── ✦ Own ─/)
+    // The glyph gives way with the rule: a title cut for its note keeps it.
+    for (const width of [12, 16, 20, 30]) expect(rowWidth(topRow({ key: 'policy', title: 'Policy violations', note: [{ text: '✓ 0' }], body: [] }, width)), `${width}`).toBeLessThanOrEqual(width)
+  })
+})
+
+describe('the marked row in a card', () => {
+  it('carries its tint across a card\'s inner width and the cell either side, and to the pane edge of a narrow one', () => {
+    const marked: Row = { key: 'm', segments: [{ text: '› x', bg: 'userMessageBackground' }], tint: 'userMessageBackground' }
+    const framed = cardRows({ key: 'c', title: 'C', body: [marked] }, 30, 'medium')[2]!
+    // The outermost cell each side is the gutter, untinted; everything between carries the tint.
+    expect(framed.segments[0]).toEqual({ text: ' ' })
+    expect(framed.segments.at(-1)).toEqual({ text: ' ' })
+    expect(framed.segments.slice(1, -1).every(s => s.bg === 'userMessageBackground')).toBe(true)
+    expect(rowWidth(framed)).toBe(30)
+    const bare = cardRows({ key: 'c', title: 'C', body: [marked] }, 30, 'narrow')[2]!
+    expect(rowWidth(bare)).toBe(30)
+    expect(bare.segments.every(s => s.bg === 'userMessageBackground')).toBe(true)
+  })
+})
+
+describe('rows of cards of equal height', () => {
+  it('splits the width into equal columns, the first ones taking the remainder', () => {
+    expect(equalColumns(100, 2)).toEqual([49, 49])
+    expect(equalColumns(101, 2)).toEqual([50, 49])
+    expect(equalColumns(140, 3)).toEqual([46, 45, 45])
+  })
+
+  it('draws the cards of a row equally tall, the shorter stretched, at every wide width and height', () => {
+    for (const width of [140, 200]) {
+      for (const height of [24, 40, 60]) {
+        const rows = gridRows([[listBlock('a', 3, 1), listBlock('b', 40, 3)], [listBlock('c', 50, 3)]], width, 'wide', height)
+        for (const r of rows) expect(rowWidth(r), `${width}x${height} ${r.key}`).toBeLessThanOrEqual(width)
+        const top = rows.filter(r => r.key.includes('|'))
+        // The shorter card stretched to the other's height: no row of the shared grid row is padding for a side that ran out.
+        expect(top.filter(r => r.key.includes('pad-')).map(r => r.key), `${width}x${height}`).toEqual([])
+        // The lone card spans the pane.
+        expect(rowWidth(rows.find(r => r.key === 'c-head')!)).toBe(width)
+        if (height >= 40) expect(rows.length, `${width}x${height}`).toBeLessThanOrEqual(height)
+      }
+    }
+  })
+
+  it('sets a grid of lists out only when wide', () => {
+    // Only wide: narrower panes stack them as before.
+    const arrangement = { left: [listBlock('a', 5, 3)], right: [listBlock('b', 50, 3)], rows: [[listBlock('a', 5, 3), listBlock('b', 50, 3)]] }
+    expect(arrange(arrangement, 100, 60).some(r => r.key.includes('|'))).toBe(false)
+    expect(arrange(arrangement, 140, 60).some(r => r.key.includes('|'))).toBe(true)
+  })
+})
+
+describe('the line under a cut list', () => {
+  const ids = (rows: ReturnType<typeof moreRows>) => rows.flatMap(r => r.segments).flatMap(s => (s.press === undefined ? [] : [s.press.id]))
+
+  it('is two presses where the list is walked: the last item above, the first below, by their place in the walk', () => {
+    const rows = moreRows('x-window', { start: 3, end: 8 }, 20, 60, 10)
+    expect(rows.map(r => r.segments.map(s => s.text).join(''))).toEqual(['   3 above ↑ · 12 more ↓'])
+    expect(ids(rows)).toEqual(['more:12', 'more:18'])
+    // A walk that is not a plain offset (a cycle's members each a row) maps each item itself.
+    expect(ids(moreRows('c-window', { start: 2, end: 4 }, 6, 60, i => i * 3))).toEqual(['more:3', 'more:12'])
+    // Never keyed as its row is.
+    expect(ids(rows)).not.toContain('x-window')
+  })
+
+  it('stays text where nothing walks the list, and is nothing when all of it shows', () => {
+    expect(ids(moreRows('t-window', { start: 0, end: 5 }, 9, 60))).toEqual([])
+    expect(moreRows('t-window', { start: 0, end: 9 }, 9, 60, 0)).toEqual([])
+  })
+
+  it('fits its width', () => {
+    for (const width of [8, 12, 20, 40]) for (const r of moreRows('x', { start: 300, end: 320 }, 9000, width, 0)) expect(r.segments.reduce((n, s) => n + [...s.text].length, 0), `${width}`).toBeLessThanOrEqual(width)
+  })
+})
+
+describe('the card icons', () => {
+  it('give every card the pane renders an icon', () => {
+    for (const key of ['look', 'hubs', 'files', 'flows', 'concentration', 'composition', 'cycles', 'dead', 'rings', 'route', 'changes', 'tests', 'notes', 'pinned', 'history', 'result', 'tables', 'relations', 'query']) expect(GLYPHS[key], key).toBeDefined()
+    expect(GLYPHS.flows).toBe('⇄')
+  })
+})
+
+describe('a card under a rule', () => {
+    const section: Section = { key: 'hubs', title: 'Hubs', note: [{ text: '12' }], body: [{ key: 'r1', segments: [{ text: 'Router' }] }, { key: 'r2', segments: [{ text: 'Kernel' }] }] }
+
+    for (const tier of ['medium', 'wide'] as const) {
+        it(`titles it in bold, its glyph alone in the orange, set into a rule with no box around the card (${tier})`, () => {
+            const rows = cardRows(section, 60, tier)
+            const title = rows[0]!.segments.find(s => s.text === 'Hubs')
+            expect(title).toMatchObject({ color: HEADING, bold: true })
+            expect(rows[0]!.segments.find(s => s.text === '◎ ')).toMatchObject({ color: TITLE })
+            const text = rows.map(rawText)
+            expect(text[0]).toMatch(/^── .*Hubs ─+ 12 ──$/)
+            expect(text.some(t => /[│╭╮╰╯]/.test(t))).toBe(false)
+            // A blank row under the title, then its rows two cells in, every row as wide as the card, and nothing after the last.
+            expect(text[1]!.trim()).toBe('')
+            expect(text.slice(2).map(t => t.slice(0, 8))).toEqual(['  Router', '  Kernel'])
+            expect(rows.every(r => rowWidth(r) === 60)).toBe(true)
+        })
+    }
+})
+
+describe('a list the wheel scrolls', () => {
+  /** A list block that windows by the start it is handed, and says which window it shows. */
+  const scrollable = (key: string, length: number): Block => ({
+    key,
+    grow: { length, min: 3 },
+    make: (columns, limit, scrolled) => {
+      const window = windowOf(length, limit, 0, scrolled)
+      const body = Array.from({ length: window.end - window.start }, (_, n) => line(`${key}-${window.start + n}`, `item ${window.start + n}`))
+      return { key, title: key, body, window: { start: window.start, shown: window.end - window.start, length } }
+    },
+  })
+
+  it("hands each card the start the view holds for its key, and no other card's", () => {
+    const arrangement = scrolledTo({ left: [scrollable('a', 50), scrollable('b', 50)] }, { a: 20 })
+    const rows = fitBlocks(arrangement.left, 80, 'medium', 30)
+    expect(rows.some(r => r.key === 'a-20')).toBe(true)
+    expect(rows.some(r => r.key === 'a-0')).toBe(false)
+    expect(rows.some(r => r.key === 'b-0')).toBe(true)
+  })
+
+  it("tags every row of a card that windows a list with the list's span and window", () => {
+    const section = scrollable('a', 50).make(76, 5, 10)!
+    const rows = cardRows(section, 80, 'medium')
+    expect(rows.length).toBeGreaterThan(5)
+    for (const r of rows) expect(r.lists, r.key).toEqual([{ key: 'a', from: 0, to: 80, start: 10, shown: 5, length: 50 }])
+    // A card with no list window carries none.
+    expect(cardRows({ key: 'c', title: 'C', body: [line('c-0', 'x')] }, 80, 'medium').every(r => r.lists === undefined)).toBe(true)
+  })
+
+  it("keeps each side's span when two cards stand side by side, the right one's moved past the left and the gap", () => {
+    const left = cardRows(scrollable('a', 50).make(36, 3, 0)!, 40, 'medium')
+    const right = cardRows(scrollable('b', 50).make(36, 3, 7)!, 40, 'medium')
+    const rows = besideRows(left, right, 40)
+    expect(rows[2]!.lists).toEqual([
+      { key: 'a', from: 0, to: 40, start: 0, shown: 3, length: 50 },
+      { key: 'b', from: 42, to: 82, start: 7, shown: 3, length: 50 },
+    ])
+  })
+})
+
+describe('the list under the wheel', () => {
+  const span = (key: string, from: number, to: number, start = 0, shown = 5, length = 20) => ({ key, from, to, start, shown, length })
+  const rows: Row[] = [
+    { key: 'title', segments: [{ text: 'x' }] },
+    { key: 'a-0', segments: [{ text: 'x' }], lists: [span('a', 0, 40), span('b', 42, 82)] },
+    { key: 'diff', segments: [], code: { source: '@@ -1 +1 @@\n-a\n+b', path: 'a.ts' } },
+    { key: 'c-0', segments: [{ text: 'x' }], lists: [span('c', 0, 80, 3)] },
+  ]
+
+  it('finds the list whose card covers the cell under the pointer, rows counted as drawn', () => {
+    expect(wheelTarget(rows, 1, 10)).toEqual(span('a', 0, 40))
+    expect(wheelTarget(rows, 1, 50)).toEqual(span('b', 42, 82))
+    // The diff takes a row per line but its header: two, so the row after it is drawn at 4.
+    expect(wheelTarget(rows, 4, 0)).toEqual(span('c', 0, 80, 3))
+  })
+
+  it('finds none in the gap between cards, over a row of no list, or past the rows', () => {
+    expect(wheelTarget(rows, 1, 41)).toBeNull()
+    expect(wheelTarget(rows, 0, 5)).toBeNull()
+    expect(wheelTarget(rows, 3, 5)).toBeNull()
+    expect(wheelTarget(rows, 99, 5)).toBeNull()
+    expect(wheelTarget(rows, -1, 5)).toBeNull()
+  })
+})
+
+describe('a wheel tick', () => {
+  const rows: Row[] = [
+    { key: 'a-0', segments: [{ text: 'x' }], lists: [{ key: 'a', from: 0, to: 80, start: 4, shown: 5, length: 20 }] },
+    { key: 'b-0', segments: [{ text: 'x' }], lists: [{ key: 'b', from: 0, to: 80, start: 0, shown: 5, length: 5 }] },
+  ]
+
+  it("moves the window of the list under the pointer by the tick, held inside the list, counting the window's offset", () => {
+    expect(wheelMove(rows, 0, { row: 0, column: 3 }, 1)).toEqual({ key: 'a', start: 5 })
+    expect(wheelMove(rows, 0, { row: 0, column: 3 }, -3)).toEqual({ key: 'a', start: 1 })
+    expect(wheelMove(rows, 0, { row: 0, column: 3 }, 99)).toEqual({ key: 'a', start: 15 })
+    // Scrolled one row down the page, the pointer's first row is the second row drawn.
+    expect(wheelMove(rows, 1, { row: -1, column: 3 }, 1)).toEqual({ key: 'a', start: 5 })
+  })
+
+  it('leaves the tick to the page over a list that fits, at a list end, or over no list', () => {
+    expect(wheelMove(rows, 0, { row: 1, column: 3 }, 1)).toBeNull()
+    expect(wheelMove([{ ...rows[0]!, lists: [{ key: 'a', from: 0, to: 80, start: 15, shown: 5, length: 20 }] }], 0, { row: 0, column: 3 }, 1)).toBeNull()
+    expect(wheelMove(rows, 0, { row: 0, column: 3 }, 0)).toBeNull()
+    expect(wheelMove(rows, 0, { row: 7, column: 3 }, 1)).toBeNull()
+  })
+})

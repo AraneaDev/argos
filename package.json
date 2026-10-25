@@ -31,13 +31,15 @@
     "type-check": "tsc --noEmit",
     "clean": "node -e \"const fs = require('fs'); if (fs.existsSync('dist')) fs.rmSync('dist', {recursive: true, force: true});\"",
     "prebuild": "npm run type-check",
-    "validate": "npm run lint:check && npm run format:check && npm run type-check && npm run type-check:tests && npm run type-check:examples && npm run test",
+    "validate": "npm run lint:check && npm run format:check && npm run type-check && npm run type-check:tests && npm run type-check:examples && npm run test && npm run test:mod && npm run typecheck:mod",
     "validate-docs": "node scripts/validate-documentation.js",
     "prepack": "npm run build:production",
     "generate-template": "node dist/cli.js setup --template",
     "prepare": "husky",
     "type-check:tests": "tsc -p tests/tsconfig.json --noEmit",
-    "type-check:examples": "tsc -p examples/tsconfig.json --noEmit"
+    "type-check:examples": "tsc -p examples/tsconfig.json --noEmit",
+    "test:mod": "vitest run",
+    "typecheck:mod": "tsc -p plugin/hooks/tsconfig.json && tsc -p plugin/hooks/tsconfig.spec.json"
   },
   "repository": {
     "type": "git",
@@ -102,7 +104,8 @@
     "prettier": "3.8.1",
     "supertest": "7.2.2",
     "ts-jest": "29.4.9",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "vitest": "^5.0.5"
   },
   "engines": {
     "node": ">=22.0.0",
