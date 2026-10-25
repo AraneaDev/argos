@@ -18,6 +18,7 @@ import type {
   QueryResult,
   DatabaseSchema,
   ColumnInfo,
+  ForeignKey,
   TableInfo,
 } from '../../types/index.js';
 
@@ -296,6 +297,18 @@ export class SQLiteAdapter extends DatabaseAdapter {
         }
       }
 
+      const primaryKeys = new Map<string, string[]>();
+      const foreignKeys = new Map<string, ForeignKey[]>();
+      for (const table of Object.values(schema.tables)) {
+        primaryKeys.set(
+          table.name,
+          table.columns.filter((col) => col.key === 'PRI').map((col) => col.name)
+        );
+        foreignKeys.set(table.name, await this.captureForeignKeys(connection, table.name));
+      }
+      // SQLite keeps no row statistics short of scanning the table
+      this.applyTableRelations(schema, primaryKeys, foreignKeys, new Map());
+
       this.updateSchemaSummary(schema);
       return schema;
     } catch (error) {
@@ -323,6 +336,26 @@ export class SQLiteAdapter extends DatabaseAdapter {
         } else {
           resolve(rows as Array<{ name: string; type: string }>);
         }
+      });
+    });
+  }
+
+  private async captureForeignKeys(
+    connection: DatabaseConnection,
+    tableName: string
+  ): Promise<ForeignKey[]> {
+    return new Promise((resolve, reject) => {
+      (connection as SQLiteDatabase).all(`PRAGMA foreign_key_list(${tableName})`, (err, rows) => {
+        if (err) {
+          reject(this.createError(`Failed to get foreign keys for table ${tableName}`, err));
+          return;
+        }
+        resolve(
+          (rows as Array<{ id: number; seq: number; table: string; from: string; to: string }>)
+            .slice()
+            .sort((a, b) => a.id - b.id || a.seq - b.seq)
+            .map((fk) => ({ column: fk.from, references: { table: fk.table, column: fk.to } }))
+        );
       });
     });
   }
@@ -358,7 +391,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
               precision: null,
               scale: null,
               comment: '', // SQLite doesn't support column comments
-              key: col.pk === 1 ? 'PRI' : '',
+              key: col.pk > 0 ? 'PRI' : '',
               extra: '',
             })
           );

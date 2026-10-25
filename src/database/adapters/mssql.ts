@@ -16,6 +16,7 @@ import type {
   QueryResult,
   DatabaseSchema,
   ColumnInfo,
+  ForeignKey,
   TableInfo,
 } from '../../types/index.js';
 
@@ -393,11 +394,74 @@ export class MSSQLAdapter extends DatabaseAdapter {
         }
       }
 
+      await this.captureRelations(connection, schema);
+
       this.updateSchemaSummary(schema);
       return schema;
     } catch (error) {
       throw this.createError('Failed to capture SQL Server schema', error as Error);
     }
+  }
+
+  private async captureRelations(
+    connection: DatabaseConnection,
+    schema: DatabaseSchema
+  ): Promise<void> {
+    const pool = connection as MSSQLConnectionPool;
+
+    const pkResult = await pool.request().query(`
+ SELECT t.name AS table_name, c.name AS column_name
+ FROM sys.indexes i
+ JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+ JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+ JOIN sys.tables t ON t.object_id = i.object_id
+ WHERE i.is_primary_key = 1 AND SCHEMA_NAME(t.schema_id) = 'dbo'
+ ORDER BY t.name, ic.key_ordinal
+ `);
+    const fkResult = await pool.request().query(`
+ SELECT tp.name AS table_name, cp.name AS column_name,
+ tr.name AS referenced_table, cr.name AS referenced_column
+ FROM sys.foreign_key_columns fkc
+ JOIN sys.tables tp ON tp.object_id = fkc.parent_object_id
+ JOIN sys.columns cp ON cp.object_id = fkc.parent_object_id AND cp.column_id = fkc.parent_column_id
+ JOIN sys.tables tr ON tr.object_id = fkc.referenced_object_id
+ JOIN sys.columns cr ON cr.object_id = fkc.referenced_object_id AND cr.column_id = fkc.referenced_column_id
+ WHERE SCHEMA_NAME(tp.schema_id) = 'dbo'
+ ORDER BY tp.name, fkc.constraint_column_id
+ `);
+    const rowsResult = await pool.request().query(`
+ SELECT t.name AS table_name, SUM(p.rows) AS row_estimate
+ FROM sys.tables t
+ JOIN sys.partitions p ON p.object_id = t.object_id AND p.index_id IN (0, 1)
+ WHERE SCHEMA_NAME(t.schema_id) = 'dbo'
+ GROUP BY t.name
+ `);
+
+    const primaryKeys = new Map<string, string[]>();
+    for (const row of pkResult.recordset) {
+      primaryKeys.set(row.table_name, [
+        ...(primaryKeys.get(row.table_name) ?? []),
+        row.column_name,
+      ]);
+    }
+    const foreignKeys = new Map<string, ForeignKey[]>();
+    for (const row of fkResult.recordset) {
+      foreignKeys.set(row.table_name, [
+        ...(foreignKeys.get(row.table_name) ?? []),
+        {
+          column: row.column_name,
+          references: { table: row.referenced_table, column: row.referenced_column },
+        },
+      ]);
+    }
+    const estimates = new Map<string, unknown>(
+      rowsResult.recordset.map((row: { table_name: string; row_estimate: unknown }) => [
+        row.table_name,
+        row.row_estimate,
+      ])
+    );
+
+    this.applyTableRelations(schema, primaryKeys, foreignKeys, estimates);
   }
 
   private async captureTableColumns(

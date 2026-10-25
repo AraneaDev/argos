@@ -10,6 +10,7 @@ import type {
   QueryResult,
   DatabaseSchema,
   ColumnInfo,
+  ForeignKey,
   TableInfo,
 } from '../../types/index.js';
 
@@ -273,11 +274,71 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
         }
       }
 
+      await this.captureRelations(connection, schema);
+
       this.updateSchemaSummary(schema);
       return schema;
     } catch (error) {
       throw this.createError('Failed to capture PostgreSQL schema', error as Error);
     }
+  }
+
+  private async captureRelations(
+    connection: DatabaseConnection,
+    schema: DatabaseSchema
+  ): Promise<void> {
+    const pgClient = connection as PgClient;
+
+    const keysResult = await pgClient.query(`
+ SELECT
+ tc.constraint_type,
+ kcu.table_name,
+ kcu.column_name,
+ ccu.table_name AS foreign_table_name,
+ ccu.column_name AS foreign_column_name
+ FROM information_schema.table_constraints tc
+ JOIN information_schema.key_column_usage kcu
+ ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+ LEFT JOIN information_schema.constraint_column_usage ccu
+ ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+ AND tc.constraint_type = 'FOREIGN KEY'
+ WHERE tc.table_schema = 'public' AND tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY')
+ ORDER BY kcu.table_name, kcu.ordinal_position
+ `);
+
+    const estimatesResult = await pgClient.query(`
+ SELECT c.relname AS table_name, c.reltuples AS row_estimate
+ FROM pg_class c
+ JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+ `);
+
+    const primaryKeys = new Map<string, string[]>();
+    const foreignKeys = new Map<string, ForeignKey[]>();
+    for (const row of keysResult.rows) {
+      if (row.constraint_type === 'PRIMARY KEY') {
+        primaryKeys.set(row.table_name, [
+          ...(primaryKeys.get(row.table_name) ?? []),
+          row.column_name,
+        ]);
+      } else {
+        foreignKeys.set(row.table_name, [
+          ...(foreignKeys.get(row.table_name) ?? []),
+          {
+            column: row.column_name,
+            references: { table: row.foreign_table_name, column: row.foreign_column_name },
+          },
+        ]);
+      }
+    }
+    const estimates = new Map<string, unknown>(
+      estimatesResult.rows.map((row: { table_name: string; row_estimate: unknown }) => [
+        row.table_name,
+        row.row_estimate,
+      ])
+    );
+
+    this.applyTableRelations(schema, primaryKeys, foreignKeys, estimates);
   }
 
   private async captureTableColumns(

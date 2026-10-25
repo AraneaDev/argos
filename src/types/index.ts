@@ -13,6 +13,7 @@ export type {
   QueryResult,
   ColumnInfo,
   TableInfo,
+  ForeignKey,
   DatabaseSchema,
   SchemaInfo,
   QueryObject,

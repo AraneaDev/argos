@@ -553,6 +553,10 @@ describe('SQLiteAdapter', () => {
         })
         .mockImplementationOnce((query: string, callback: Function) => {
           process.nextTick(() => callback(null, usersColumnsResult));
+        })
+        // foreign_key_list for the table, issued after every column lookup
+        .mockImplementationOnce((query: string, callback: Function) => {
+          process.nextTick(() => callback(null, []));
         });
 
       const schema = await adapter.captureSchema(connection);
@@ -725,6 +729,10 @@ describe('SQLiteAdapter', () => {
         })
         .mockImplementationOnce((query: string, callback: Function) => {
           process.nextTick(() => callback(null, viewColumns));
+        })
+        // foreign_key_list for the table, issued after every column lookup
+        .mockImplementationOnce((query: string, callback: Function) => {
+          process.nextTick(() => callback(null, []));
         });
 
       const schema = await adapter.captureSchema(connection);
@@ -751,6 +759,10 @@ describe('SQLiteAdapter', () => {
         })
         .mockImplementationOnce((query: string, callback: Function) => {
           process.nextTick(() => callback(null, columns));
+        })
+        // foreign_key_list for the table, issued after every column lookup
+        .mockImplementationOnce((query: string, callback: Function) => {
+          process.nextTick(() => callback(null, []));
         });
 
       const schema = await adapter.captureSchema(connection);

@@ -135,11 +135,19 @@ export interface ColumnInfo {
   extra?: string;
 }
 
+export interface ForeignKey {
+  column: string;
+  references: { table: string; column: string };
+}
+
 export interface TableInfo {
   name: string;
   type: string;
   comment?: string;
   columns: ColumnInfo[];
+  primary_key?: string[];
+  foreign_keys?: ForeignKey[];
+  row_estimate?: number | null;
 }
 
 export interface DatabaseSchema {

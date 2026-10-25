@@ -7,6 +7,7 @@ import type {
   DatabaseConfig,
   QueryResult,
   DatabaseSchema,
+  ForeignKey,
   DatabaseTypeString,
   QueryResultWithRedaction,
 } from '../../types/index.js';
@@ -383,6 +384,32 @@ export abstract class DatabaseAdapter {
       ...Object.values(schema.tables),
       ...Object.values(schema.views),
     ].reduce((total, table) => total + table.columns.length, 0);
+  }
+
+  /**
+   * Attach primary keys, foreign keys and row estimates to the captured base
+   * tables. Missing or negative estimates (engines report -1 for "unknown")
+   * become null.
+   */
+  protected applyTableRelations(
+    schema: DatabaseSchema,
+    primaryKeys: Map<string, string[]>,
+    foreignKeys: Map<string, ForeignKey[]>,
+    estimates: Map<string, unknown>
+  ): void {
+    for (const table of Object.values(schema.tables)) {
+      const pk = primaryKeys.get(table.name) ?? [];
+      table.primary_key = pk;
+      table.foreign_keys = foreignKeys.get(table.name) ?? [];
+      const raw = estimates.get(table.name);
+      const estimate = raw === null || raw === undefined ? NaN : Number(raw);
+      table.row_estimate = Number.isFinite(estimate) && estimate >= 0 ? estimate : null;
+      for (const column of table.columns) {
+        if (pk.includes(column.name)) {
+          column.key = 'PRI';
+        }
+      }
+    }
   }
 
   // ============================================================================
