@@ -76,6 +76,8 @@ export type JournalEntry = {
   outcome: 'ok' | 'error' | 'blocked'
   reason?: string
   schemaChange?: SchemaChange[]
+  /** Claude passed bound parameters: the SQL alone cannot be rerun faithfully. */
+  hasParams?: boolean
   spool: string | null
 }
 

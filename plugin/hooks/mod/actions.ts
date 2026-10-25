@@ -108,10 +108,18 @@ async function toggleFilter(io: Port): Promise<void> {
 /** How long a repeat press of `c` still counts as asking for the next format, in milliseconds. */
 const COPY_CYCLE_MS = 2000
 
+/** What `r` says on an entry whose SQL used bound parameters. */
+const RERUN_PARAMS = "can't rerun: this query used parameters"
+
 /** `r`: the selected entry's SQL, run again on its connection as the person (the CLI's `query`); the journal then lists it as the newest. */
 async function rerun(io: Port): Promise<void> {
   const entry = await selectedEntry(io)
   if (entry === null || mod.queries.rerunning) return
+  if (entry.hasParams === true) {
+    // the journal keeps the SQL, not the values Claude bound to it
+    await io.ui.toast(RERUN_PARAMS)
+    return
+  }
   mod.queries.rerunning = true
   try {
     const ran = await runCli(io, ['query', entry.database, '--sql', entry.sql], parseJournalEntry, QUERY_TIMEOUT_MS)

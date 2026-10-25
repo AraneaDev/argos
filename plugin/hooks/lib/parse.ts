@@ -101,6 +101,7 @@ const isEntry = shape<JournalEntry>({
   outcome: oneOf('ok', 'error', 'blocked'),
   reason: optional(isString),
   schemaChange: optional(listOf(isChange)),
+  hasParams: optional(isBoolean),
   spool: orNull(isString),
 })
 

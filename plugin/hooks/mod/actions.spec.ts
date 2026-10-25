@@ -226,6 +226,15 @@ describe('the Queries tab', () => {
     expect(port.runs).toHaveLength(1)
   })
 
+  it("r on an entry that used parameters says it can't rerun, and runs nothing", async () => {
+    const toasts: string[] = []
+    const port = onQueries(() => ({ exitCode: 0, stdout: '[]' }), { history: { ...JOURNAL, answer: [entry('e1', { sql: 'SELECT $1', hasParams: true })] } })
+    ;(port.io.ui as { toast: unknown }).toast = async (t: string) => void toasts.push(t)
+    await press(port, 'rerun')
+    expect(toasts).toEqual(["can't rerun: this query used parameters"])
+    expect(port.runs.filter(r => r.argv[2] === 'query')).toHaveLength(0)
+  })
+
   it('e puts the SQL in the Editor, on its connection', async () => {
     const port = onQueries()
     await press(port, 'down')

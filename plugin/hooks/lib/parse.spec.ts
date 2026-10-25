@@ -37,6 +37,12 @@ describe('reading what the argos CLI prints', () => {
     expect(parseConnections({ error: 'no config' })).toBeNull()
   })
 
+  it('reads an entry that used parameters', () => {
+    const query = fixture('query') as object
+    expect(parseJournalEntry({ ...query, hasParams: true })).toEqual({ ...query, hasParams: true })
+    expect(parseJournalEntry({ ...query, hasParams: 'yes' })).toBeNull()
+  })
+
   it('keeps an empty list as a list', () => {
     expect(parseConnections([])).toEqual([])
     expect(parseHistory([])).toEqual([])

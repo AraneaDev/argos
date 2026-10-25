@@ -22,7 +22,13 @@ import {
   ValidationError,
 } from '../../utils/error-handler.js';
 import { formatSchemaChanges, type SchemaChange } from '../../schema/diff.js';
-import { attachJournal, journalFailure, journalOk, type JournalRef } from './journal.js';
+import {
+  attachJournal,
+  journalFailure,
+  journalOk,
+  paramsFlag,
+  type JournalRef,
+} from './journal.js';
 import type { ToolHandlerContext } from './types.js';
 import { requireDbConfig } from './types.js';
 
@@ -118,7 +124,7 @@ export async function handleSqlQuery(
 
     const ref = await journalOk(
       ctx,
-      { database, tool: 'sql_query', sql: query },
+      { database, tool: 'sql_query', sql: query, ...paramsFlag(params) },
       { rowCount: result.rowCount, durationMs: result.execution_time_ms },
       result,
       schemaChanges
@@ -127,7 +133,7 @@ export async function handleSqlQuery(
   } catch (error) {
     const ref = await journalFailure(
       ctx,
-      { database, tool: 'sql_query', sql: query },
+      { database, tool: 'sql_query', sql: query, ...paramsFlag(params) },
       error,
       schemaChanges
     );
@@ -166,7 +172,7 @@ export async function handleBatchQuery(
   }
 
   const batchId = ctx.paneStore ? ctx.paneStore.newId() : undefined;
-  let offending: string | null = null;
+  let offending: SQLBatchQueryArgs['queries'][number] | null = null;
   let schemaChanges: SchemaChange[] = [];
 
   try {
@@ -174,7 +180,7 @@ export async function handleBatchQuery(
 
     if (dbConfig.select_only) {
       for (const query of queries) {
-        offending = query.query;
+        offending = query;
         const validation = ctx.securityManager.validateSelectOnlyQuery(query.query, dbConfig.type);
         if (!validation.allowed) {
           throw new SecurityViolationError(`Batch contains blocked query: ${validation.reason}`, {
@@ -187,7 +193,7 @@ export async function handleBatchQuery(
     } else {
       // Even in write mode, validate each query for always-blocked commands
       for (const query of queries) {
-        offending = query.query;
+        offending = query;
         const validation = ctx.securityManager.validateAnyQuery(query.query, dbConfig.type);
         if (!validation.allowed) {
           throw new SecurityViolationError(`Batch contains blocked query: ${validation.reason}`, {
@@ -266,6 +272,7 @@ export async function handleBatchQuery(
         tool: 'sql_batch_query' as const,
         sql: queryResult.query ?? queries[i]?.query ?? '',
         batchId,
+        ...paramsFlag(queries[i]?.params),
       };
       const ref =
         queryResult.success && queryResult.data
@@ -292,11 +299,11 @@ export async function handleBatchQuery(
     let ref: JournalRef = { journalId: null, spool: null };
     if (offending !== null || !(error instanceof SecurityViolationError)) {
       // A blocked batch records the offending statement; any other failure records each one.
-      const stmts = offending !== null ? [offending] : queries.map((q) => q.query);
-      for (const [i, sql] of stmts.entries()) {
+      const stmts = offending !== null ? [offending] : queries;
+      for (const [i, q] of stmts.entries()) {
         const r = await journalFailure(
           ctx,
-          { database, tool: 'sql_batch_query', sql, batchId },
+          { database, tool: 'sql_batch_query', sql: q.query, batchId, ...paramsFlag(q.params) },
           error,
           i === 0 ? schemaChanges : []
         );

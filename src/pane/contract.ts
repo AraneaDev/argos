@@ -17,6 +17,8 @@ export interface JournalEntry {
   outcome: Outcome;
   reason?: string;
   schemaChange?: SchemaChange[];
+  /** Claude passed bound parameters; the SQL alone cannot be rerun faithfully. */
+  hasParams?: boolean;
   spool: string | null;
 }
 

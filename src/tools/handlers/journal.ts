@@ -15,11 +15,17 @@ export interface JournalRef {
   spool: string | null;
 }
 
+/** `{ hasParams: true }` when a statement carried bound parameters, else nothing. */
+export function paramsFlag(params: unknown[] | undefined): { hasParams?: true } {
+  return params && params.length > 0 ? { hasParams: true } : {};
+}
+
 interface Base {
   database: string;
   tool: JournalEntry['tool'];
   sql: string;
   batchId?: string;
+  hasParams?: boolean;
 }
 
 async function guarded(

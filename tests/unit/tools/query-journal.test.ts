@@ -96,6 +96,49 @@ describe('query journaling', () => {
     expect(e.reason).toBeTruthy();
   });
 
+  it('marks a sql_query that used params, and leaves others unmarked', async () => {
+    const ctx = makeCtx(store);
+    await handleSqlQuery(ctx, { database: 'db', query: 'SELECT $1', params: [1] });
+    await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1', params: [] });
+    (ctx.connectionManager.executeQuery as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+    await handleSqlQuery(ctx, { database: 'db', query: 'SELECT $2', params: ['x'] });
+    const [failed, plain, withParams] = await store.history();
+    expect(withParams).toMatchObject({ sql: 'SELECT $1', hasParams: true });
+    expect(plain).not.toHaveProperty('hasParams');
+    expect(failed).toMatchObject({ sql: 'SELECT $2', outcome: 'error', hasParams: true });
+  });
+
+  it('marks batch statements that used params, ok, failed and blocked alike', async () => {
+    const ctx = makeCtx(store);
+    (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+      results: [
+        { index: 0, query: 'SELECT $1', success: true, data: okResult(1) },
+        { index: 1, query: 'SELECT 2', success: false, error: 'boom' },
+      ],
+      successCount: 1,
+      failureCount: 1,
+      totalExecutionTime: 1,
+    });
+    await handleBatchQuery(ctx, {
+      database: 'db',
+      queries: [{ query: 'SELECT $1', params: ['a'] }, { query: 'SELECT 2' }],
+    });
+    const [second, first] = await store.history();
+    expect(first).toMatchObject({ sql: 'SELECT $1', hasParams: true });
+    expect(second).not.toHaveProperty('hasParams');
+
+    (ctx.securityManager.validateSelectOnlyQuery as jest.Mock).mockReturnValue({
+      allowed: false,
+      reason: 'no',
+    });
+    await handleBatchQuery(ctx, {
+      database: 'db',
+      queries: [{ query: 'DELETE $1', params: ['a'] }],
+    });
+    const [blocked] = await store.history();
+    expect(blocked).toMatchObject({ sql: 'DELETE $1', outcome: 'blocked', hasParams: true });
+  });
+
   it('records schema changes on the entry', async () => {
     const ctx = makeCtx(store);
     const changes = [{ kind: 'column-added', table: 't', column: 'c', type: 'int' }];

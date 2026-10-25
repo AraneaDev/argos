@@ -4,7 +4,6 @@
  */
 
 import type { ConnectionView, JournalEntry, Pin, SchemaView, SpoolPage } from '../pane/contract.js';
-import type { SchemaChange as _SC } from '../schema/diff.js';
 import type { SchemaChange } from '../schema/diff.js';
 import { sanitizeError } from '../utils/error-handler.js';
 import type { PaneCommandKind } from './commands.js';
