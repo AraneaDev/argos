@@ -1,6 +1,6 @@
 # Installation Tutorial
 
-This tutorial walks you through installing and setting up the Argos-MCP from start to finish.
+This tutorial walks you through installing and setting up the Argos from start to finish.
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ This tutorial walks you through installing and setting up the Argos-MCP from sta
 
 ### Supported Databases
 
-The Argos-MCP supports these database systems:
+The Argos supports these database systems:
 
 - **PostgreSQL** 11+ (including Amazon RDS, Google Cloud SQL, Azure Database)
 - **MySQL** 5.7+ and MariaDB 10.3+ (including cloud variants)
@@ -28,12 +28,12 @@ The Argos-MCP supports these database systems:
 The fastest way to get started. Registration is handled by Claude Code's own CLI:
 
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git
-cd Argos-MCP
+git clone https://github.com/AraneaDev/argos.git
+cd Argos
 npm install && npm run build
 
 claude mcp add argos --scope user -- \
-  node "$(pwd)/dist/index.js" --config "$HOME/.config/argos/config.ini"
+  node "$(pwd)/dist/cli.js" serve --config "$HOME/.config/argos/config.ini"
 ```
 
 Then add your databases with the `sql_add_database` MCP tool directly from Claude, or run `npm run setup` to write `~/.config/argos/config.ini` by hand.
@@ -45,25 +45,24 @@ yet — the publish step in the release workflow is deliberately dormant until t
 first public release — so `npm install -g argos-mcp` will not resolve.
 
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git
-cd Argos-MCP
+git clone https://github.com/AraneaDev/argos.git
+cd Argos
 npm install
 npm run build
 ```
 
 `npm run build` type-checks before compiling, so a successful build has already
-been type-checked. It produces two executables:
+been type-checked. It produces the `argos` command:
 
 ```
-dist/index.js   the MCP server
-dist/setup.js   the configuration wizard
+dist/cli.js   argos serve (the MCP server) and argos setup (the configuration wizard)
 ```
 
 **Version:**
 
 <!-- x-release-please-start-version -->
 ```
-Argos-MCP v4.1.8
+Argos v4.1.8
 ```
 <!-- x-release-please-end-version -->
 
@@ -74,7 +73,7 @@ server does.
 Optionally put the two commands on your `PATH`:
 
 ```bash
-npm link      # provides argos-mcp and argos-setup
+npm link      # provides the argos command
 ```
 
 ## Initial Configuration
@@ -87,7 +86,7 @@ The easiest way to configure the server is using the interactive setup wizard:
 # Run the setup wizard
 npm run setup
 # or if globally installed:
-argos-setup
+argos setup
 ```
 
 The wizard will guide you through:
@@ -103,7 +102,7 @@ The wizard will guide you through:
 Here's what the interactive setup looks like for PostgreSQL:
 
 ```
- Argos-MCP Setup
+ Argos Setup
 
 === Claude SQL Extension Configuration ===
 
@@ -186,14 +185,14 @@ EOF
 
 ```bash
 # Start the server
-argos-mcp
+argos serve
 # or if installed locally:
-npx argos-mcp
+npx @araneadev/argos serve
 ```
 
 **Expected Output:**
 ```
- Argos-MCP starting...
+ Argos starting...
  Loaded 1 database configuration(s):
  - primary (postgresql, SELECT-only)
  Security manager initialized
@@ -222,7 +221,7 @@ Testing primary...
 
 ```bash
 # Test MCP protocol communication
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | argos-mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | argos serve
 ```
 
 **Expected Response:**
@@ -280,7 +279,7 @@ Error: EACCES: permission denied, mkdir '/usr/local/lib/node_modules'
 sudo chown -R $(whoami) $(npm config get prefix)/{lib/node_modules,bin,share}
 
 # Or use npx instead of global install
-npx argos-mcp
+npx @araneadev/argos serve
 ```
 
 ### Issue 3: Database Connection Failed
@@ -467,28 +466,28 @@ password=${DB_PASSWORD}
 
 ```bash
 # Start with debug output
-DEBUG=argos:* argos-mcp
+DEBUG=argos:* argos serve
 
 # Start with custom config
-argos-mcp --config=/path/to/custom/config.ini
+argos serve --config=/path/to/custom/config.ini
 
 # Start with environment override
-NODE_ENV=development argos-mcp
+NODE_ENV=development argos serve
 ```
 
 ### Production Mode
 
 ```bash
 # Start as background service
-nohup argos-mcp > server.log 2>&1 &
+nohup argos serve > server.log 2>&1 &
 
 # Using systemd (Linux)
-sudo systemctl start argos-mcp
-sudo systemctl enable argos-mcp
+sudo systemctl start argos
+sudo systemctl enable argos
 
 # Using PM2 process manager
 npm install -g pm2
-pm2 start argos-mcp --name "argos"
+pm2 start argos --name "argos" -- serve
 pm2 startup
 pm2 save
 ```
@@ -499,7 +498,7 @@ pm2 save
 FROM node:22-alpine
 
 WORKDIR /app
-RUN git clone https://github.com/AraneaDev/Argos-MCP.git . \
+RUN git clone https://github.com/AraneaDev/argos.git . \
  && npm ci && npm run build
 
 COPY config.ini /etc/argos/config.ini
@@ -507,7 +506,7 @@ COPY config.ini /etc/argos/config.ini
 
 There is no port to expose and no long-running container to start. Argos speaks
 over stdio, so the image is only useful if the MCP client runs inside it and
-starts `node /app/dist/index.js --config /etc/argos/config.ini` as a child
+starts `node /app/dist/cli.js serve --config /etc/argos/config.ini` as a child
 process. An image that runs the server on its own has nothing talking to it and
 exits immediately.
 
@@ -524,28 +523,28 @@ After successful installation:
 
 ### Installation Commands
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git   # the supported install
+git clone https://github.com/AraneaDev/argos.git   # the supported install
 npm install && npm run build
-npm link                                               # optional: argos-mcp, argos-setup on PATH
+npm link                                               # optional: argos on PATH
 ```
 
 ### Configuration Commands
 ```bash
-argos-setup # Interactive configuration
-argos-setup --template=production # Generate template
-argos-setup --config=/path/to/config.ini # Custom config path
+argos setup # Interactive configuration
+argos setup --template=production # Generate template
+argos setup --config=/path/to/config.ini # Custom config path
 ```
 
 ### Server Commands
 ```bash
-argos-mcp # Start the server on stdio (Claude Code does this for you)
-argos-mcp --version # Show version
-argos-mcp --help # Show help
+argos serve # Start the server on stdio (Claude Code does this for you)
+argos version # Show version
+argos help # Show help
 ```
 
 ### Claude Code Registration
 ```bash
-claude mcp add argos --scope user -- node /abs/path/dist/index.js --config /abs/path/config.ini
+claude mcp add argos --scope user -- node /abs/path/dist/cli.js serve --config /abs/path/config.ini
 claude mcp list # Confirm argos is connected
 claude mcp get argos # Show the recorded command and scope
 claude mcp remove argos --scope user
@@ -577,4 +576,4 @@ Connection testing, schema inspection, and performance analysis are exposed as M
 
 ---
 
-** Congratulations!** You've successfully installed the Argos-MCP. Continue with the [Claude Integration Tutorial](03-claude-integration.md) to register it with Claude Code.
+** Congratulations!** You've successfully installed the Argos. Continue with the [Claude Integration Tutorial](03-claude-integration.md) to register it with Claude Code.

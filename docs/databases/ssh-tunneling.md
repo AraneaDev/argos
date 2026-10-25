@@ -1,10 +1,10 @@
 # SSH Tunneling Configuration Guide
 
-This guide covers SSH tunnel setup, configuration, and troubleshooting for secure database connections through the Argos-MCP.
+This guide covers SSH tunnel setup, configuration, and troubleshooting for secure database connections through the Argos.
 
 ## Overview
 
-SSH tunneling provides an additional security layer for database connections by encrypting traffic through a secure SSH connection. The Argos-MCP includes a comprehensive SSH tunnel manager that handles connection establishment, monitoring, and automatic reconnection.
+SSH tunneling provides an additional security layer for database connections by encrypting traffic through a secure SSH connection. The Argos includes a comprehensive SSH tunnel manager that handles connection establishment, monitoring, and automatic reconnection.
 
 **Use Cases:**
 - Connect to databases behind firewalls
@@ -792,7 +792,7 @@ Track tunnel performance:
 
 ## Conclusion
 
-SSH tunneling provides a robust, secure method for connecting to databases through the Argos-MCP. The built-in tunnel manager handles the complexity of SSH connections, port forwarding, and health monitoring while providing enterprise-grade reliability and security.
+SSH tunneling provides a robust, secure method for connecting to databases through the Argos. The built-in tunnel manager handles the complexity of SSH connections, port forwarding, and health monitoring while providing enterprise-grade reliability and security.
 
 Key benefits:
 - **Transparent Integration** - Works seamlessly with all database types

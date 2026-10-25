@@ -25,10 +25,10 @@ docker-compose up -d
 # 2. Wait for database initialization
 ./wait-for-postgres.sh
 
-# 3. Setup Argos-MCP configuration 
+# 3. Setup Argos configuration 
 ./setup-config.sh
 
-# 4. Start Argos-MCP
+# 4. Start Argos
 ./start-server.sh
 
 # 5. Run comprehensive tests
@@ -67,7 +67,7 @@ docker-compose up -d
 ```
 Claude Code
  v
-Argos-MCP (SELECT-only)
+Argos (SELECT-only)
  v
 PostgreSQL (Docker)
 |-- application schema (business data)
@@ -89,7 +89,7 @@ PostgreSQL (Docker)
  - `05-create-indexes.sql` - Performance indexes
  - `06-create-users.sql` - Security setup
 - `config/` - Configuration files
- - `production.ini` - Argos-MCP config
+ - `production.ini` - Argos config
  - `readonly-config.ini` - Readonly-only config
  - `monitoring-config.ini` - Monitoring enhanced config
 - `scripts/` - Utility scripts
@@ -343,7 +343,7 @@ After completing this demo, you'll understand:
 ## Related Resources
 
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Argos-MCP Security Guide](../../../docs/guides/security-guide.md)
+- [Argos Security Guide](../../../docs/guides/security-guide.md)
 - [Performance Tuning Guide](../../../docs/operations/performance-tuning.md)
 - [Monitoring Setup](../../../docs/operations/monitoring.md)
 
@@ -352,7 +352,7 @@ After completing this demo, you'll understand:
 - [ ] PostgreSQL containers start successfully
 - [ ] Database initialized with sample data
 - [ ] Readonly user created with proper permissions
-- [ ] Argos-MCP connects and validates config
+- [ ] Argos connects and validates config
 - [ ] All test queries execute successfully 
 - [ ] Performance benchmarks meet expectations
 - [ ] Monitoring data collection works

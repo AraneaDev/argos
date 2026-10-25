@@ -1,9 +1,9 @@
 #!/bin/bash
-# Start Argos-MCP for demo
+# Start Argos for demo
 
 set -e
 
-echo "[START] Starting Argos-MCP..."
+echo "[START] Starting Argos..."
 
 # Check if server is already running
 if [ -f "server.pid" ]; then
@@ -45,7 +45,7 @@ sleep 3
 
 # Check if server is running
 if ps -p $SERVER_PID > /dev/null 2>&1; then
-    echo "[OK] Argos-MCP started successfully"
+    echo "[OK] Argos started successfully"
     echo "   PID: $SERVER_PID"
     echo "   Config: config.ini"
     echo "   Database: demo.db"

@@ -1,5 +1,5 @@
 /**
- * Main Argos-MCP Class
+ * Main Argos Class
  * Slim lifecycle coordinator - tool definitions, handlers, and formatting
  * are extracted into src/tools/ and src/utils/response-formatter.ts
  */
@@ -58,7 +58,7 @@ function safeToolArgs(args: unknown): unknown {
 }
 
 /**
- * Main Argos-MCP class that coordinates all operations
+ * Main Argos class that coordinates all operations
  */
 /**
  * Read the configuration path from the command line.
@@ -114,7 +114,7 @@ export class SQLMCPServer extends EventEmitter {
     super();
 
     this.logger = new Logger({
-      logFile: join(PROJECT_ROOT, 'argos-mcp.log'),
+      logFile: join(PROJECT_ROOT, 'argos.log'),
       logLevel: 'INFO',
       component: 'SQLMCPServer',
       enableConsole: false,
@@ -144,7 +144,7 @@ export class SQLMCPServer extends EventEmitter {
    * Initialize the MCP server
    */
   public async initialize(configPath?: string): Promise<void> {
-    this.logger.info('Initializing Argos-MCP...');
+    this.logger.info('Initializing Argos...');
 
     try {
       this.loadConfig(configPath);
@@ -183,7 +183,7 @@ export class SQLMCPServer extends EventEmitter {
       this.dispatchToolCall = createToolDispatcher(ctx);
 
       this.initialized = true;
-      this.logger.info('Argos-MCP initialization complete');
+      this.logger.info('Argos initialization complete');
       this.emit('initialized');
     } catch (error) {
       this.logger.error('Failed to initialize server', error as Error);
@@ -218,7 +218,7 @@ export class SQLMCPServer extends EventEmitter {
       await this.initialize(resolveConfigPathFromArgv());
       const transport = new StdioServerTransport();
       await this.mcpServer.connect(transport);
-      this.logger.info('Argos-MCP running on stdio (MCP SDK transport)');
+      this.logger.info('Argos running on stdio (MCP SDK transport)');
     } catch (error) {
       this.logger.error('Server initialization failed', error as Error);
       // Write to stderr so the MCP client can see why startup failed

@@ -1,9 +1,9 @@
 #!/bin/bash
-# Test Argos-MCP functionality
+# Test Argos functionality
 
 set -e
 
-echo "[TEST] Testing Argos-MCP functionality..."
+echo "[TEST] Testing Argos functionality..."
 
 # Check if server is running
 if [ ! -f "server.pid" ]; then

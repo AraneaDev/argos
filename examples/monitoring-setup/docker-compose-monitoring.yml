@@ -191,7 +191,7 @@ networks:
 #    - Kibana: http://localhost:5601
 #    - Elasticsearch: http://localhost:9200
 #
-# 5. CONFIGURE Argos-MCP SERVER:
+# 5. CONFIGURE Argos SERVER:
 #    Add to your config.ini or environment:
 #    - Enable metrics endpoint on port 3001
 #    - Configure structured logging output

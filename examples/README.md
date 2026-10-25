@@ -1,6 +1,6 @@
-# Argos-MCP Examples
+# Argos Examples
 
-This directory contains comprehensive examples for deploying, configuring, and integrating Argos-MCP in various environments. From basic setups to enterprise deployments, these examples help you get started quickly and scale effectively.
+This directory contains comprehensive examples for deploying, configuring, and integrating Argos in various environments. From basic setups to enterprise deployments, these examples help you get started quickly and scale effectively.
 
 ## Directory Structure
 
@@ -60,7 +60,7 @@ npm start
 ```bash
 # Register the built server with Claude Code
 claude mcp add argos --scope user -- \
-  node "$(pwd)/dist/index.js" --config "$(pwd)/config.ini"
+  node "$(pwd)/dist/cli.js" serve --config "$(pwd)/config.ini"
 claude mcp list
 ```
 
@@ -131,7 +131,7 @@ cp examples/basic-setup/multiple-databases.ini config.ini
 ```bash
 # Register a read-only analytics database for the team
 claude mcp add argos-analytics --scope project -- \
-  node "$(pwd)/dist/index.js" --config "$(pwd)/analytics.ini"
+  node "$(pwd)/dist/cli.js" serve --config "$(pwd)/analytics.ini"
 # Review workflow templates in examples/claude-integrations/workflows/
 ```
 
@@ -235,7 +235,7 @@ const healthCheck = async () => {
  try {
  const response = await fetch('http://localhost:3001/health');
  const status = response.ok ? 'healthy' : 'unhealthy';
- console.log(`Argos-MCP: ${status}`);
+ console.log(`Argos: ${status}`);
  } catch (error) {
  console.error('Health check failed:', error.message);
  }

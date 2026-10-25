@@ -1,5 +1,5 @@
 /**
- * Performance analysis types for Argos-MCP
+ * Performance analysis types for Argos
  */
 
 // ============================================================================

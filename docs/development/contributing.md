@@ -1,6 +1,6 @@
-# Contributing to Argos-MCP
+# Contributing to Argos
 
-Thank you for your interest in contributing to Argos-MCP! This guide covers coding standards, project structure, and the review expectations for a change.
+Thank you for your interest in contributing to Argos! This guide covers coding standards, project structure, and the review expectations for a change.
 
 > For the mechanics — commit message format, the git hooks, and how a release is cut — see [CONTRIBUTING.md](../../CONTRIBUTING.md) in the repository root.
 
@@ -29,7 +29,7 @@ There are many ways to contribute to this project:
 1. **Clone the Repository**
  ```bash
  git clone <repository-url>
- cd Argos-MCP
+ cd Argos
  ```
 
 2. **Install Dependencies**
@@ -593,7 +593,7 @@ When debugging issues:
 
 ## Thank You!
 
-Every contribution, whether it's a bug report, feature suggestion, code change, or documentation improvement, helps make this project better for everyone. We appreciate your time and effort in contributing to the Argos-MCP!
+Every contribution, whether it's a bug report, feature suggestion, code change, or documentation improvement, helps make this project better for everyone. We appreciate your time and effort in contributing to the Argos!
 
 ---
 

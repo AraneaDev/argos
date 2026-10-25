@@ -1,10 +1,10 @@
-# Contributing to Argos-MCP
+# Contributing to Argos
 
 ## Getting set up
 
 ```bash
-git clone https://github.com/AraneaDev/Argos-MCP.git
-cd Argos-MCP
+git clone https://github.com/AraneaDev/argos.git
+cd Argos
 npm install     # installs deps and the git hooks (via husky)
 npm run build
 ```
@@ -71,10 +71,10 @@ Publishing to npm is wired up but dormant (`if: false` in `.github/workflows/rel
 
 ```bash
 npm run build
-claude mcp add argos-dev -- node "$(pwd)/dist/index.js" --config "$(pwd)/config.ini"
+claude mcp add argos-dev -- node "$(pwd)/dist/cli.js" serve --config "$(pwd)/config.ini"
 claude mcp list
 ```
 
 Use a distinct name like `argos-dev` so a working registration is not clobbered. Remove it with `claude mcp remove argos-dev`. MCP servers are resolved at session start, so restart Claude Code after a rebuild.
 
-Never write to stdout from server code — stdout carries the JSON-RPC stream and anything else on it corrupts the protocol. Use the logger, which writes to `argos-mcp.log`.
+Never write to stdout from server code — stdout carries the JSON-RPC stream and anything else on it corrupts the protocol. Use the logger, which writes to `argos.log`.

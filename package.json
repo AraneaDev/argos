@@ -1,23 +1,24 @@
 {
   "name": "argos-mcp",
   "version": "4.1.8",
-  "description": "Argos-MCP - the hundred-eyed MCP server for SQL databases, with support for PostgreSQL, MySQL, SQLite, MSSQL, and SSH tunnels",
+  "description": "Argos - the hundred-eyed MCP server for SQL databases, with support for PostgreSQL, MySQL, SQLite, MSSQL, and SSH tunnels",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
+    "argos": "./dist/cli.js",
     "argos-mcp": "./dist/index.js",
     "argos-setup": "./dist/setup.js"
   },
   "scripts": {
-    "build": "npm run clean && tsc && chmod +x dist/index.js dist/setup.js",
+    "build": "npm run clean && tsc && chmod +x dist/cli.js dist/index.js dist/setup.js",
     "build:fast": "npm run clean && npm run build:esbuild",
-    "build:esbuild": "esbuild src/index.ts src/setup.ts --bundle --platform=node --outdir=dist --external:mssql --external:mysql2 --external:pg --external:sqlite3 --external:ssh2 --external:ini --format=esm --sourcemap --minify && chmod +x dist/index.js dist/setup.js",
+    "build:esbuild": "esbuild src/cli.ts src/index.ts src/setup.ts --bundle --platform=node --outdir=dist --external:mssql --external:mysql2 --external:pg --external:sqlite3 --external:ssh2 --external:ini --format=esm --sourcemap --minify && chmod +x dist/cli.js dist/index.js dist/setup.js",
     "build:production": "npm run clean && npm run lint && npm run test && npm run build",
     "build:watch": "tsc --watch",
     "dev": "npm run build:watch",
-    "start": "node dist/index.js",
-    "setup": "node dist/setup.js",
+    "start": "node dist/cli.js serve",
+    "setup": "node dist/cli.js setup",
     "test": "jest --passWithNoTests",
     "test:unit": "jest tests/unit --passWithNoTests",
     "test:integration": "jest tests/integration --passWithNoTests",
@@ -33,18 +34,18 @@
     "validate": "npm run lint:check && npm run format:check && npm run type-check && npm run type-check:tests && npm run type-check:examples && npm run test",
     "validate-docs": "node scripts/validate-documentation.js",
     "prepack": "npm run build:production",
-    "generate-template": "node dist/setup.js --template",
+    "generate-template": "node dist/cli.js setup --template",
     "prepare": "husky",
     "type-check:tests": "tsc -p tests/tsconfig.json --noEmit",
     "type-check:examples": "tsc -p examples/tsconfig.json --noEmit"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AraneaDev/Argos-MCP.git"
+    "url": "git+https://github.com/AraneaDev/argos.git"
   },
-  "homepage": "https://github.com/AraneaDev/Argos-MCP#readme",
+  "homepage": "https://github.com/AraneaDev/argos#readme",
   "bugs": {
-    "url": "https://github.com/AraneaDev/Argos-MCP/issues"
+    "url": "https://github.com/AraneaDev/argos/issues"
   },
   "lint-staged": {
     "{src,tests}/**/*.ts": "prettier --write",

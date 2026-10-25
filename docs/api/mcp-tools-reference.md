@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-This document provides comprehensive documentation for all MCP tools exposed by the Argos-MCP. These tools enable Claude Code to interact with your configured databases securely and efficiently.
+This document provides comprehensive documentation for all MCP tools exposed by the Argos. These tools enable Claude Code to interact with your configured databases securely and efficiently.
 
 ## Feature Status
 

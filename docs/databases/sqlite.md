@@ -1,10 +1,10 @@
 # SQLite Database Configuration Guide
 
-This guide covers SQLite setup, configuration, and optimization for the Argos-MCP.
+This guide covers SQLite setup, configuration, and optimization for the Argos.
 
 ## Overview
 
-The Argos-MCP provides comprehensive SQLite support through the `sqlite3` driver, offering lightweight, serverless database connectivity perfect for development, testing, and single-user applications.
+The Argos provides comprehensive SQLite support through the `sqlite3` driver, offering lightweight, serverless database connectivity perfect for development, testing, and single-user applications.
 
 **Supported Versions:**
 - SQLite 3.x (all versions)
@@ -596,7 +596,7 @@ ORDER BY month DESC;
 
 ## Conclusion
 
-SQLite provides an excellent lightweight database solution for the Argos-MCP, offering:
+SQLite provides an excellent lightweight database solution for the Argos, offering:
 
 - **Zero configuration** for simple use cases
 - **High performance** for read-heavy workloads

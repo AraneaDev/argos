@@ -86,7 +86,7 @@ async function checkVersionConsistency(results) {
     const filesToCheck = [
       { file: 'src/types/index.ts', pattern: /SERVER_VERSION = '([^']+)'/g, name: 'SERVER_VERSION' },
       { file: 'docs/api/typescript-api.md', pattern: /as of v([0-9]+\.[0-9]+\.[0-9]+)\.?\s/g, name: 'TypeScript API docs' },
-      { file: 'docs/tutorials/01-installation.md', pattern: /Argos-MCP v([0-9.]+)/g, name: 'Installation tutorial' }
+      { file: 'docs/tutorials/01-installation.md', pattern: /Argos v([0-9.]+)/g, name: 'Installation tutorial' }
     ];
 
     for (const { file, pattern, name } of filesToCheck) {

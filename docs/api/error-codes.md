@@ -1,6 +1,6 @@
 # Error Codes Reference
 
-This document provides a comprehensive reference for all error codes and error handling patterns used in the Argos-MCP.
+This document provides a comprehensive reference for all error codes and error handling patterns used in the Argos.
 
 ## Error Code Categories
 
@@ -403,7 +403,7 @@ interface SecurityViolationError {
 **Default Location**: ./config.ini
 
 **Resolution Steps**:
-1. Run `argos-setup` to create configuration
+1. Run `argos setup` to create configuration
 2. Verify config.ini exists in working directory
 3. Check file permissions
 4. Specify custom config path

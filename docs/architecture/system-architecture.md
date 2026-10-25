@@ -1,6 +1,6 @@
 # System Architecture
 
-The Argos-MCP follows a layered, modular architecture designed for security, performance, and maintainability. This document provides a comprehensive overview of the system design, component interactions, and architectural decisions.
+The Argos follows a layered, modular architecture designed for security, performance, and maintainability. This document provides a comprehensive overview of the system design, component interactions, and architectural decisions.
 
 ## High-Level Architecture
 

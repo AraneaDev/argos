@@ -1,4 +1,4 @@
-# Argos-MCP Alerting Rules
+# Argos Alerting Rules
 # These rules define alerts for various conditions that require attention
 
 groups:
@@ -7,15 +7,15 @@ groups:
     rules:
       # Server Down Alert
       - alert: SQLMCPServerDown
-        expr: up{job="argos-mcp"} == 0
+        expr: up{job="argos"} == 0
         for: 1m
         labels:
           severity: critical
-          service: argos-mcp
+          service: argos
         annotations:
-          summary: "Argos-MCP is down"
-          description: "Argos-MCP has been down for more than 1 minute. Last seen {{ $value }} seconds ago."
-          runbook_url: "https://your-runbook-url.com/argos-mcp-down"
+          summary: "Argos is down"
+          description: "Argos has been down for more than 1 minute. Last seen {{ $value }} seconds ago."
+          runbook_url: "https://your-runbook-url.com/argos-down"
 
       # High Error Rate Alert
       - alert: SQLMCPHighErrorRate
@@ -23,9 +23,9 @@ groups:
         for: 5m
         labels:
           severity: critical
-          service: argos-mcp
+          service: argos
         annotations:
-          summary: "High error rate in Argos-MCP"
+          summary: "High error rate in Argos"
           description: "Error rate is {{ $value }}% over the last 5 minutes, which is above the 5% threshold."
           runbook_url: "https://your-runbook-url.com/high-error-rate"
 
@@ -35,7 +35,7 @@ groups:
         for: 2m
         labels:
           severity: critical
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "Database connection failures detected"
           description: "{{ $value }} database connection failures detected in the last 2 minutes for database {{ $labels.database }}."
@@ -50,9 +50,9 @@ groups:
         for: 10m
         labels:
           severity: warning
-          service: argos-mcp
+          service: argos
         annotations:
-          summary: "High query latency in Argos-MCP"
+          summary: "High query latency in Argos"
           description: "95th percentile query latency is {{ $value }}s, which is above the 1.0s threshold."
           runbook_url: "https://your-runbook-url.com/high-query-latency"
 
@@ -62,7 +62,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "Connection pool utilization is high"
           description: "Connection pool utilization is {{ $value }}% for database {{ $labels.database }}, above 80% threshold."
@@ -74,7 +74,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "High memory usage detected"
           description: "Available memory is {{ $value }}%, which is below 20% threshold."
@@ -86,7 +86,7 @@ groups:
         for: 10m
         labels:
           severity: warning
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "High CPU usage detected"
           description: "CPU usage is {{ $value }}%, which is above 80% threshold."
@@ -101,7 +101,7 @@ groups:
         for: 1m
         labels:
           severity: warning
-          service: argos-mcp
+          service: argos
           category: security
         annotations:
           summary: "Multiple failed authentication attempts"
@@ -114,7 +114,7 @@ groups:
         for: 2m
         labels:
           severity: warning
-          service: argos-mcp
+          service: argos
           category: security
         annotations:
           summary: "Security policy violations detected"
@@ -130,7 +130,7 @@ groups:
         for: 5m
         labels:
           severity: info
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "Query volume spike detected"
           description: "Current query rate {{ $value }} is 3x higher than the hourly average."
@@ -142,7 +142,7 @@ groups:
         for: 1m
         labels:
           severity: info
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "Large result sets detected"
           description: "Query returned result set larger than 10MB: {{ $value }} bytes."
@@ -154,7 +154,7 @@ groups:
         for: 1m
         labels:
           severity: info
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "Slow query detected"
           description: "Query took {{ $value }} seconds to complete, above 30s threshold."
@@ -169,7 +169,7 @@ groups:
         for: 2m
         labels:
           severity: critical
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "Database {{ $labels.database }} is unavailable"
           description: "Database {{ $labels.database }} has been unavailable for more than 2 minutes."
@@ -181,7 +181,7 @@ groups:
         for: 1m
         labels:
           severity: info
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "Database schema changes detected"
           description: "{{ $value }} schema changes detected in database {{ $labels.database }} in the last hour."
@@ -196,7 +196,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "Low disk space"
           description: "Disk space is {{ $value }}% available on {{ $labels.device }}, below 10% threshold."
@@ -208,7 +208,7 @@ groups:
         for: 5m
         labels:
           severity: warning
-          service: argos-mcp
+          service: argos
         annotations:
           summary: "High query concurrency"
           description: "{{ $value }} concurrent queries detected, above recommended limit of 50."

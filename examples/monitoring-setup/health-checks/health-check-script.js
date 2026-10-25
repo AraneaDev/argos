@@ -1,7 +1,7 @@
 /**
- * Argos-MCP Health Check Script
+ * Argos Health Check Script
  * 
- * This script performs comprehensive health checks on Argos-MCP
+ * This script performs comprehensive health checks on Argos
  * including connectivity, performance, and functionality tests.
  * 
  * Usage:
@@ -378,7 +378,7 @@ function makeHttpRequest(path, method = 'GET', data = null) {
 
 // Output formatters
 function outputConsole() {
-  console.log('\n=== Argos-MCP Health Check Results ===\n');
+  console.log('\n=== Argos Health Check Results ===\n');
   
   console.log(`Overall Status: ${results.overall.toUpperCase()}`);
   console.log(`Check Duration: ${results.duration.toFixed(2)}ms`);
@@ -405,7 +405,7 @@ function outputJson() {
 }
 
 function outputPrometheus() {
-  console.log('# Argos-MCP Health Check Metrics');
+  console.log('# Argos Health Check Metrics');
   console.log(`# Generated at ${results.timestamp}`);
   console.log();
   
@@ -436,7 +436,7 @@ function outputPrometheus() {
 async function runHealthChecks() {
   const overallStartTime = performance.now();
   
-  log('Starting Argos-MCP health checks...');
+  log('Starting Argos health checks...');
   
   // Run all health checks
   const checks = [
@@ -493,7 +493,7 @@ if (process.argv.includes('--config')) {
 
 if (process.argv.includes('--help')) {
   console.log(`
-Argos-MCP Health Check Script
+Argos Health Check Script
 
 Usage: node health-check-script.js [options]
 

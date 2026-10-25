@@ -166,8 +166,8 @@ should be refused, and the reason should say why:
 Then check the record of it:
 
 ```bash
-grep -i "Query blocked" argos-mcp.log
-tail ~/.argos-mcp/audit/production.log
+grep -i "Query blocked" argos.log
+tail ~/.argos/audit/production.log
 ```
 
 The audit log holds a hash of each statement rather than the statement, and the

@@ -1,10 +1,10 @@
 # Testing Guide
 
-This guide covers testing strategies, frameworks, and best practices for the Argos-MCP project.
+This guide covers testing strategies, frameworks, and best practices for the Argos project.
 
 ## Overview
 
-The Argos-MCP achieves **90%+ test coverage** with a comprehensive testing strategy using Jest as the primary testing framework. Our testing approach ensures high-quality, reliable code through unit tests, integration tests, and automated testing workflows.
+The Argos achieves **90%+ test coverage** with a comprehensive testing strategy using Jest as the primary testing framework. Our testing approach ensures high-quality, reliable code through unit tests, integration tests, and automated testing workflows.
 
 ## Test Coverage Status
 
@@ -1236,7 +1236,7 @@ Error: JavaScript heap out of memory
 
 ## Conclusion
 
-The Argos-MCP testing strategy provides comprehensive coverage through:
+The Argos testing strategy provides comprehensive coverage through:
 
 - **Multiple test types** (unit, integration, performance)
 - **Custom matchers** for domain-specific validation
