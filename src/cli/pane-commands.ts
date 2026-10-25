@@ -1,0 +1,99 @@
+/**
+ * The pane's read-only commands. Each returns the JSON value printed on stdout;
+ * `runPaneCommand` wraps that in the exit-code contract.
+ */
+
+import type { ConnectionView, SchemaView } from '../pane/contract.js';
+import type { SchemaChange } from '../schema/diff.js';
+import { sanitizeError } from '../utils/error-handler.js';
+import type { PaneCommandKind } from './commands.js';
+import { openCore, type Core } from './core.js';
+
+const LAST_CHANGE_SCAN = 500;
+
+/** List configured connections without opening any of them. */
+export async function connections(core: Core): Promise<ConnectionView[]> {
+  return Object.entries(core.config.databases).map(([name, c]) => ({
+    name,
+    type: c.type,
+    host: c.host ?? null,
+    ssh: !!c.ssh_host,
+    ssl: !!c.ssl,
+    selectOnly: c.select_only !== false,
+    mcpConfigurable: !!c.mcp_configurable,
+    schemaCapturedAt: core.schemaManager.getSchema(name)?.captured_at ?? null,
+  }));
+}
+
+/** Cached schema (captured once if absent), or a fresh capture with `refresh`. */
+export async function schema(core: Core, db: string, refresh: boolean): Promise<SchemaView> {
+  const config = core.config.databases[db];
+  if (!config) throw new Error(`Unknown database '${db}'`);
+  let s = core.schemaManager.getSchema(db);
+  if (refresh && s) s = await core.schemaManager.refreshSchema(db);
+  else if (!s) s = await core.schemaManager.captureSchema(db, config);
+
+  let lastChange: SchemaChange[] | null = null;
+  for (const e of await core.store.history({ limit: LAST_CHANGE_SCAN })) {
+    if (e.database === db && e.schemaChange && e.schemaChange.length > 0) {
+      lastChange = e.schemaChange;
+      break;
+    }
+  }
+  return {
+    database: db,
+    type: s.type,
+    capturedAt: s.captured_at ?? null,
+    tables: Object.values(s.tables ?? {}),
+    views: Object.values(s.views ?? {}),
+    lastChange,
+  };
+}
+
+function positional(args: string[]): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a === '--config') i++;
+    else if (!a.startsWith('--')) return a;
+  }
+  return undefined;
+}
+
+export interface PaneOutcome {
+  json: unknown;
+  code: number;
+}
+
+/**
+ * Run one pane subcommand: the value for stdout and the exit code.
+ * Never throws; failures become `{ error }` with code 1.
+ * @param kind - subcommand
+ * @param args - arguments after it
+ * @param schemaPath - schema cache directory override (tests)
+ */
+export async function runPaneCommand(
+  kind: PaneCommandKind,
+  args: string[],
+  schemaPath?: string
+): Promise<PaneOutcome> {
+  let core: Core | undefined;
+  try {
+    switch (kind) {
+      case 'connections':
+        core = await openCore(args, schemaPath);
+        return { json: await connections(core), code: 0 };
+      case 'schema': {
+        const db = positional(args);
+        if (!db) throw new Error('Usage: argos schema <db> [--refresh]');
+        core = await openCore(args, schemaPath);
+        return { json: await schema(core, db, args.includes('--refresh')), code: 0 };
+      }
+      default:
+        return { json: { error: 'not implemented yet' }, code: 1 };
+    }
+  } catch (error) {
+    return { json: { error: sanitizeError(error) }, code: 1 };
+  } finally {
+    await core?.close();
+  }
+}

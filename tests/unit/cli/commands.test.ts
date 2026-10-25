@@ -42,10 +42,43 @@ describe('resolveCommand', () => {
   });
 });
 
+describe('pane subcommands', () => {
+  it.each([
+    'connections',
+    'schema',
+    'query',
+    'history',
+    'result',
+    'pin',
+    'unpin',
+    'pins',
+    'install-plugin',
+  ])('resolves %s, passing what follows through', (kind) => {
+    expect(resolveCommand([kind, 'demo', '--refresh'])).toEqual({
+      kind,
+      args: ['demo', '--refresh'],
+    });
+  });
+});
+
 describe('usage', () => {
   it('lists every subcommand', () => {
     const text = usage();
-    for (const sub of ['serve', 'setup', 'help', 'version']) {
+    for (const sub of [
+      'serve',
+      'setup',
+      'help',
+      'version',
+      'connections',
+      'schema',
+      'query',
+      'history',
+      'result',
+      'pin',
+      'unpin',
+      'pins',
+      'install-plugin',
+    ]) {
       expect(text).toContain(`argos ${sub}`);
     }
   });

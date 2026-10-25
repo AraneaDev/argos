@@ -1,4 +1,5 @@
 import type { SchemaChange } from '../schema/diff.js';
+import type { TableInfo } from '../types/database.js';
 
 export type Source = 'claude' | 'pane';
 export type Outcome = 'ok' | 'error' | 'blocked';
@@ -36,3 +37,25 @@ export interface Pin {
   createdAt: string;
   lastJournalId: string | null;
 }
+
+export interface ConnectionView {
+  name: string;
+  type: string;
+  host: string | null;
+  ssh: boolean;
+  ssl: boolean;
+  selectOnly: boolean;
+  mcpConfigurable: boolean;
+  schemaCapturedAt: string | null;
+}
+
+export interface SchemaView {
+  database: string;
+  type: string;
+  capturedAt: string | null;
+  tables: TableInfo[];
+  views: TableInfo[];
+  lastChange: SchemaChange[] | null;
+}
+
+export type CliError = { error: string };

@@ -28,6 +28,21 @@ switch (command.kind) {
   case 'help':
     process.stdout.write(usage());
     break;
+  case 'connections':
+  case 'schema':
+  case 'query':
+  case 'history':
+  case 'result':
+  case 'pin':
+  case 'unpin':
+  case 'pins':
+  case 'install-plugin': {
+    const { runPaneCommand } = await import('./cli/pane-commands.js');
+    const { json, code } = await runPaneCommand(command.kind, command.args);
+    process.stdout.write(JSON.stringify(json) + '\n');
+    process.exitCode = code;
+    break;
+  }
   case 'unknown':
     process.stderr.write(`argos: unknown command '${command.name}'\n\n${usage()}`);
     process.exitCode = 1;
