@@ -20,7 +20,7 @@ import { QUERY_TIMEOUT_MS, runCli } from './cli'
 import { runEditor } from './editor'
 import { moreHistory, refreshSchema, reloadPins, reloadQueries, request, requestQueries, requestSchema, selectedEntry, showResultPage } from './loaders'
 import type { Port } from './port'
-import { focusField, mod } from './state'
+import { focusField, forgetSeeds, mod } from './state'
 
 /**
  * What the pane's elements do: a press (a Button, by its id, from the surface
@@ -78,7 +78,10 @@ async function nextConnection(io: Port): Promise<void> {
     return editing ? { ...v, db: list[to]!.name, marker: { ...v.marker, connections: to } } : { ...v, db: list[to]!.name, filter: '', filtering: false, marker: { ...v.marker, schema: 0, connections: to } }
   })
   if (editing) focusField(io, 'sql')
-  else await requestSchema(io)
+  else {
+    forgetSeeds()
+    await requestSchema(io)
+  }
 }
 
 /** `q`: a hundred rows of the marked table, in the Editor, which opens. */
@@ -87,6 +90,7 @@ async function putQuery(io: Port): Promise<void> {
   if (marked === null) return
   await io.state.draft.update(() => sqlOf(marked.table.name, marked.engine))
   await io.state.view.update(v => ({ ...v, tab: 'editor', filtering: false }))
+  forgetSeeds()
   focusField(io, 'sql')
 }
 
@@ -102,6 +106,7 @@ async function copyCreate(io: Port, _rest: string, surface: RenderSurface | unde
 async function toggleFilter(io: Port): Promise<void> {
   const open = (await io.state.view.read()).filtering
   await io.state.view.update(v => (open ? { ...v, filter: '', filtering: false, marker: { ...v.marker, schema: 0 } } : { ...v, filtering: true }))
+  forgetSeeds()
   if (!open) focusField(io, 'filter')
 }
 
@@ -148,6 +153,7 @@ async function editEntry(io: Port): Promise<void> {
   if (entry === null) return
   await io.state.draft.update(() => entry.sql)
   await io.state.view.update(v => ({ ...v, tab: 'editor', db: entry.database, filtering: false }))
+  forgetSeeds()
   focusField(io, 'sql')
 }
 
@@ -255,6 +261,7 @@ export const PRESSES: ReadonlyMap<string, Press> = new Map<string, Press>([
       const tab = rest as PaneTab
       if (!TABS.some(t => t.id === tab)) return
       await io.state.view.update(v => ({ ...v, tab, filtering: false }))
+      forgetSeeds()
       if (tab === 'schema') await requestSchema(io)
       if (tab === 'queries') await requestQueries(io)
       if (tab === 'editor') focusField(io, 'sql')

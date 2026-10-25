@@ -14,7 +14,7 @@ import { cells } from '../lib/text'
 import type { Row, Segment } from '../lib/types'
 import type { Handlers } from './actions'
 import type { Port } from './port'
-import { fieldKey, mod } from './state'
+import { fieldKey, mod, seedOf } from './state'
 
 /** A segment no press or field sets apart: plain text. */
 const plain = (s: Segment): boolean => s.press === undefined && s.field === undefined
@@ -73,11 +73,12 @@ function drawSegment(act: Handlers, ui: Elements[RenderSurface], s: Segment, ter
   // A Button draws exactly its segment's cells: only a tint needs a Box under it.
   const ground = (key: string, element: RenderNode) => (s.bg === undefined ? element : framed(element, `${key}-bg`, s.bg))
   if (s.field && Input !== undefined) {
-    // Under a new key at each run (`epoch`): the input empties itself on Enter, and only a new one holds the draft again.
+    // The value is the field's seed, never the text as typed (see `seeds`). Under a new key at each run (`epoch`): the input empties itself on Enter, and only a new one holds the draft again.
+    const key = fieldKey(s.field.id, s.field.epoch)
     return framed(
       <Input
-        key={fieldKey(s.field.id, s.field.epoch)}
-        value={s.field.value}
+        key={key}
+        value={seedOf(key, s.field.value)}
         placeholder={s.field.placeholder}
         submitLabel="run"
         autoFocus

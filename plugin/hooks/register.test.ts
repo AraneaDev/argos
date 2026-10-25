@@ -369,7 +369,8 @@ describe('typing in a field', () => {
     expect(w.copied).toHaveLength(0)
     expect(w.toasts).toHaveLength(0)
     const field = await ui.find({ type: 'Input', key: 'field:filter' })
-    expect(field?.props.value).toBe('nqrcf')
+    // The field keeps what was typed itself; the pane draws it with the text it opened with.
+    expect(field?.props.value).toBe('')
     expect((await ui.find({ key: 'tab:schema-bg' })) !== undefined).toBe(true)
   })
 })

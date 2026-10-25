@@ -145,7 +145,23 @@ export function initialEditor() {
   return {
     /** Set by Enter: the field empties itself then, and that edit (an empty text) is the field's own, not the person's. */
     submitted: false,
+    /**
+     * The text each field (by its key) was first drawn with. The engine keeps what the person types in a field
+     * and sets it back whenever a drawing's `value` differs from the one before, so a drawing that lands while
+     * they type, carrying an older text, would drop the keys typed since. A field is drawn with its seed alone.
+     */
+    seeds: {} as Record<string, string>,
   }
+}
+
+/** The text field `key` is drawn with: the one it first got, whatever has been typed since. */
+export function seedOf(key: string, current: string): string {
+  return (mod.editor.seeds[key] ??= current)
+}
+
+/** The fields are drawn from their text again: after a tab change or the filter opening or closing, when they mount anew. */
+export function forgetSeeds(): void {
+  mod.editor.seeds = {}
 }
 
 /** The CLI runner's own state (`cli.ts`). */
