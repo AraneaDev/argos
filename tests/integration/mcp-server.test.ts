@@ -1,10 +1,16 @@
 import { SQLMCPServer, resolveConfigPathFromArgv } from '../../src/classes/SQLMCPServer.js';
 import { TestConfigFixtures } from '../fixtures/test-configs.js';
 import { SampleQueries } from '../fixtures/sample-queries.js';
-import type { MCPRequest } from '../../src/types/mcp.js';
 
 // The MCP SDK routes tools/list and tools/call to these two methods and wraps the
 // JSON-RPC envelope itself; this does the routing for tests.
+interface MCPRequest {
+  jsonrpc: '2.0';
+  id: string | number;
+  method: string;
+  params?: unknown;
+}
+
 async function handle(server: SQLMCPServer, request: MCPRequest): Promise<{ result: any }> {
   const params = request.params as { name: string; arguments?: Record<string, unknown> };
   const result =

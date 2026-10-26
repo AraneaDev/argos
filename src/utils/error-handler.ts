@@ -16,19 +16,6 @@ export class SQLMCPError extends Error {
     this.name = 'SQLMCPError';
     Error.captureStackTrace(this, this.constructor);
   }
-
-  /**
-   * Convert error to JSON representation
-   */
-  toJSON(): Record<string, unknown> {
-    return {
-      name: this.name,
-      message: this.message,
-      code: this._code,
-      details: this._details,
-      stack: this.stack,
-    };
-  }
 }
 
 /**

@@ -33,9 +33,6 @@ export { MSSQL_AUTHENTICATION_MODES } from './database.js';
 
 // MCP protocol types
 export type {
-  MCPMessage,
-  MCPError,
-  MCPRequest,
   MCPToolContent,
   MCPToolResponse,
   SQLQueryArgs,

@@ -40,17 +40,6 @@ describe('error-handler', () => {
       const err = new SQLMCPError('msg', 'CODE');
       expect(err.stack).toBeDefined();
     });
-
-    it('should serialize to JSON', () => {
-      const err = new SQLMCPError('test', 'CODE', { foo: 'bar' });
-      const json = err.toJSON();
-
-      expect(json.name).toBe('SQLMCPError');
-      expect(json.message).toBe('test');
-      expect(json.code).toBe('CODE');
-      expect(json.details).toEqual({ foo: 'bar' });
-      expect(json.stack).toBeDefined();
-    });
   });
 
   describe('SecurityViolationError', () => {
