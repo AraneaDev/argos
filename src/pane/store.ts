@@ -101,7 +101,10 @@ export class PaneStore {
     });
   }
 
-  /** Yield journal lines newest first, reading the file backwards in chunks. */
+  /**
+   * Read journal lines newest first, reading the file backwards in chunks.
+   * @yields {string} each line, without its newline
+   */
   private async *linesBackwards(): AsyncGenerator<string> {
     let fh;
     try {

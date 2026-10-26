@@ -8,8 +8,7 @@ import type { ConnectionPool as MSSQLConnectionPool, IResult, config as MSSQLCon
 // reachable only via `.default` under real Node ESM — `import * as sql; sql.ConnectionPool`
 // is `undefined` at runtime and connect crashes. Resolve the concrete module object (works
 // for the real package via `.default` and for the jest mock, which has no `.default`).
-const sql = ((sqlNs as unknown as { default?: typeof import('mssql') }).default ??
-  sqlNs) as typeof import('mssql');
+const sql = ((sqlNs as unknown as { default?: typeof sqlNs }).default ?? sqlNs) as typeof sqlNs;
 import { DatabaseAdapter } from './base.js';
 import type {
   DatabaseConnection,
@@ -29,7 +28,7 @@ import type {
  */
 /**
  * Whether a connect failure came from acquiring the token rather than from the
- * connection itself. @azure/identity raises these two; everything else --- a
+ * connection itself. `@azure/identity` raises these two; everything else --- a
  * firewall, a private-endpoint-only server, a wrong database name --- arrives
  * as a driver ConnectionError, and pointing the user at `az login` for one of
  * those sends them somewhere the problem is not.
@@ -171,9 +170,9 @@ export class MSSQLAdapter extends DatabaseAdapter {
   }
 
   /**
-   * Convert positional '?' placeholders to @paramN, ignoring '?' inside string
+   * Convert positional '?' placeholders to `@paramN`, ignoring '?' inside string
    * literals and comments so a literal question mark does not shift parameter
-   * order. Parameters are bound positionally as @param0..@paramN-1, so a slot
+   * order. Parameters are bound positionally as `@param0`..`@paramN-1`, so a slot
    * consumed by a question mark that was never a placeholder leaves the real
    * one referring to a variable that was never declared.
    */

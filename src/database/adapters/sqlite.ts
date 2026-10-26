@@ -9,8 +9,8 @@ import type { Database as SQLiteDatabase } from 'sqlite3';
 // exports), so `import * as sqlite3; sqlite3.Database` is `undefined` at runtime and connect
 // crashes with "Database is not a constructor". Resolve the concrete module object — this
 // works for the real package (uses `.default`) and for the jest mock (no `.default`).
-const sqlite3 = ((sqlite3Ns as unknown as { default?: typeof import('sqlite3') }).default ??
-  sqlite3Ns) as typeof import('sqlite3');
+const sqlite3 = ((sqlite3Ns as unknown as { default?: typeof sqlite3Ns }).default ??
+  sqlite3Ns) as typeof sqlite3Ns;
 const { Database } = sqlite3;
 import { DatabaseAdapter } from './base.js';
 import type {
