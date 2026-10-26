@@ -37,7 +37,7 @@ cd examples/working-examples/multi-database
 ## Prerequisites
 
 All examples require:
-- Node.js 22+ installed
+- Node.js 24+ installed
 - npm or yarn package manager
 - Docker (for database demos)
 - Basic command line knowledge

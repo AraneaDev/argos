@@ -80,11 +80,7 @@ export interface SSHEventPayload {
 // ============================================================================
 
 export type SSHTunnelStatus =
-  | 'connecting'
-  | 'connected'
-  | 'error'
-  | 'disconnected'
-  | 'reconnecting';
+  'connecting' | 'connected' | 'error' | 'disconnected' | 'reconnecting';
 
 export interface SSHTunnelStatusInfo {
   status: SSHTunnelStatus;

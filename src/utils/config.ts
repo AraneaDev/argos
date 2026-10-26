@@ -160,7 +160,9 @@ export function loadConfiguration(configPath?: string): FullyParsedConfig {
 
     return parseConfiguration(rawConfig);
   } catch (error) {
-    throw new Error(`Failed to load configuration from ${path}: ${getErrorMessage(error)}`);
+    throw new Error(`Failed to load configuration from ${path}: ${getErrorMessage(error)}`, {
+      cause: error,
+    });
   }
 }
 
@@ -802,7 +804,8 @@ export function saveConfigFile(config: ParsedServerConfig, configPath?: string):
               // Fail loudly so the operator can fix permissions rather than leak the key.
               throw new Error(
                 `Failed to write SSH private key for '${name}' to a protected key file: ` +
-                  `${getErrorMessage(keyError)}. Refusing to embed the private key in config.ini.`
+                  `${getErrorMessage(keyError)}. Refusing to embed the private key in config.ini.`,
+                { cause: keyError }
               );
             }
           } else {

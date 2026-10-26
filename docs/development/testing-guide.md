@@ -33,7 +33,7 @@ The Argos achieves **90%+ test coverage** with a comprehensive testing strategy 
 
 **Testing Stack:**
 - **Jest** - Primary testing framework with TypeScript support
-- **ts-jest** - TypeScript preset for Jest
+- **@swc/jest** - Transpiles TypeScript tests (types are checked separately by `npm run type-check:tests`)
 - **Supertest** - HTTP assertion library for API testing
 - **Custom matchers** - Domain-specific test assertions
 - **Mock implementations** - Database and SSH connection mocking
@@ -97,8 +97,10 @@ tests/
 
 ```json
 {
- "preset": "ts-jest/presets/default-esm",
- "extensionsToTreatAsEsm": [".ts"],
+ "transform": {
+ "^.+\\.ts$": ["@swc/jest", { "module": { "type": "commonjs" } }]
+ },
+ "moduleNameMapper": { "^(\\.{1,2}/.*)\\.js$": "$1" },
  "testEnvironment": "node",
  "roots": ["<rootDir>/tests"],
  "testMatch": ["**/tests/**/*.test.ts"],
@@ -989,7 +991,7 @@ jobs:
  - name: Setup Node.js
  uses: actions/setup-node@v3
  with:
- node-version: '22'
+ node-version: '24'
  cache: 'npm'
  
  - name: Install dependencies

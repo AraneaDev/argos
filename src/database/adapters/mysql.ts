@@ -534,19 +534,17 @@ export class MySQLAdapter extends DatabaseAdapter {
       EXTRA: string;
     }>;
 
-    return columns.map(
-      (col): ColumnInfo => ({
-        name: col.COLUMN_NAME,
-        type: col.DATA_TYPE,
-        nullable: col.IS_NULLABLE === 'YES',
-        default: col.COLUMN_DEFAULT,
-        max_length: col.CHARACTER_MAXIMUM_LENGTH,
-        precision: col.NUMERIC_PRECISION,
-        scale: col.NUMERIC_SCALE,
-        comment: col.COLUMN_COMMENT || '',
-        key: col.COLUMN_KEY || '',
-        extra: col.EXTRA || '',
-      })
-    );
+    return columns.map((col): ColumnInfo => ({
+      name: col.COLUMN_NAME,
+      type: col.DATA_TYPE,
+      nullable: col.IS_NULLABLE === 'YES',
+      default: col.COLUMN_DEFAULT,
+      max_length: col.CHARACTER_MAXIMUM_LENGTH,
+      precision: col.NUMERIC_PRECISION,
+      scale: col.NUMERIC_SCALE,
+      comment: col.COLUMN_COMMENT || '',
+      key: col.COLUMN_KEY || '',
+      extra: col.EXTRA || '',
+    }));
   }
 }

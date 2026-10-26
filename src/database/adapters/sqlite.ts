@@ -408,23 +408,21 @@ export class SQLiteAdapter extends DatabaseAdapter {
             pk: number;
           }>;
           const keyed = found.filter((col) => col.pk > 0).length;
-          const columns = found.map(
-            (col): ColumnInfo => ({
-              name: col.name,
-              type: col.type,
-              // A lone INTEGER PRIMARY KEY is the rowid: never NULL, though table_info says notnull=0
-              nullable:
-                col.notnull === 0 &&
-                !(keyed === 1 && col.pk > 0 && col.type.trim().toUpperCase() === 'INTEGER'),
-              default: col.dflt_value,
-              max_length: null,
-              precision: null,
-              scale: null,
-              comment: '', // SQLite doesn't support column comments
-              key: col.pk > 0 ? 'PRI' : '',
-              extra: '',
-            })
-          );
+          const columns = found.map((col): ColumnInfo => ({
+            name: col.name,
+            type: col.type,
+            // A lone INTEGER PRIMARY KEY is the rowid: never NULL, though table_info says notnull=0
+            nullable:
+              col.notnull === 0 &&
+              !(keyed === 1 && col.pk > 0 && col.type.trim().toUpperCase() === 'INTEGER'),
+            default: col.dflt_value,
+            max_length: null,
+            precision: null,
+            scale: null,
+            comment: '', // SQLite doesn't support column comments
+            key: col.pk > 0 ? 'PRI' : '',
+            extra: '',
+          }));
 
           resolve(columns);
         }

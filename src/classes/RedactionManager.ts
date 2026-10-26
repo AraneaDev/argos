@@ -41,7 +41,7 @@ export class RedactionPatterns {
     if (!domain || !localPart) return this.fullMask(email, maskChar);
 
     // Mask local part
-    let maskedLocal = localPart;
+    let maskedLocal: string;
     if (localPart.length > 2) {
       if (localPart.includes('.')) {
         // For email like john.doe, produce j******.e (first char + asterisks + dot + last char)

@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Node.js 22+ installed 
+- Node.js 24+ installed 
 - argos package installed (`npm install -g argos`)
 - At least 512MB RAM available for containers
 

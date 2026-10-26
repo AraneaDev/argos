@@ -585,7 +585,7 @@ export class SetupWizard {
 
         const redactionType = await this.askQuestion(' Choose redaction type (1-3): ');
 
-        let redactionTypeValue: FieldRedactionRule['redaction_type'] = 'partial_mask';
+        let redactionTypeValue: FieldRedactionRule['redaction_type'];
         let replacementText: string | undefined;
 
         switch (redactionType) {
