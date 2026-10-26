@@ -49,9 +49,7 @@ function parseArgs(args: string[]): CliOptions {
       if (['production', 'development', 'minimal', 'sample'].includes(template)) {
         options.generateTemplate = template as typeof options.generateTemplate;
       } else {
-        // eslint-disable-next-line no-console
         console.error(` Invalid template type: ${template}`);
-        // eslint-disable-next-line no-console
         console.error('Valid templates: production, development, minimal, sample');
         process.exit(1);
       }
@@ -60,9 +58,7 @@ function parseArgs(args: string[]): CliOptions {
       if (['production', 'development', 'minimal', 'sample'].includes(template)) {
         options.generateTemplate = template as typeof options.generateTemplate;
       } else {
-        // eslint-disable-next-line no-console
         console.error(` Invalid template type: ${template}`);
-        // eslint-disable-next-line no-console
         console.error('Valid templates: production, development, minimal, sample');
         process.exit(1);
       }
@@ -116,7 +112,7 @@ function showVersion(): void {
     const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf-8'));
     // eslint-disable-next-line no-console
     console.log(`Argos v${packageJson.version}`);
-  } catch (error) {
+  } catch {
     // eslint-disable-next-line no-console
     console.log(`Argos v${SERVER_VERSION}`);
   }
@@ -164,7 +160,6 @@ async function generateTemplate(
     // eslint-disable-next-line no-console
     console.log(` 4. Run 'argos serve' to start the server`);
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error(' Failed to generate template:', (error as Error).message);
     process.exit(1);
   }
@@ -179,10 +174,8 @@ async function runInteractiveSetup(options: CliOptions): Promise<void> {
   try {
     await wizard.run();
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error(' Setup failed:', (error as Error).message);
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.error('Stack trace:', (error as Error).stack);
     }
     process.exit(1);
@@ -197,19 +190,15 @@ async function runInteractiveSetup(options: CliOptions): Promise<void> {
 export async function runSetup(args: string[]): Promise<void> {
   // Handle uncaught exceptions gracefully
   process.on('uncaughtException', (error) => {
-    // eslint-disable-next-line no-console
     console.error(' Uncaught Exception:', error.message);
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.error(error.stack);
     }
     process.exit(1);
   });
 
   process.on('unhandledRejection', (reason, promise) => {
-    // eslint-disable-next-line no-console
     console.error(' Unhandled Rejection at:', promise);
-    // eslint-disable-next-line no-console
     console.error('Reason:', reason);
     process.exit(1);
   });
@@ -250,10 +239,8 @@ export async function runSetup(args: string[]): Promise<void> {
  */
 export function startSetup(args: string[]): void {
   runSetup(args).catch((error) => {
-    // eslint-disable-next-line no-console
     console.error(' Setup process failed:', error.message);
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.error('Stack trace:', error.stack);
     }
     process.exit(1);
