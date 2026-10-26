@@ -5,6 +5,24 @@ All notable changes to the Argos-MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.0](https://github.com/AraneaDev/argos/compare/v5.0.0...v6.0.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **pane:** Node.js 22 is no longer supported; engines is >=24.15.0.
+* **deps:** Node.js 22 is no longer supported; engines is >=24.15.0.
+
+### Fixes
+
+* **pane:** make CLI output printable, and remove dead code ([#51](https://github.com/AraneaDev/argos/issues/51)) ([932264a](https://github.com/AraneaDev/argos/commit/932264abf06763a93bdceddd86433baf9595ef0b))
+* write the server's lines to argos.log, and report failing SQLite statements ([#53](https://github.com/AraneaDev/argos/issues/53)) ([d506877](https://github.com/AraneaDev/argos/commit/d506877a2ef2d713ea897647a3b656fd30d43156))
+
+
+### Chores
+
+* **deps:** require Node.js 24.15+ and update every dependency ([#50](https://github.com/AraneaDev/argos/issues/50)) ([16aaef8](https://github.com/AraneaDev/argos/commit/16aaef895fa56c26c18021437f9ba795d59d60ac))
+
 ## [5.0.0](https://github.com/AraneaDev/argos/compare/v4.1.8...v5.0.0) (2026-10-25)
 
 

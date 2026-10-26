@@ -4,7 +4,7 @@ This document provides comprehensive TypeScript API documentation for the Argos.
 
 ## What this covers
 
-Describes the source as of v5.0.0 <!-- x-release-please-version -->. These are
+Describes the source as of v6.0.0 <!-- x-release-please-version -->. These are
 the internal types and classes of the server, for anyone reading or extending
 it. They are not a supported import surface: the package publishes `dist/` but
 declares no `types` entry and no `exports` map, so names here can change without
