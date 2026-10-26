@@ -47,8 +47,9 @@ export class SQLMCPServer extends EventEmitter {
  run(): Promise<void>;
  cleanup(): Promise<void>;
  
- // Request handling
- handleRequest(request: MCPRequest): Promise<MCPResponse | null>;
+ // MCP handlers (registered with the SDK for tools/list and tools/call)
+ listTools(): { tools: MCPTool[] };
+ callTool(name: string, args: Record<string, unknown> | undefined): Promise<{ content: Array<{ type: 'text'; text: string }>; isError: boolean }>;
  
  // Database operations
  testConnection(database: string): Promise<TestConnectionResult>;
@@ -97,37 +98,17 @@ Handles query validation and security enforcement.
 
 ```typescript
 export class SecurityManager extends EventEmitter {
- constructor(config?: SecurityManagerConfig, selectOnlyMode?: boolean);
+ constructor(config?: SecurityManagerConfig);
  
  // Initialization
  initialize(config: ParsedServerConfig): void;
  
- // Main validation methods
- validateQuery(query: string, dbType?: string): Promise<SecurityValidation>;
+ // Validation: databases with select_only = true use the first, the rest the second
+ validateSelectOnlyQuery(query: string, dbType?: string): SecurityValidation;
  validateAnyQuery(query: string, dbType?: string): SecurityValidation;
- analyzeQuery(query: string): Promise<QueryComplexityAnalysis>;
  analyzeQueryComplexity(query: string): QueryComplexityAnalysis;
  
- // Batch validation 
- validateBatchSelectOnlyQueries(
- queries: Array<{query: string; params?: unknown[]; label?: string}>, 
- dbType?: string
- ): BatchValidationResult;
- 
- // Configuration management
- updateConfig(config: SecurityManagerConfig): void;
- getConfig(): SecurityManagerConfig;
- setSelectOnlyMode(enabled: boolean): void;
- isSelectOnlyMode(): boolean;
- 
- // Audit and utilities
- createAuditLog(database: string, query: string | string[], allowed: boolean, reason?: string, metadata?: Record<string, unknown>): AuditLogEntry;
- sanitizeErrorMessage(errorMessage: string): string;
- getStatistics(): { queriesValidated: number; queriesBlocked: number; queriesAllowed: number; totalComplexity: number; avgComplexity: number; };
- 
  // Events emitted
- on(event: 'query-blocked', listener: (database: string, reason: string) => void): this;
- on(event: 'query-approved', listener: (database: string) => void): this;
  on(event: 'initialized', listener: (config: ParsedServerConfig) => void): this;
 }
 ```
@@ -170,14 +151,12 @@ export class EnhancedSSHTunnelManager extends EventEmitter {
  createEnhancedTunnel(dbName: string, options: EnhancedTunnelOptions): Promise<EnhancedTunnelInfo>;
  hasTunnel(dbName: string): boolean;
  getTunnel(dbName: string): SSHTunnelInfo | undefined;
- getEnhancedTunnel(dbName: string): EnhancedTunnelInfo | undefined;
  closeTunnel(dbName: string): Promise<void>;
  closeAllTunnels(): Promise<void>;
 
  // Status
  isConnected(dbName: string): boolean;
  getTunnelStatus(dbName: string): SSHTunnelStatusInfo | undefined;
- getActiveTunnels(): string[];
 }
 ```
 
@@ -332,29 +311,12 @@ export interface MCPRequest {
  method: string;
  params?: Record<string, any>;
 }
-
-export interface MCPToolCallRequest extends MCPRequest {
- method: 'tools/call';
- params: MCPToolCallParams;
-}
-
-export interface MCPToolCallParams {
- name: string;
- arguments: Record<string, any>;
-}
 ```
 
-### MCPResponse
-Base MCP response structure.
+### MCPError
+The error object of a JSON-RPC response (the MCP SDK builds the response itself).
 
 ```typescript
-export interface MCPResponse {
- jsonrpc: '2.0';
- id: string | number | null;
- result?: any;
- error?: MCPError;
-}
-
 export interface MCPError {
  code: number;
  message: string;
@@ -398,7 +360,7 @@ export interface SQLQueryArgs {
 
 export interface SQLBatchQueryArgs {
  database: string;
- queries: QueryObject[];
+ queries: Array<{ query: string; params?: string[]; label?: string }>;
  transaction?: boolean;
 }
 
@@ -578,38 +540,6 @@ export interface ExtensionConfig {
 }
 ```
 
-### RawConfigFile
-Raw configuration file structure from INI parsing.
-
-```typescript
-export interface RawConfigFile {
- database?: Record<string, DatabaseSectionConfig>;
- security?: Record<string, string>;
- extension?: Record<string, string>;
- [key: string]: any;
-}
-
-export interface DatabaseSectionConfig {
- type: string;
- host?: string;
- port?: string;
- database?: string;
- username?: string;
- password?: string;
- file?: string;
- ssl?: string;
- select_only?: string;
- timeout?: string;
- ssh_host?: string;
- ssh_port?: string;
- ssh_username?: string;
- ssh_password?: string;
- ssh_private_key?: string;
- ssh_passphrase?: string;
- mcp_configurable?: string;
-}
-```
-
 ---
 
 ## Error Types
@@ -630,10 +560,6 @@ export class SecurityViolationError extends SQLMCPError {
 }
 
 export class ConnectionError extends SQLMCPError {
- constructor(message: string, details?: Record<string, any>);
-}
-
-export class QueryExecutionError extends SQLMCPError {
  constructor(message: string, details?: Record<string, any>);
 }
 ```
@@ -666,36 +592,25 @@ export interface TestConnectionResult {
 Functions to check types at runtime.
 
 ```typescript
-// Database type guards
-export function isDatabaseType(value: any): value is DatabaseType;
-export function isQueryObject(value: any): value is QueryObject;
-export function isSecurityViolationError(error: any): error is SecurityViolationError;
+// Redaction config guards (src/types/database.ts)
+export function isValidRedactionType(value: string): value is RedactionType;
 
-// MCP type guards
-export function isMCPRequest(message: any): message is MCPRequest;
-export function isMCPResponse(message: any): message is MCPResponse;
-export function isMCPToolCallRequest(request: any): request is MCPToolCallRequest;
-export function isSQLQueryArgs(args: any): args is SQLQueryArgs;
-export function isSQLBatchQueryArgs(args: any): args is SQLBatchQueryArgs;
+// MCP guards (src/types/mcp.ts)
+export function isSQLQueryArgs(args: unknown): args is SQLQueryArgs;
+export function isSQLBatchQueryArgs(args: unknown): args is SQLBatchQueryArgs;
+export function isSQLGetSchemaArgs(args: unknown): args is SQLGetSchemaArgs;
+export function isSQLTestConnectionArgs(args: unknown): args is SQLTestConnectionArgs;
 
-// Security type guards
-export function isComplexityRiskLevel(value: any): value is ComplexityRiskLevel;
-export function isTokenType(value: any): value is TokenType;
-
-// SSH type guards
-export function isSSHTunnelStatus(value: any): value is SSHTunnelStatus;
-export function validateSSHConfig(config: any): config is SSHConnectionConfig;
+// SSH (src/types/ssh.ts)
+export function validateSSHConfig(config: SSHConnectionConfig): SSHTunnelValidationResult;
 ```
 
 ### Configuration Utilities
 Helper functions for configuration management.
 
 ```typescript
-export function parseStringToNumber(value: string, defaultValue: number): number;
-export function parseStringToBoolean(value: string, defaultValue: boolean): boolean;
-export function validateDatabaseType(type: string): type is DatabaseType;
-export function getRequiredFields(dbType: DatabaseType): string[];
-export function validateRequiredFields(config: any, required: string[]): string[];
+// src/database/adapters/AdapterFactory.ts
+AdapterFactory.getRequiredFields(type: DatabaseTypeString, config?: DatabaseConfig): string[];
 ```
 
 ---
@@ -813,18 +728,14 @@ offending statement is `blockedCommand`.
 
 ### Type-Safe Configuration
 ```typescript
-import { isDatabaseType, validateRequiredFields } from '../../src/types/index.js';
+import { DEFAULT_DATABASE_PORTS } from '../../src/types/index.js';
+import { AdapterFactory } from '../../src/database/adapters/AdapterFactory.js';
 import type { DatabaseConfig } from '../../src/types/index.js';
 
 function createDatabaseConfig(rawConfig: any): DatabaseConfig {
- // Validate database type
- if (!isDatabaseType(rawConfig.type)) {
- throw new Error(`Invalid database type: ${rawConfig.type}`);
- }
- 
  // Check required fields
- const required = getRequiredFields(rawConfig.type);
- const missing = validateRequiredFields(rawConfig, required);
+ const required = AdapterFactory.getRequiredFields(rawConfig.type);
+ const missing = required.filter((field) => !rawConfig[field]);
  
  if (missing.length > 0) {
  throw new Error(`Missing required fields: ${missing.join(', ')}`);
@@ -837,7 +748,7 @@ function createDatabaseConfig(rawConfig: any): DatabaseConfig {
  database: rawConfig.database,
  username: rawConfig.username,
  password: rawConfig.password,
- select_only: parseStringToBoolean(rawConfig.select_only, true)
+ select_only: rawConfig.select_only !== 'false'
  };
 }
 ```

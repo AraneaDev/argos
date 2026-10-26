@@ -147,7 +147,7 @@ describe('SQLiteAdapter', () => {
   describe('constructor', () => {
     it('should initialize with valid SQLite config', () => {
       expect(adapter.getType()).toBe('sqlite');
-      expect(adapter.getConfig().file).toBe('/tmp/test.db');
+      expect((adapter as any).config.file).toBe('/tmp/test.db');
     });
   });
 
@@ -673,50 +673,6 @@ describe('SQLiteAdapter', () => {
   // SQLite-specific Methods Tests (Simplified)
   // ============================================================================
 
-  describe('SQLite-specific methods', () => {
-    let connection: DatabaseConnection;
-
-    beforeEach(async () => {
-      connection = await adapter.connect();
-    });
-
-    describe('getVersion', () => {
-      it('should get SQLite version successfully', async () => {
-        mockGet.mockImplementation((query: string, callback: Function) => {
-          process.nextTick(() => callback(null, { version: '3.39.0' }));
-        });
-
-        const version = await adapter.getVersion(connection);
-
-        expect(mockGet).toHaveBeenCalledWith(
-          'SELECT sqlite_version() as version',
-          expect.any(Function)
-        );
-        expect(version).toBe('3.39.0');
-      });
-
-      it('should handle version query errors', async () => {
-        const versionError = new Error('Version query failed');
-        mockGet.mockImplementation((query: string, callback: Function) => {
-          process.nextTick(() => callback(versionError, null));
-        });
-
-        await expect(adapter.getVersion(connection)).rejects.toThrow(
-          'sqlite adapter error: Failed to get SQLite version - Version query failed'
-        );
-      });
-
-      it('should handle empty version result', async () => {
-        mockGet.mockImplementation((query: string, callback: Function) => {
-          process.nextTick(() => callback(null, null));
-        });
-
-        const version = await adapter.getVersion(connection);
-        expect(version).toBe('Unknown');
-      });
-    });
-  });
-
   // ============================================================================
   // Integration Scenarios Tests (Simplified)
   // ============================================================================
@@ -919,119 +875,13 @@ describe('SQLiteAdapter', () => {
   // getDatabaseInfo (lines 282-320)
   // ============================================================================
 
-  describe('getDatabaseInfo', () => {
-    let connection: DatabaseConnection;
-
-    beforeEach(async () => {
-      connection = await adapter.connect();
-    });
-
-    it('should return database info with page count, size, and list', async () => {
-      mockGet
-        .mockImplementationOnce((query: string, callback: Function) => {
-          process.nextTick(() => callback(null, { page_count: 100 }));
-        })
-        .mockImplementationOnce((query: string, callback: Function) => {
-          process.nextTick(() => callback(null, { page_size: 4096 }));
-        })
-        .mockImplementationOnce((query: string, callback: Function) => {
-          process.nextTick(() => callback(null, { seq: 0, name: 'main', file: '/tmp/test.db' }));
-        });
-
-      const info = await adapter.getDatabaseInfo(connection);
-
-      expect(info.page_count).toBe(100);
-      expect(info.page_size).toBe(4096);
-      expect(info.approximate_size).toBe(100 * 4096);
-      expect(info.database_list).toBeDefined();
-    });
-
-    it('should handle errors in PRAGMA queries', async () => {
-      mockGet.mockImplementation((query: string, callback: Function) => {
-        process.nextTick(() => callback(new Error('PRAGMA error'), null));
-      });
-
-      await expect(adapter.getDatabaseInfo(connection)).rejects.toThrow(
-        'sqlite adapter error: Failed to execute'
-      );
-    });
-
-    it('should handle non-numeric page values gracefully', async () => {
-      mockGet
-        .mockImplementationOnce((query: string, callback: Function) => {
-          process.nextTick(() => callback(null, { page_count: undefined }));
-        })
-        .mockImplementationOnce((query: string, callback: Function) => {
-          process.nextTick(() => callback(null, { page_size: undefined }));
-        })
-        .mockImplementationOnce((query: string, callback: Function) => {
-          process.nextTick(() => callback(null, { seq: 0 }));
-        });
-
-      const info = await adapter.getDatabaseInfo(connection);
-      // approximate_size should NOT be set when page values are not numbers
-      expect(info.approximate_size).toBeUndefined();
-    });
-  });
-
   // ============================================================================
   // analyzeTable (lines 325-338)
   // ============================================================================
 
-  describe('analyzeTable', () => {
-    let connection: DatabaseConnection;
-
-    beforeEach(async () => {
-      connection = await adapter.connect();
-    });
-
-    it('should analyze a specific table', async () => {
-      await adapter.analyzeTable(connection, 'users');
-      expect(mockRun).toHaveBeenCalledWith('ANALYZE users', expect.any(Function));
-    });
-
-    it('should analyze all tables when no table specified', async () => {
-      await adapter.analyzeTable(connection);
-      expect(mockRun).toHaveBeenCalledWith('ANALYZE', expect.any(Function));
-    });
-
-    it('should handle analyze errors', async () => {
-      mockRun.mockImplementation((query: string, callback: Function) => {
-        process.nextTick(() => callback(new Error('Analyze failed')));
-      });
-
-      await expect(adapter.analyzeTable(connection, 'bad_table')).rejects.toThrow(
-        'sqlite adapter error: Failed to analyze SQLite table - Analyze failed'
-      );
-    });
-  });
-
   // ============================================================================
   // vacuum (lines 343-355)
   // ============================================================================
-
-  describe('vacuum', () => {
-    let connection: DatabaseConnection;
-
-    beforeEach(async () => {
-      connection = await adapter.connect();
-    });
-
-    it('should vacuum the database successfully', async () => {
-      await adapter.vacuum(connection);
-      expect(mockRun).toHaveBeenCalledWith('VACUUM', expect.any(Function));
-    });
-
-    it('should handle vacuum errors', async () => {
-      mockRun.mockImplementation((query: string, callback: Function) => {
-        process.nextTick(() => callback(new Error('Vacuum failed')));
-      });
-
-      await expect(adapter.vacuum(connection)).rejects.toThrow(
-        'sqlite adapter error: Failed to vacuum SQLite database - Vacuum failed'
-      );
-    });
-  });
 
   // ============================================================================
   // Performance Recommendations

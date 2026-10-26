@@ -122,17 +122,6 @@ export class MetricsManager {
     return [...this.dbs.entries()].map(([name, m]) => this.buildSnapshot(name, m));
   }
 
-  /**
-   *
-   */
-  reset(dbName?: string): void {
-    if (dbName !== undefined) {
-      this.dbs.set(dbName, emptyMetrics());
-    } else {
-      for (const key of this.dbs.keys()) this.dbs.set(key, emptyMetrics());
-    }
-  }
-
   private buildSnapshot(database: string, m: DBMetrics): MetricsSnapshot {
     const total = m.cacheHits + m.cacheMisses;
     return {

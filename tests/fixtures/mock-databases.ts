@@ -3,7 +3,6 @@ import type {
   DatabaseConfig,
   QueryResult,
   DatabaseSchema,
-  SchemaInfo,
   DatabaseConnection,
 } from '../../src/types/database.js';
 
@@ -274,21 +273,6 @@ export class MockDatabaseAdapter extends DatabaseAdapter {
     };
 
     return schema;
-  }
-
-  async getSchemaInfo(schema: DatabaseSchema): Promise<SchemaInfo> {
-    const tables = Object.values(schema.tables);
-    const views = Object.values(schema.views);
-
-    return {
-      table_count: schema.summary.table_count,
-      view_count: schema.summary.view_count,
-      function_count: 0, // Mock has no functions
-      sequence_count: 0, // Mock has no sequences
-      total_columns: schema.summary.total_columns,
-      total_indexes: tables.length * 2, // Mock: assume 2 indexes per table
-      foreign_key_count: 1, // Mock: one FK from posts to users
-    };
   }
 
   private generateMockResult(query: string, params: unknown[] = []): QueryResult {

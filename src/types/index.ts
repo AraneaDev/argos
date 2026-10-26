@@ -15,8 +15,6 @@ export type {
   TableInfo,
   ForeignKey,
   DatabaseSchema,
-  SchemaInfo,
-  QueryObject,
   BatchResultItem,
   BatchResult,
   ExtensionConfig,
@@ -29,7 +27,6 @@ export type {
   DatabaseRedactionConfig,
   RedactionResult,
   QueryResultWithRedaction,
-  RedactionAuditEntry,
 } from './database.js';
 
 export { MSSQL_AUTHENTICATION_MODES } from './database.js';
@@ -39,10 +36,6 @@ export type {
   MCPMessage,
   MCPError,
   MCPRequest,
-  MCPResponse,
-  MCPNotification,
-  MCPToolCallParams,
-  MCPToolCallRequest,
   MCPToolContent,
   MCPToolResponse,
   SQLQueryArgs,
@@ -56,16 +49,12 @@ export type {
 // Security types
 export type {
   SecurityValidation,
-  BatchValidationResult,
-  QueryValidationResult,
-  BatchSecurityAnalysis,
   ComplexityRiskLevel,
   QueryComplexityAnalysis,
   ComplexityLimits,
   TokenType,
   SQLToken,
   LogSeverity,
-  AuditLogEntry,
   SecurityConfig,
   SecurityManagerConfig,
   ISecurityManager,
@@ -86,14 +75,7 @@ export type {
 } from './ssh.js';
 
 // Configuration types
-export type {
-  DatabaseSectionConfig,
-  RawConfigFile,
-  ParsedServerConfig,
-  ParsedSecurityConfig,
-  ParsedExtensionConfig,
-  ConfigValidationError,
-} from './config.js';
+export type { ParsedServerConfig, ParsedSecurityConfig, ParsedExtensionConfig } from './config.js';
 
 // Performance types
 
@@ -104,31 +86,15 @@ export {
   SQLMCPError,
   SecurityViolationError,
   ConnectionError,
-  QueryExecutionError,
   ConfigurationError,
-  SchemaError,
-  SSHTunnelError,
   CircuitOpenError,
   ValidationError,
-  TimeoutError,
 } from '../utils/error-handler.js';
 
 // Type guards
-export {
-  isDatabaseType,
-  isQueryObject,
-  isSecurityViolationError,
-  isValidRedactionType,
-  isValidFieldPatternType,
-  isFieldRedactionRule,
-  isDatabaseRedactionConfig,
-} from './database.js';
+export { isValidRedactionType } from './database.js';
 
 export {
-  isMCPRequest,
-  isMCPResponse,
-  isMCPNotification,
-  isMCPToolCallRequest,
   isSQLQueryArgs,
   isSQLBatchQueryArgs,
   isSQLGetSchemaArgs,
@@ -136,16 +102,6 @@ export {
 } from './mcp.js';
 
 export { validateSSHConfig } from './ssh.js';
-
-export {
-  isDatabaseSectionConfig,
-  isRawConfigFile,
-  parseStringToNumber,
-  parseStringToBoolean,
-  validateDatabaseType,
-  getRequiredFields,
-  validateRequiredFields,
-} from './config.js';
 
 export {} from './performance.js';
 

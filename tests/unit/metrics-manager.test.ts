@@ -79,21 +79,4 @@ describe('MetricsManager', () => {
       expect(snap).not.toBeNull();
     });
   });
-
-  describe('reset', () => {
-    it('clears one DB without affecting others', () => {
-      m.recordQuery('db1', 100, true);
-      m.recordQuery('db2', 100, true);
-      m.reset('db1');
-      expect(m.getSnapshot('db1').queries.total).toBe(0);
-      expect(m.getSnapshot('db2').queries.total).toBe(1);
-    });
-    it('clears all DBs when no name given', () => {
-      m.recordQuery('db1', 100, true);
-      m.recordQuery('db2', 100, true);
-      m.reset();
-      expect(m.getSnapshot('db1').queries.total).toBe(0);
-      expect(m.getSnapshot('db2').queries.total).toBe(0);
-    });
-  });
 });

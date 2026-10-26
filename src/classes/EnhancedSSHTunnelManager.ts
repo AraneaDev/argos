@@ -226,13 +226,6 @@ export class EnhancedSSHTunnelManager extends EventEmitter implements ISSHTunnel
   }
 
   /**
-   * Get enhanced tunnel information with port details
-   */
-  getEnhancedTunnel(dbName: string): EnhancedTunnelInfo | undefined {
-    return this.tunnels.get(dbName);
-  }
-
-  /**
    * Close a specific SSH tunnel with proper port cleanup
    */
   async closeTunnel(dbName: string): Promise<void> {
@@ -358,13 +351,6 @@ export class EnhancedSSHTunnelManager extends EventEmitter implements ISSHTunnel
    */
   getTunnelStatus(dbName: string): SSHTunnelStatusInfo | undefined {
     return this.tunnelStatus.get(dbName);
-  }
-
-  /**
-   * Get all active tunnels
-   */
-  getActiveTunnels(): string[] {
-    return Array.from(this.tunnels.keys()).filter((dbName) => this.isConnected(dbName));
   }
 
   /**

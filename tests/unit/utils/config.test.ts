@@ -8,8 +8,6 @@ import {
   parseConfiguration,
   parseDatabaseConfig,
   validateConfiguration,
-  getEnvironmentVariable,
-  configurationExists,
   getConfigurationPath,
   saveConfigFile,
 } from '../../../src/utils/config.js';
@@ -1107,40 +1105,6 @@ describe('config', () => {
   // ============================================================================
   // Utility functions
   // ============================================================================
-
-  describe('getEnvironmentVariable', () => {
-    it('should return env var value', () => {
-      process.env.TEST_VAR_CONFIG = 'value123';
-      expect(getEnvironmentVariable('TEST_VAR_CONFIG')).toBe('value123');
-      delete process.env.TEST_VAR_CONFIG;
-    });
-
-    it('should return default value when env var not set', () => {
-      expect(getEnvironmentVariable('NONEXISTENT_VAR_XYZ', 'default')).toBe('default');
-    });
-
-    it('should return undefined when no default and not set', () => {
-      expect(getEnvironmentVariable('NONEXISTENT_VAR_XYZ')).toBeUndefined();
-    });
-  });
-
-  describe('configurationExists', () => {
-    it('should return true when file exists', () => {
-      mockFs.existsSync.mockReturnValue(true);
-      expect(configurationExists('/test/config.ini')).toBe(true);
-    });
-
-    it('should return false when file does not exist', () => {
-      mockFs.existsSync.mockReturnValue(false);
-      expect(configurationExists('/test/config.ini')).toBe(false);
-    });
-
-    it('should use default path when none provided', () => {
-      mockFs.existsSync.mockReturnValue(false);
-      configurationExists();
-      expect(mockJoin).toHaveBeenCalled();
-    });
-  });
 
   describe('getConfigurationPath', () => {
     it('should return provided path', () => {

@@ -461,24 +461,6 @@ Error: SQLITE_CORRUPT: database disk image is malformed
 - Consider data archival
 - Optimize schema design
 
-### SQLite-Specific Operations
-
-The adapter provides these SQLite-specific methods:
-
-```javascript
-// Get SQLite version
-const version = await adapter.getVersion(connection);
-
-// Get database information
-const info = await adapter.getDatabaseInfo(connection);
-
-// Analyze tables for statistics
-await adapter.analyzeTable(connection, 'users');
-
-// Vacuum database
-await adapter.vacuum(connection);
-```
-
 ## Monitoring and Maintenance
 
 ### Database Statistics

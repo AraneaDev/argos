@@ -64,39 +64,6 @@ export interface SetupWizardAction {
 // Configuration File Types
 // ============================================================================
 
-export interface DatabaseSectionConfig {
-  type: string;
-  host?: string;
-  port?: string | number;
-  database?: string;
-  username?: string;
-  password?: string;
-  ssl?: string | boolean;
-  select_only?: string | boolean;
-  timeout?: string | number;
-  file?: string;
-  encrypt?: string | boolean;
-
-  // SSH Configuration
-  ssh_host?: string;
-  ssh_port?: string | number;
-  ssh_username?: string;
-  ssh_password?: string;
-  ssh_private_key?: string;
-  ssh_passphrase?: string;
-  local_port?: string | number;
-
-  // MCP Configuration Access Control
-  mcp_configurable?: string | boolean;
-}
-
-export interface RawConfigFile {
-  database?: Record<string, DatabaseSectionConfig>;
-  security?: Record<string, string | number>;
-  extension?: Record<string, string | number>;
-  [section: string]: unknown;
-}
-
 // ============================================================================
 // Parsed Configuration Types
 // ============================================================================
@@ -125,14 +92,6 @@ export interface ParsedServerConfig {
 // ============================================================================
 // Configuration Validation Types
 // ============================================================================
-
-export interface ConfigValidationError {
-  section: string;
-  field: string;
-  value: unknown;
-  message: string;
-  severity: 'error' | 'warning';
-}
 
 // ============================================================================
 // Configuration Loading Interface
@@ -171,119 +130,5 @@ export const DEFAULT_CONNECTION_TIMEOUT = 30000;
 export const DEFAULT_SSH_PORT = 22;
 
 // ============================================================================
-// Type Guards and Validation
-// ============================================================================
-
-/**
- *
- */
-export function isDatabaseSectionConfig(value: unknown): value is DatabaseSectionConfig {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'type' in value &&
-    typeof (value as DatabaseSectionConfig).type === 'string'
-  );
-}
-
-/**
- *
- */
-export function isRawConfigFile(value: unknown): value is RawConfigFile {
-  return typeof value === 'object' && value !== null;
-}
-
-// ============================================================================
 // Configuration Utilities
 // ============================================================================
-
-/**
- *
- */
-export function parseStringToNumber(
-  value: string | number | undefined,
-  defaultValue: number
-): number {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? defaultValue : parsed;
-  }
-  return defaultValue;
-}
-
-/**
- *
- */
-export function parseStringToBoolean(
-  value: string | boolean | undefined,
-  defaultValue: boolean
-): boolean {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true';
-  }
-  return defaultValue;
-}
-
-/**
- *
- */
-export function validateDatabaseType(type: string): DatabaseTypeString | null {
-  const lowerType = type.toLowerCase();
-  const validTypes: DatabaseTypeString[] = [
-    'mysql',
-    'postgresql',
-    'postgres',
-    'sqlite',
-    'mssql',
-    'sqlserver',
-  ];
-
-  return validTypes.find((t) => t === lowerType) || null;
-}
-
-/**
- *
- */
-export function getRequiredFields(type: DatabaseTypeString): string[] {
-  switch (type) {
-    case 'sqlite':
-      return ['file'];
-    case 'mysql':
-    case 'postgresql':
-    case 'postgres':
-    case 'mssql':
-    case 'sqlserver':
-      return ['host', 'database', 'username', 'password'];
-    default:
-      return [];
-  }
-}
-
-/**
- *
- */
-export function validateRequiredFields(
-  config: DatabaseSectionConfig,
-  _dbName: string,
-  type: DatabaseTypeString
-): ConfigValidationError[] {
-  const errors: ConfigValidationError[] = [];
-  const required = getRequiredFields(type);
-
-  for (const field of required) {
-    const value = config[field as keyof DatabaseSectionConfig];
-    if (!value || (typeof value === 'string' && value.trim() === '')) {
-      errors.push({
-        section: `database.${_dbName}`,
-        field,
-        value,
-        message: `Required field '${field}' is missing or empty for ${type} database`,
-        severity: 'error',
-      });
-    }
-  }
-
-  return errors;
-}

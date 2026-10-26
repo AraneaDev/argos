@@ -96,14 +96,14 @@ describe('MSSQLAdapter', () => {
   describe('constructor', () => {
     it('should initialize with valid MSSQL config', () => {
       expect(adapter.getType()).toBe('mssql');
-      expect(adapter.getConfig().host).toBe('localhost');
-      expect(adapter.getConfig().port).toBe(1433);
+      expect((adapter as any).config.host).toBe('localhost');
+      expect((adapter as any).config.port).toBe(1433);
     });
 
     it('should handle port as string', () => {
       const stringPortConfig = { ...config, port: '1434' as any };
       const stringAdapter = new MSSQLAdapter(stringPortConfig);
-      expect(stringAdapter.getConfig().port).toBe('1434');
+      expect((stringAdapter as any).config.port).toBe('1434');
     });
   });
 
@@ -886,178 +886,6 @@ describe('MSSQLAdapter', () => {
   // ============================================================================
   // SQL Server-specific Methods Tests
   // ============================================================================
-
-  describe('SQL Server-specific methods', () => {
-    let connection: DatabaseConnection;
-
-    beforeEach(async () => {
-      connection = await adapter.connect();
-    });
-
-    describe('getVersion', () => {
-      it('should get SQL Server version successfully', async () => {
-        const versionResult = {
-          recordset: [{ version: 'Microsoft SQL Server 2019 (RTM) - 15.0.2000.5' }],
-        };
-        mockRequestInstance.query.mockResolvedValueOnce(versionResult);
-
-        const version = await adapter.getVersion(connection);
-
-        expect(mockRequestInstance.query).toHaveBeenCalledWith('SELECT @@VERSION as version');
-        expect(version).toBe('Microsoft SQL Server 2019 (RTM) - 15.0.2000.5');
-      });
-
-      it('should handle version query errors', async () => {
-        const versionError = new Error('Version query failed');
-        mockRequestInstance.query.mockRejectedValueOnce(versionError);
-
-        await expect(adapter.getVersion(connection)).rejects.toThrow(
-          'mssql adapter error: Failed to get SQL Server version - Version query failed'
-        );
-      });
-
-      it('should handle empty version result', async () => {
-        const emptyResult = { recordset: [] };
-        mockRequestInstance.query.mockResolvedValueOnce(emptyResult);
-
-        const version = await adapter.getVersion(connection);
-        expect(version).toBe('Unknown');
-      });
-    });
-
-    describe('getDatabaseSize', () => {
-      it('should get database size successfully', async () => {
-        const sizeResult = {
-          recordset: [
-            {
-              database_name: 'testdb',
-              size_mb: 128.5,
-              data_size_mb: 64.0,
-              log_size_mb: 64.5,
-            },
-          ],
-        };
-        mockRequestInstance.query.mockResolvedValueOnce(sizeResult);
-
-        const size = await adapter.getDatabaseSize(connection);
-
-        expect(mockRequestInstance.query).toHaveBeenCalledWith(
-          expect.stringContaining('FROM sys.database_files')
-        );
-        expect(size).toEqual({
-          database_name: 'testdb',
-          size_mb: 128.5,
-          data_size_mb: 64.0,
-          log_size_mb: 64.5,
-        });
-      });
-
-      it('should handle database size query errors', async () => {
-        const sizeError = new Error('Size query failed');
-        mockRequestInstance.query.mockRejectedValueOnce(sizeError);
-
-        await expect(adapter.getDatabaseSize(connection)).rejects.toThrow(
-          'mssql adapter error: Failed to get SQL Server database size - Size query failed'
-        );
-      });
-
-      it('should handle empty size result', async () => {
-        const emptyResult = { recordset: [] };
-        mockRequestInstance.query.mockResolvedValueOnce(emptyResult);
-
-        const size = await adapter.getDatabaseSize(connection);
-        expect(size).toEqual({});
-      });
-    });
-
-    describe('getTableStats', () => {
-      it('should get table statistics successfully', async () => {
-        const statsResult = {
-          recordset: [
-            {
-              table_name: 'users',
-              row_count: 1000,
-              total_space_kb: 8192,
-              used_space_kb: 6144,
-              unused_space_kb: 2048,
-            },
-            {
-              table_name: 'posts',
-              row_count: 5000,
-              total_space_kb: 16384,
-              used_space_kb: 12288,
-              unused_space_kb: 4096,
-            },
-          ],
-        };
-        mockRequestInstance.query.mockResolvedValueOnce(statsResult);
-
-        const stats = await adapter.getTableStats(connection);
-
-        expect(mockRequestInstance.query).toHaveBeenCalledWith(
-          expect.stringContaining('FROM sys.tables')
-        );
-        expect(stats).toHaveLength(2);
-        expect(stats[0]).toEqual(
-          expect.objectContaining({
-            table_name: 'users',
-            row_count: 1000,
-          })
-        );
-      });
-
-      it('should handle table stats query errors', async () => {
-        const statsError = new Error('Stats query failed');
-        mockRequestInstance.query.mockRejectedValueOnce(statsError);
-
-        await expect(adapter.getTableStats(connection)).rejects.toThrow(
-          'mssql adapter error: Failed to get SQL Server table statistics - Stats query failed'
-        );
-      });
-    });
-
-    describe('getActiveConnections', () => {
-      it('should get active connections successfully', async () => {
-        const connectionsResult = {
-          recordset: [
-            {
-              session_id: 52,
-              login_time: '2023-01-01T10:00:00.000Z',
-              host_name: 'CLIENT01',
-              program_name: 'SSMS',
-              login_name: 'testuser',
-              status: 'sleeping',
-              cpu_time: 1000,
-              memory_usage: 2048,
-            },
-          ],
-        };
-        mockRequestInstance.query.mockResolvedValueOnce(connectionsResult);
-
-        const connections = await adapter.getActiveConnections(connection);
-
-        expect(mockRequestInstance.query).toHaveBeenCalledWith(
-          expect.stringContaining('FROM sys.dm_exec_sessions')
-        );
-        expect(connections).toHaveLength(1);
-        expect(connections[0]).toEqual(
-          expect.objectContaining({
-            session_id: 52,
-            login_name: 'testuser',
-          })
-        );
-      });
-
-      it('should handle active connections query errors', async () => {
-        const connectionsError = new Error('Connections query failed');
-        mockRequestInstance.query.mockRejectedValueOnce(connectionsError);
-
-        await expect(adapter.getActiveConnections(connection)).rejects.toThrow(
-          'mssql adapter error: Failed to get SQL Server active connections - Connections query failed'
-        );
-      });
-    });
-  });
 
   // ============================================================================
   // Integration Scenarios Tests

@@ -6,6 +6,7 @@
  * pane shows under its header.
  */
 import { parseCliError } from '../lib/parse'
+import { printable, printableDeep } from '../lib/printable'
 import type { Port } from './port'
 import { mod } from './state'
 
@@ -59,10 +60,14 @@ export function cliEnv(io: Port): Promise<CliAnswer<CliEnv>> {
   return read
 }
 
-/** stdout as JSON, or undefined when it is none. */
+/**
+ * stdout as JSON, or undefined when it is none. Every string in it comes back
+ * printable: names, SQL and result cells come from a database, and an escape
+ * sequence left in one would reach the terminal.
+ */
 function jsonOf(stdout: string): unknown {
   try {
-    return JSON.parse(stdout) as unknown
+    return printableDeep(JSON.parse(stdout) as unknown)
   } catch {
     return undefined
   }
@@ -92,7 +97,8 @@ export async function runCli<T>(io: Port, args: string[], parse: (raw: unknown) 
     if (error !== null) return { ok: false, reason: error }
     if (ran.exitCode !== 0) {
       const said = (ran.stderr ?? '').split('\n').find(l => l.trim() !== '')?.trim()
-      return { ok: false, reason: couldNotRun(said === undefined ? `exit ${ran.exitCode}` : `exit ${ran.exitCode}: ${said}`) }
+      const shown = said === undefined ? undefined : printable(said)
+      return { ok: false, reason: couldNotRun(shown === undefined ? `exit ${ran.exitCode}` : `exit ${ran.exitCode}: ${shown}`) }
     }
     if (raw === undefined) return { ok: false, reason: couldNotRun('its answer was not JSON') }
     const value = parse(raw)

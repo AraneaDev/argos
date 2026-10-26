@@ -6,13 +6,12 @@
  * Pure: the journal in, rows out. The marker walks the history.
  */
 import type { Arrangement, Block, Section } from './cards'
-import { arrange, noteOf, scrolledTo, windowedTable } from './cards'
+import { noteOf, windowedTable } from './cards'
 import type { JournalEntry, Pin, SchemaChange, SpoolPage } from './contract'
 import { gridRows, gridWindow } from './grid'
 import { CARD_ICON, mark, OUTCOME, SEVERITY, SOURCE } from './marks'
 import { ACCENT, CHIP_BG, STAT_HUES, STATUS_COLOURS } from './palette'
 import { button, clip, dimRow, walkedRow } from './rows'
-import { tierOf } from './table'
 import type { Tier } from './table'
 import { cells, fit, formatAge, grouped, padEnd, spaces } from './text'
 import { tilesBlock } from './tiles'
@@ -233,14 +232,4 @@ export function queriesArrangement(model: QueriesModel, tier: Tier): Arrangement
   const query = queryBlock(entry, model)
   const result = resultBlock(model, entry)
   return { top: [tiles], left: [pinned, history], right: [query, result], split: 0.45, order: [tiles, pinned, history, query, result] }
-}
-
-/**
- * The Queries tab's rows in `columns` cells and `room` rows at `tier`: the
- * lists cut to windows round the marker, or where the wheel left them
- * (`scroll`, by card key).
- */
-export function queriesRows(model: QueriesModel, columns: number, tier: Tier, room: number, scroll: Record<string, number>): Row[] {
-  const at = { ...model, selected: Math.min(Math.max(0, model.selected), Math.max(0, model.history.length - 1)) }
-  return arrange(scrolledTo(queriesArrangement(at, tier), scroll), columns, room, true, tier === tierOf(columns) ? undefined : tier)
 }

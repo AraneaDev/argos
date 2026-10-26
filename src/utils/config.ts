@@ -738,21 +738,6 @@ function validateDatabaseConfiguration(name: string, config: DatabaseConfig): vo
 }
 
 /**
- * Get environment variable with optional default value
- */
-export function getEnvironmentVariable(name: string, defaultValue?: string): string | undefined {
-  return process.env[name] || defaultValue;
-}
-
-/**
- * Check if configuration file exists
- */
-export function configurationExists(configPath?: string): boolean {
-  const path = configPath || join(process.cwd(), 'config.ini');
-  return existsSync(path);
-}
-
-/**
  * Get configuration file path
  */
 export function getConfigurationPath(configPath?: string): string {

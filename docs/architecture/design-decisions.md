@@ -64,7 +64,7 @@ Use Node.js EventEmitter pattern for inter-component communication:
 ```typescript
 // Components emit events for significant state changes
 connectionManager.emit('connected', database);
-securityManager.emit('query-blocked', database, reason);
+schemaManager.emit('schema-refreshed', database);
 ```
 
 #### Consequences

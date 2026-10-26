@@ -153,7 +153,7 @@ describe('SecurityManager', () => {
  });
 
  test('should allow basic SELECT queries', async () => {
- const result = await securityManager.validateQuery(
+ const result = securityManager.validateSelectOnlyQuery(
  SampleQueries.basicQueries.simple
  );
  expect(result.allowed).toBe(true);
@@ -161,7 +161,7 @@ describe('SecurityManager', () => {
  });
 
  test('should block INSERT queries in SELECT-only mode', async () => {
- const result = await securityManager.validateQuery(
+ const result = securityManager.validateSelectOnlyQuery(
  SampleQueries.modificationQueries.insert
  );
  expect(result.allowed).toBe(false);
@@ -188,8 +188,8 @@ describe('SchemaManager', () => {
  mockAdapter = MockDatabaseFactory.createMockAdapter();
  });
 
- afterEach(async () => {
- await schemaManager.cleanup();
+ afterEach(() => {
+ fs.rmSync('./test-cache', { recursive: true, force: true });
  });
 
  describe('schema capture and caching', () => {
@@ -682,11 +682,10 @@ describe('SQLMCPServer Integration', () => {
  }
  };
 
- const response = await server.handleRequest(mcpRequest);
+ const result = await server.callTool(mcpRequest.params.name, mcpRequest.params.arguments);
 
- expect(response).toBeValidMCPResponse();
- expect(response.result).toBeDefined();
- expect(response.result.content[0].text).toContain('test_value');
+ expect(result.isError).toBe(false);
+ expect(result.content[0].text).toContain('test_value');
  });
 
  test('should reject unsafe queries', async () => {
@@ -703,10 +702,10 @@ describe('SQLMCPServer Integration', () => {
  }
  };
 
- const response = await server.handleRequest(mcpRequest);
+ const result = await server.callTool(mcpRequest.params.name, mcpRequest.params.arguments);
 
- expect(response.error).toBeDefined();
- expect(response.error.message).toContain('DROP');
+ expect(result.isError).toBe(true);
+ expect(result.content[0].text).toContain('DROP');
  });
 });
 ```
@@ -811,7 +810,7 @@ const complexQueries = SampleQueries.getComplexityTestQueries();
 
 test('should handle complex analytical queries', async () => {
  const query = SampleQueries.analyticalQueries.cohortAnalysis;
- const result = await securityManager.validateQuery(query);
+ const result = securityManager.validateSelectOnlyQuery(query);
  expect(result.allowed).toBe(true);
 });
 ```
@@ -948,7 +947,7 @@ test('should not leak memory with repeated operations', async () => {
  
  // Perform many operations
  for (let i = 0; i < 1000; i++) {
- await securityManager.validateQuery('SELECT 1');
+ securityManager.validateSelectOnlyQuery('SELECT 1');
  }
  
  // Force garbage collection

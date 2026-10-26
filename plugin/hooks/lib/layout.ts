@@ -347,12 +347,6 @@ export function paneLayout(model: PaneModel, columns: number, height: number): {
   return { body, footer, pinned: true }
 }
 
-/** Every row the pane draws, the footer last: {@link paneLayout}'s body and footer as one list. */
-export function paneRows(state: PaneModel, columns: number, rows: number): Row[] {
-  const laid = paneLayout(state, columns, rows)
-  return [...laid.body, ...laid.footer]
-}
-
 
 /** How many proportional tries {@link shrinkRows} makes before it lays the lists out at their fewest rows. */
 const SHRINK_TRIES = 4
