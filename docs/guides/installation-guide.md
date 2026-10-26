@@ -5,14 +5,14 @@ This comprehensive guide walks you through installing the Argos on various platf
 ## System Requirements
 
 ### Minimum Requirements
-- **Node.js**: 22.0.0 or higher
+- **Node.js**: 24.15.0 or higher
 - **npm**: 10.0.0 or higher
 - **Memory**: 256 MB RAM
 - **Storage**: 100 MB available disk space
 - **Network**: Internet access for package installation
 
 ### Recommended Requirements
-- **Node.js**: 24.15.0 or higher (current LTS)
+- **Node.js**: the latest 24.x LTS, or 26
 - **npm**: 11.0.0 or higher
 - **Memory**: 512 MB RAM
 - **Storage**: 500 MB available disk space
@@ -557,10 +557,10 @@ echo " Verifying Argos Installation..."
 # Check Node.js version
 NODE_VERSION=$(node --version | cut -d'v' -f2)
 echo "Node.js version: $NODE_VERSION"
-if [ "$(printf '%s\n' "16.0.0" "$NODE_VERSION" | sort -V | head -n1)" = "16.0.0" ]; then
+if [ "$(printf '%s\n' "24.15.0" "$NODE_VERSION" | sort -V | head -n1)" = "24.15.0" ]; then
  echo " Node.js version is sufficient"
 else
- echo " Node.js version is too old (need 16.0.0+)"
+ echo " Node.js version is too old (need 24.15.0+)"
  exit 1
 fi
 

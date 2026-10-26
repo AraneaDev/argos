@@ -638,7 +638,7 @@ WantedBy=multi-user.target
 
 **Dockerfile with SSH tunnel support**:
 ```dockerfile
-FROM node:18-alpine
+FROM node:24-alpine
 
 # Install SSH client
 RUN apk add --no-cache openssh-client
