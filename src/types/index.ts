@@ -116,7 +116,7 @@ export {
 // ============================================================================
 
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
-export const SERVER_VERSION = '6.0.0'; // x-release-please-version
+export const SERVER_VERSION = '6.0.1'; // x-release-please-version
 export const SERVER_NAME = 'argos';
 
 // ============================================================================
