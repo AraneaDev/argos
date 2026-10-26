@@ -9,7 +9,6 @@ import type {
   DatabaseSchema,
   ForeignKey,
   DatabaseTypeString,
-  QueryResultWithRedaction,
 } from '../../types/index.js';
 import { RedactionManager } from '../../classes/RedactionManager.js';
 
@@ -134,27 +133,6 @@ export abstract class DatabaseAdapter {
    */
   public getType(): DatabaseTypeString {
     return this.config.type;
-  }
-
-  /**
-   * Get the connection configuration
-   */
-  public getConfig(): DatabaseConfig {
-    return { ...this.config };
-  }
-
-  /**
-   * Sanitize connection config for logging (remove sensitive data)
-   */
-  public getSafeConfig(): Partial<DatabaseConfig> {
-    const { password, ssh_password, ssh_private_key, ssh_passphrase, ...safe } = this.config;
-    return {
-      ...safe,
-      password: password ? '[REDACTED]' : undefined,
-      ssh_password: ssh_password ? '[REDACTED]' : undefined,
-      ssh_private_key: ssh_private_key ? '[REDACTED]' : undefined,
-      ssh_passphrase: ssh_passphrase ? '[REDACTED]' : undefined,
-    };
   }
 
   /**
@@ -421,41 +399,4 @@ export abstract class DatabaseAdapter {
   // ============================================================================
   // Redaction Management Methods
   // ============================================================================
-
-  /**
-   * Update redaction configuration at runtime
-   */
-  public updateRedactionConfig(redactionConfig: DatabaseConfig['redaction']): void {
-    if (redactionConfig?.enabled) {
-      this.redactionManager = new RedactionManager(redactionConfig);
-    } else {
-      this.redactionManager = undefined;
-    }
-
-    // Update the config
-    this.config.redaction = redactionConfig;
-  }
-
-  /**
-   * Check if redaction is enabled
-   */
-  public isRedactionEnabled(): boolean {
-    return !!this.redactionManager;
-  }
-
-  /**
-   * Get redaction configuration summary
-   */
-  public getRedactionSummary(): ReturnType<RedactionManager['getConfigurationSummary']> | null {
-    return this.redactionManager?.getConfigurationSummary() || null;
-  }
-
-  /**
-   * Test redaction with sample data
-   */
-  public testRedaction(
-    sampleData: Record<string, unknown>
-  ): ReturnType<RedactionManager['testRedaction']> | null {
-    return this.redactionManager?.testRedaction(sampleData) || null;
-  }
 }

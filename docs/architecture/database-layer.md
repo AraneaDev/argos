@@ -108,7 +108,6 @@ export class AdapterFactory {
  
  static validateConfig(config: DatabaseConfig): ValidationResult;
  static getRequiredFields(type: DatabaseTypeString): string[];
- static getDefaultPort(type: DatabaseTypeString): number;
 }
 ```
 
@@ -879,10 +878,10 @@ static getSupportedTypes(): DatabaseTypeString[] {
  return ['mysql', 'postgresql', 'sqlite', 'mssql', 'newdatabase'];
 }
 
-// Add default port and required fields
-static getDefaultPort(type: DatabaseTypeString): number {
+// Add required fields
+static getRequiredFields(type: DatabaseTypeString): string[] {
  switch (type) {
- case 'newdatabase': return 5000;
+ case 'newdatabase': return ['host', 'database', 'username'];
  // ... other cases
  }
 }

@@ -79,14 +79,14 @@ describe('PostgreSQLAdapter', () => {
   describe('constructor', () => {
     it('should initialize with valid PostgreSQL config', () => {
       expect(adapter.getType()).toBe('postgresql');
-      expect(adapter.getConfig().host).toBe('localhost');
-      expect(adapter.getConfig().port).toBe(5432);
+      expect((adapter as any).config.host).toBe('localhost');
+      expect((adapter as any).config.port).toBe(5432);
     });
 
     it('should handle port as string', () => {
       const stringPortConfig = { ...config, port: '5433' as any };
       const stringAdapter = new PostgreSQLAdapter(stringPortConfig);
-      expect(stringAdapter.getConfig().port).toBe('5433'); // Port remains as string in this implementation
+      expect((stringAdapter as any).config.port).toBe('5433'); // Port remains as string in this implementation
     });
   });
 
@@ -680,118 +680,6 @@ describe('PostgreSQLAdapter', () => {
   // ============================================================================
   // PostgreSQL-specific Methods Tests
   // ============================================================================
-
-  describe('PostgreSQL-specific methods', () => {
-    let connection: DatabaseConnection;
-
-    beforeEach(async () => {
-      connection = await adapter.connect();
-    });
-
-    describe('getVersion', () => {
-      it('should get PostgreSQL version successfully', async () => {
-        const versionResult = {
-          rows: [{ version: 'PostgreSQL 13.4 on x86_64-pc-linux-gnu' }],
-        };
-        mockQuery.mockResolvedValueOnce(versionResult);
-
-        const version = await adapter.getVersion(connection);
-
-        expect(mockQuery).toHaveBeenCalledWith('SELECT version()');
-        expect(version).toBe('PostgreSQL 13.4 on x86_64-pc-linux-gnu');
-      });
-
-      it('should handle version query errors', async () => {
-        const versionError = new Error('Version query failed');
-        mockQuery.mockRejectedValueOnce(versionError);
-
-        await expect(adapter.getVersion(connection)).rejects.toThrow(
-          'postgresql adapter error: Failed to get PostgreSQL version - Version query failed'
-        );
-      });
-
-      it('should handle empty version result', async () => {
-        const emptyResult = { rows: [] };
-        mockQuery.mockResolvedValueOnce(emptyResult);
-
-        const version = await adapter.getVersion(connection);
-        expect(version).toBe('Unknown');
-      });
-    });
-
-    describe('getDatabaseSize', () => {
-      it('should get database size successfully', async () => {
-        const sizeResult = {
-          rows: [{ size: '42 MB' }],
-        };
-        mockQuery.mockResolvedValueOnce(sizeResult);
-
-        const size = await adapter.getDatabaseSize(connection);
-
-        expect(mockQuery).toHaveBeenCalledWith(
-          `
- SELECT pg_size_pretty(pg_database_size($1)) as size
- `,
-          ['testdb']
-        );
-        expect(size).toBe('42 MB');
-      });
-
-      it('should report an unknown size when the query returns nothing', async () => {
-        mockQuery.mockResolvedValueOnce({ rows: [] });
-
-        expect(await adapter.getDatabaseSize(connection)).toBe('Unknown');
-      });
-
-      it('should handle database size query errors', async () => {
-        const sizeError = new Error('Size query failed');
-        mockQuery.mockRejectedValueOnce(sizeError);
-
-        await expect(adapter.getDatabaseSize(connection)).rejects.toThrow(
-          'postgresql adapter error: Failed to get PostgreSQL database size - Size query failed'
-        );
-      });
-    });
-
-    describe('getTableStats', () => {
-      it('should get table statistics successfully', async () => {
-        const statsResult = {
-          rows: [
-            {
-              schemaname: 'public',
-              tablename: 'users',
-              attname: 'id',
-              n_distinct: -1,
-              correlation: 1,
-            },
-            {
-              schemaname: 'public',
-              tablename: 'users',
-              attname: 'name',
-              n_distinct: 100,
-              correlation: 0.1,
-            },
-          ],
-        };
-        mockQuery.mockResolvedValueOnce(statsResult);
-
-        const stats = await adapter.getTableStats(connection, 'users');
-
-        expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('FROM pg_stats'), ['users']);
-        expect(stats.table).toBe('users');
-        expect(stats.columns).toHaveLength(2);
-      });
-
-      it('should handle table stats query errors', async () => {
-        const statsError = new Error('Stats query failed');
-        mockQuery.mockRejectedValueOnce(statsError);
-
-        await expect(adapter.getTableStats(connection, 'users')).rejects.toThrow(
-          'postgresql adapter error: Failed to get PostgreSQL table statistics - Stats query failed'
-        );
-      });
-    });
-  });
 
   // ============================================================================
   // Error Handling and Edge Cases

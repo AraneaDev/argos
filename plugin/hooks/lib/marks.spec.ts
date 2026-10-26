@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_ICON, CHANGE, KEY, OUTCOME, PLACE, RANKING, SEVERITY, SHARED, SOURCE, legend, mark, signed } from './marks'
+import { CARD_ICON, KEY, OUTCOME, PLACE, SEVERITY, SHARED, SOURCE, mark, signed } from './marks'
 import { ACCENT, STATUS_COLOURS } from './palette'
 
-const families = { SEVERITY, CHANGE, PLACE, RANKING, SOURCE, OUTCOME, KEY }
+const families = { SEVERITY, PLACE, SOURCE, OUTCOME, KEY }
 
 describe('the mark registry', () => {
   it('gives each glyph one meaning, apart from the overlaps that mean the same', () => {
@@ -22,14 +22,6 @@ describe('the mark registry', () => {
     expect(mark(SEVERITY.note)).toEqual({ text: '◦', dim: true })
     expect(mark(SOURCE.you)).toEqual({ text: '❯' })
     expect(mark(PLACE.centre)).toEqual({ text: '◉', color: ACCENT })
-  })
-
-  it('builds a legend of the marks shown, in the order given, leaving out zero counts', () => {
-    expect(legend([[OUTCOME.ok, 25], [OUTCOME.blocked, 2]])).toBe('✓ 25 ok · ⊘ 2 blocked')
-    expect(legend([[OUTCOME.ok, 0], [OUTCOME.blocked, 3]])).toBe('⊘ 3 blocked')
-    expect(legend([[OUTCOME.ok, 0]])).toBe('')
-    expect(legend([[RANKING.hotspotOnly, '']])).toBe('✦ hotspot only')
-    expect(legend([[SEVERITY.error, 1], [SEVERITY.warn, 2]])).toBe('✗ 1 error · ▲ 2 warnings')
   })
 
   it('writes a delta as a signed number', () => {

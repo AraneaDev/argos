@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 
 import type { SchemaView, TableInfo } from './contract'
 import { tierOf } from './table'
-import { filteredList, schemaRows, sketchOf, sqlOf } from './schema-view'
+import { filteredList, sketchOf, sqlOf } from './schema-view'
+import { schemaRows } from './__tests__/views'
 import type { Row } from './types'
 
 const FIXTURE = JSON.parse(readFileSync(new URL('../../../tests/fixtures/pane-contract/schema.json', import.meta.url), 'utf8')) as SchemaView

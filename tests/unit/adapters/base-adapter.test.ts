@@ -190,7 +190,7 @@ describe('DatabaseAdapter Base Class', () => {
   describe('constructor', () => {
     it('should initialize with valid config', () => {
       expect(adapter.getType()).toBe('sqlite');
-      expect(adapter.getConfig()).toEqual(testConfig);
+      expect((adapter as any).config).toEqual(testConfig);
     });
 
     it('should parse timeout from string', () => {
@@ -220,53 +220,6 @@ describe('DatabaseAdapter Base Class', () => {
   describe('getType', () => {
     it('should return the database type', () => {
       expect(adapter.getType()).toBe('sqlite');
-    });
-  });
-
-  describe('getConfig', () => {
-    it('should return a copy of the configuration', () => {
-      const config = adapter.getConfig();
-      expect(config).toEqual(testConfig);
-      expect(config).not.toBe(testConfig); // Should be a copy
-    });
-  });
-
-  describe('getSafeConfig', () => {
-    it('should redact sensitive fields', () => {
-      const safeConfig = adapter.getSafeConfig();
-      expect(safeConfig.password).toBe('[REDACTED]');
-      expect(safeConfig.host).toBe('localhost');
-      expect(safeConfig.database).toBe('test.db');
-    });
-
-    it('should redact SSH credentials', () => {
-      const configWithSSH = {
-        ...testConfig,
-        ssh_host: 'ssh.example.com',
-        ssh_username: 'sshuser',
-        ssh_password: 'sshpass',
-        ssh_private_key: 'private-key',
-        ssh_passphrase: 'passphrase',
-      };
-      const sshAdapter = new TestAdapter(configWithSSH);
-      const safeConfig = sshAdapter.getSafeConfig();
-
-      expect(safeConfig.ssh_password).toBe('[REDACTED]');
-      expect(safeConfig.ssh_private_key).toBe('[REDACTED]');
-      expect(safeConfig.ssh_passphrase).toBe('[REDACTED]');
-      expect(safeConfig.ssh_host).toBe('ssh.example.com');
-    });
-
-    it('should handle undefined sensitive fields', () => {
-      const configWithoutSensitive = {
-        type: 'sqlite' as const,
-        database: 'test.db',
-      };
-      const minimalAdapter = new TestAdapter(configWithoutSensitive);
-      const safeConfig = minimalAdapter.getSafeConfig();
-
-      expect(safeConfig.password).toBeUndefined();
-      expect(safeConfig.ssh_password).toBeUndefined();
     });
   });
 
@@ -884,7 +837,7 @@ describe('DatabaseAdapter Base Class', () => {
         },
       };
       const redactionAdapter = new TestAdapter(configWithRedaction);
-      expect(redactionAdapter.isRedactionEnabled()).toBe(true);
+      expect((redactionAdapter as any).redactionManager).toBeDefined();
     });
 
     it('should not initialize redaction manager when redaction is disabled', () => {
@@ -896,7 +849,7 @@ describe('DatabaseAdapter Base Class', () => {
         },
       };
       const noRedactionAdapter = new TestAdapter(configWithoutRedaction);
-      expect(noRedactionAdapter.isRedactionEnabled()).toBe(false);
+      expect((noRedactionAdapter as any).redactionManager).toBeUndefined();
     });
   });
 
@@ -941,141 +894,6 @@ describe('DatabaseAdapter Base Class', () => {
   // ============================================================================
   // Redaction Management Methods (lines 288-319)
   // ============================================================================
-
-  describe('updateRedactionConfig', () => {
-    it('should enable redaction when config is provided with enabled=true', () => {
-      expect(adapter.isRedactionEnabled()).toBe(false);
-
-      adapter.updateRedactionConfig({
-        enabled: true,
-        rules: [
-          {
-            field_pattern: 'email',
-            pattern_type: 'exact',
-            redaction_type: 'full_mask',
-          },
-        ],
-      });
-
-      expect(adapter.isRedactionEnabled()).toBe(true);
-      // Config should be updated too
-      expect(adapter.getConfig().redaction?.enabled).toBe(true);
-    });
-
-    it('should disable redaction when config has enabled=false', () => {
-      // First enable
-      adapter.updateRedactionConfig({
-        enabled: true,
-        rules: [
-          {
-            field_pattern: 'email',
-            pattern_type: 'exact',
-            redaction_type: 'full_mask',
-          },
-        ],
-      });
-      expect(adapter.isRedactionEnabled()).toBe(true);
-
-      // Then disable
-      adapter.updateRedactionConfig({
-        enabled: false,
-        rules: [],
-      });
-      expect(adapter.isRedactionEnabled()).toBe(false);
-    });
-
-    it('should disable redaction when config is undefined', () => {
-      adapter.updateRedactionConfig({
-        enabled: true,
-        rules: [
-          {
-            field_pattern: 'email',
-            pattern_type: 'exact',
-            redaction_type: 'full_mask',
-          },
-        ],
-      });
-
-      adapter.updateRedactionConfig(undefined);
-      expect(adapter.isRedactionEnabled()).toBe(false);
-    });
-  });
-
-  describe('isRedactionEnabled', () => {
-    it('should return false by default', () => {
-      expect(adapter.isRedactionEnabled()).toBe(false);
-    });
-
-    it('should return true when redaction is configured', () => {
-      const configWithRedaction: DatabaseConfig = {
-        ...testConfig,
-        redaction: {
-          enabled: true,
-          rules: [
-            {
-              field_pattern: 'ssn',
-              pattern_type: 'exact',
-              redaction_type: 'full_mask',
-            },
-          ],
-        },
-      };
-      const redactedAdapter = new TestAdapter(configWithRedaction);
-      expect(redactedAdapter.isRedactionEnabled()).toBe(true);
-    });
-  });
-
-  describe('getRedactionSummary', () => {
-    it('should return null when redaction is not enabled', () => {
-      expect(adapter.getRedactionSummary()).toBeNull();
-    });
-
-    it('should return summary when redaction is enabled', () => {
-      const configWithRedaction: DatabaseConfig = {
-        ...testConfig,
-        redaction: {
-          enabled: true,
-          rules: [
-            {
-              field_pattern: 'password',
-              pattern_type: 'exact',
-              redaction_type: 'full_mask',
-            },
-          ],
-        },
-      };
-      const redactedAdapter = new TestAdapter(configWithRedaction);
-      const summary = redactedAdapter.getRedactionSummary();
-      expect(summary).not.toBeNull();
-      expect(summary).toHaveProperty('enabled', true);
-    });
-  });
-
-  describe('testRedaction', () => {
-    it('should return null when redaction is not enabled', () => {
-      const result = adapter.testRedaction({ name: 'John', email: 'john@example.com' });
-      expect(result).toBeNull();
-    });
-
-    it('should return redaction test results when enabled', () => {
-      const configWithRedaction: DatabaseConfig = {
-        ...testConfig,
-        redaction: {
-          enabled: true,
-          rules: [
-            {
-              field_pattern: 'email',
-              pattern_type: 'exact',
-              redaction_type: 'full_mask',
-            },
-          ],
-        },
-      };
-      const redactedAdapter = new TestAdapter(configWithRedaction);
-      const result = redactedAdapter.testRedaction({ name: 'John', email: 'john@example.com' });
-      expect(result).not.toBeNull();
-    });
-  });
 
   // ============================================================================
   // Constructor timeout parsing edge cases (line 35 branch)

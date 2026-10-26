@@ -605,7 +605,7 @@ public async withConnection<T>(
  * }
  * });
  * 
- * const validation = await securityManager.validateQuery('SELECT * FROM users');
+ * const validation = securityManager.validateSelectOnlyQuery('SELECT * FROM users');
  * if (validation.allowed) {
  * // Execute query
  * }
@@ -629,7 +629,7 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
  * 
  * @example
  * ```typescript
- * const result = await securityManager.validateQuery(
+ * const result = securityManager.validateSelectOnlyQuery(
  * 'SELECT u.name, COUNT(p.id) FROM users u LEFT JOIN posts p ON u.id = p.user_id GROUP BY u.id',
  * 'postgresql'
  * );
@@ -893,17 +893,15 @@ public validateDatabaseConfig(name: string, config: unknown): ValidationResult {
 ### Query Sanitization
 
 ```typescript
-// Sanitize error messages to prevent information disclosure
-public sanitizeErrorMessage(errorMessage: string): string {
- return errorMessage
- .replace(/password[=:]\s*[^\s;,)]+/gi, 'password=[REDACTED]')
- .replace(/pwd[=:]\s*[^\s;,)]+/gi, 'pwd=[REDACTED]')
- .replace(/token[=:]\s*[^\s;,)]+/gi, 'token=[REDACTED]')
- .replace(/key[=:]\s*[^\s;,)]+/gi, 'key=[REDACTED]')
- .replace(/secret[=:]\s*[^\s;,)]+/gi, 'secret=[REDACTED]')
- .replace(/\b\d{4}-\d{4}-\d{4}-\d{4}\b/g, 'XXXX-XXXX-XXXX-XXXX') // Credit card numbers
- .replace(/\b\d{3}-\d{2}-\d{4}\b/g, 'XXX-XX-XXXX') // SSN format
- .substring(0, 500); // Limit message length
+// Sanitize error messages to prevent information disclosure (src/utils/error-handler.ts)
+export function sanitizeError(error: unknown): string {
+ if (error instanceof SecurityViolationError) {
+ return error.message; // already sanitized
+ }
+ if (error instanceof Error) {
+ return sanitizeMessage(error.message); // redacts credentials, card/SSN numbers; max 500 chars
+ }
+ return 'Unknown error occurred';
 }
 ```
 

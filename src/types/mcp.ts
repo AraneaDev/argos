@@ -30,17 +30,6 @@ export interface MCPRequest extends MCPMessage {
   params?: unknown;
 }
 
-export interface MCPResponse extends MCPMessage {
-  id: string | number | null;
-  result?: unknown;
-  error?: MCPError;
-}
-
-export interface MCPNotification extends MCPMessage {
-  method: string;
-  params?: unknown;
-}
-
 // ============================================================================
 // MCP Capabilities and Server Info
 // ============================================================================
@@ -48,16 +37,6 @@ export interface MCPNotification extends MCPMessage {
 // ============================================================================
 // MCP Tool Types
 // ============================================================================
-
-export interface MCPToolCallParams {
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
-export interface MCPToolCallRequest extends MCPRequest {
-  method: 'tools/call';
-  params: MCPToolCallParams;
-}
 
 export interface MCPToolContent {
   type: 'text';
@@ -127,41 +106,6 @@ export interface SQLRefreshSchemaArgs {
 // ============================================================================
 // Type Guards for MCP Messages
 // ============================================================================
-
-/**
- *
- */
-export function isMCPRequest(message: MCPMessage): message is MCPRequest {
-  return 'id' in message && 'method' in message && message.id !== undefined;
-}
-
-/**
- *
- */
-export function isMCPResponse(message: MCPMessage): message is MCPResponse {
-  return 'id' in message && ('result' in message || 'error' in message);
-}
-
-/**
- *
- */
-export function isMCPNotification(message: MCPMessage): message is MCPNotification {
-  return 'method' in message && !('id' in message);
-}
-
-/**
- *
- */
-export function isMCPToolCallRequest(message: MCPMessage): message is MCPToolCallRequest {
-  return (
-    isMCPRequest(message) &&
-    message.method === 'tools/call' &&
-    typeof message.params === 'object' &&
-    message.params !== null &&
-    'name' in message.params &&
-    'arguments' in message.params
-  );
-}
 
 // ============================================================================
 // Tool-specific Type Guards

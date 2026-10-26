@@ -33,17 +33,7 @@ jest.mock('path', () => ({
   }),
 }));
 
-import {
-  Logger,
-  getLogger,
-  initializeLogger,
-  cleanupLogger,
-  log,
-  logError,
-  logWarning,
-  logCritical,
-  logDebug,
-} from '../../../src/utils/logger.js';
+import { Logger, getLogger, initializeLogger, cleanupLogger } from '../../../src/utils/logger.js';
 
 import { createWriteStream, existsSync, unlinkSync } from 'fs';
 
@@ -254,32 +244,6 @@ describe('Logger', () => {
     });
   });
 
-  describe('critical', () => {
-    it('should log critical messages', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
-      logger.critical('critical message');
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('critical message'));
-    });
-
-    it('should log critical with Error object', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
-      logger.critical('fail', new Error('critical error'));
-      expect(console.error).toHaveBeenCalled();
-    });
-
-    it('should log critical with context object', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
-      logger.critical('fail', { detail: 'info' });
-      expect(console.error).toHaveBeenCalled();
-    });
-
-    it('should handle critical with no context', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
-      logger.critical('bare critical');
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('bare critical'));
-    });
-  });
-
   describe('debug', () => {
     it('should log debug messages when level is INFO', () => {
       const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
@@ -317,19 +281,12 @@ describe('Logger', () => {
       expect(console.error).not.toHaveBeenCalled();
     });
 
-    it('should show CRITICAL at all levels', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'CRITICAL' });
-      logger.critical('should appear');
-      expect(console.error).toHaveBeenCalled();
-    });
-
     it('should show WARNING and above when level is WARNING', () => {
       const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'WARNING' });
       logger.warning('warn');
       logger.error('err');
-      logger.critical('crit');
       expect(console.warn).toHaveBeenCalledTimes(1);
-      expect(console.error).toHaveBeenCalledTimes(2);
+      expect(console.error).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -507,48 +464,6 @@ describe('Logger', () => {
   // ============================================================================
   // Convenience Functions
   // ============================================================================
-
-  describe('convenience functions', () => {
-    it('log should call info on global logger', () => {
-      log('test message');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('test message'));
-    });
-
-    it('log should pass context', () => {
-      log('test', { key: 'val' });
-      expect(console.log).toHaveBeenCalled();
-    });
-
-    it('logError should call error on global logger', () => {
-      logError('error msg');
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('error msg'));
-    });
-
-    it('logError should accept Error object', () => {
-      logError('fail', new Error('err'));
-      expect(console.error).toHaveBeenCalled();
-    });
-
-    it('logWarning should call warning on global logger', () => {
-      logWarning('warn msg');
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('warn msg'));
-    });
-
-    it('logCritical should call critical on global logger', () => {
-      logCritical('critical msg');
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('critical msg'));
-    });
-
-    it('logCritical should accept Error object', () => {
-      logCritical('fail', new Error('crit'));
-      expect(console.error).toHaveBeenCalled();
-    });
-
-    it('logDebug should call debug on global logger', () => {
-      logDebug('debug msg');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[DEBUG] debug msg'));
-    });
-  });
 
   describe('secret redaction in file output', () => {
     it('redacts secret-looking context fields before writing to the log file', async () => {

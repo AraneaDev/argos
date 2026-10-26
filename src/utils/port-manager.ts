@@ -348,42 +348,6 @@ export class PortManager {
   }
 
   /**
-   * Validate port range
-   */
-  isValidPort(port: number): boolean {
-    return port >= 1 && port <= 65535;
-  }
-
-  /**
-   * Check if port is in privileged range
-   */
-  isPrivilegedPort(port: number): boolean {
-    return port < 1024;
-  }
-
-  /**
-   * Get human-readable port status
-   */
-  async getPortStatus(port: number): Promise<string> {
-    const result = await this.isPortAvailable(port);
-
-    if (result.isAvailable) {
-      return `Port ${port} is available`;
-    } else {
-      let status = `Port ${port} is not available`;
-      if (result.reason) {
-        status += ` - ${result.reason}`;
-      }
-
-      if (this.reservedPorts.has(port)) {
-        status += ' (reserved by SSH tunnel manager)';
-      }
-
-      return status;
-    }
-  }
-
-  /**
    * Clear all reserved ports (useful for testing)
    */
   clearReservedPorts(): void {

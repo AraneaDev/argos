@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ACCENT, ENGINE_COLOURS, ENGINE_HUES, FAINT, HEADING, SECONDARY, STAT_HUES, STATUS_COLOURS, TITLE, boundaryColour, boundaryLabel, engineColour, heat } from './palette'
-import { THEMES } from './themes'
+import { ACCENT, ENGINE_COLOURS, FAINT, HEADING, SECONDARY, STAT_HUES, STATUS_COLOURS, TITLE, engineColour } from './palette'
+import { THEMES } from './__tests__/themes'
 
 describe('engineColour', () => {
   it('gives each of the four engines a chip hue of its own, none a status colour', () => {
@@ -13,17 +13,6 @@ describe('engineColour', () => {
   })
   it('leaves a name that is no engine uncoloured, even one named like an Object.prototype member', () => {
     for (const odd of [null, undefined, '', 'oracle', 'constructor', 'toString', '__proto__']) expect(engineColour(odd), String(odd)).toBeUndefined()
-  })
-  it('is the colour a chip is drawn with when given the engine hues', () => {
-    expect(boundaryColour('mysql', ENGINE_HUES)).toBe(ENGINE_COLOURS.mysql)
-    expect(boundaryColour('mysql')).toBeUndefined()
-    expect(boundaryColour(null, ENGINE_HUES)).toBeUndefined()
-    expect(boundaryColour('', ENGINE_HUES)).toBeUndefined()
-  })
-  it('prints a chip name as written, and nothing for none', () => {
-    expect(boundaryLabel('postgresql')).toBe('postgresql')
-    expect(boundaryLabel(null)).toBe('')
-    expect(boundaryLabel(undefined)).toBe('')
   })
 })
 
@@ -38,14 +27,6 @@ describe('theme keys', () => {
 describe('the livelier look', () => {
   it('titles cards in the orange Claude Code marks itself with', () => {
     expect(TITLE).toBe('claude')
-  })
-
-  it('shades buckets cool to hot: the first in the suggestion blue, the last in the error colour, never cooler further on', () => {
-    expect(heat(0, 5)).toBe(ACCENT)
-    expect(heat(4, 5)).toBe(STATUS_COLOURS.alert)
-    const order = [ACCENT, STATUS_COLOURS.ok, STATUS_COLOURS.warn, STATUS_COLOURS.alert]
-    for (let i = 1; i < 9; i++) expect(order.indexOf(heat(i, 9))).toBeGreaterThanOrEqual(order.indexOf(heat(i - 1, 9)))
-    expect(heat(0, 1)).toBe(ACCENT)
   })
 })
 

@@ -3,7 +3,7 @@ import { arrange, BALANCE_SLACK, balanceColumns, besideRows, cardInner, cardRows
 import type { Block, Section } from './cards'
 import { rawText } from './__tests__/plain-text'
 import { button, rowWidth } from './rows'
-import { BAR_SHARE, barRange, percentile, tableSpec, tierOf } from './table'
+import { tierOf } from './table'
 import { HEADING, TITLE } from './palette'
 import type { Row } from './types'
 import type { Tier } from './table'
@@ -201,50 +201,6 @@ describe('lists sized to the height', () => {
     // Where the wheel left it, and a list that shows whole: no line under it.
     expect(windowedTable('t-window', items, { columns: 40, limit: 4, scrolled: 5 }, (shown, start) => shown.map((text, n) => ({ key: `t-${start + n}`, segments: [{ text }] }))).window).toEqual({ start: 5, shown: 4, length: 10 })
     expect(windowedTable('t-window', items.slice(0, 2), { columns: 40, limit: 4 }, shown => shown.map(text => ({ key: text, segments: [{ text }] }))).rows).toHaveLength(2)
-  })
-})
-
-describe('bars', () => {
-  const tiers: Tier[] = ['narrow', 'medium', 'wide']
-  it('take a share of the table between a minimum and a maximum per tier', () => {
-    for (const tier of tiers) {
-      for (const columns of [40, 60, 100, 136, 196]) {
-        const range = barRange(columns, tier)
-        const spec = tableSpec(columns, ['Short'], ['core'], [3])
-        expect(range.min).toBeLessThanOrEqual(range.max)
-        const withTier = tableSpec(columns, ['Short'], ['core'], [3], undefined, { tier })
-        expect(withTier.bar).toBeLessThanOrEqual(range.max)
-        expect(withTier.bar).toBeGreaterThanOrEqual(range.min)
-        expect(spec.bar).toBeGreaterThan(0)
-      }
-    }
-    // Wider tiers draw longer gauges: past the old 24-cell cap.
-    expect(tableSpec(196, ['Short'], ['core'], [3], undefined, { tier: 'wide' }).bar).toBeGreaterThan(24)
-  })
-  it('never take more than a quarter of the table, nor past their tier cap however wide', () => {
-    for (const tier of tiers) {
-      for (const columns of [40, 60, 80, 96, 126, 136, 196, 400]) {
-        const bar = tableSpec(columns, ['Short'], ['core'], [3], undefined, { tier }).bar
-        expect(bar, `${tier} ${columns}`).toBeLessThanOrEqual(Math.max(4, Math.floor(columns / 4)))
-        expect(bar, `${tier} ${columns}`).toBeLessThanOrEqual(BAR_SHARE[tier].cap)
-      }
-    }
-    // A wide hubs card at 200 columns: the bar is a gauge, not the widest thing on the row.
-    expect(tableSpec(196, ['ArchitectureQueryService'], [], [3, 3, 5, 5], undefined, { tier: 'wide' }).bar).toBe(30)
-  })
-  it('make room for a place column, cutting only the few longest names', () => {
-    const names = [...Array.from({ length: 19 }, (_, i) => `Component${i}`), 'ArchitectureQueryService::architectureHealth']
-    const places = names.map(n => `${n}.php:12`.slice(0, 30))
-    const spec = tableSpec(115, names, [], [3, 3, 5, 5], undefined, { tier: 'wide', places })
-    expect(spec.place).toBeGreaterThan(0)
-    expect(spec.name).toBeGreaterThanOrEqual(percentile(names.map(n => n.length), 0.9))
-    expect(percentile([], 0.9)).toBe(1)
-    expect(percentile([5, 1, 3], 1)).toBe(5)
-  })
-  it('give way to a file column only while names stay whole, and drop it first', () => {
-    const places = ['ArchitectureQueryService.php:22']
-    expect(tableSpec(120, ['ArchitectureQueryService'], ['core'], [3, 3, 5], undefined, { tier: 'medium', places }).place).toBe(31)
-    expect(tableSpec(60, ['ArchitectureQueryService'], ['core'], [3, 3, 5], undefined, { tier: 'medium', places }).place).toBeUndefined()
   })
 })
 

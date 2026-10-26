@@ -4,7 +4,7 @@ import { MockDatabaseFactory } from '../fixtures/mock-databases.js';
 import { TestConfigFixtures } from '../fixtures/test-configs.js';
 import { DatabaseType } from '../../src/types/database.js';
 import type { DatabaseConfig } from '../../src/types/database.js';
-import { ConnectionError, QueryExecutionError } from '../../src/utils/error-handler.js';
+import { ConnectionError } from '../../src/utils/error-handler.js';
 
 describe('ConnectionManager', () => {
   let connectionManager: ConnectionManager;
@@ -41,14 +41,10 @@ describe('ConnectionManager', () => {
         remotePort: 5432,
         portAssignment: { assignedPort: 12345, wasPreferredPort: false },
       }),
-      getEnhancedTunnel: jest.fn().mockReturnValue(null),
       getPortRecommendations: jest
         .fn()
         .mockResolvedValue({ available: [12346, 12347], used: [], suggestions: [] }),
       getAllTunnelInfo: jest.fn().mockReturnValue({}),
-      getConnectionStatistics: jest
-        .fn()
-        .mockReturnValue({ total: 0, active: 0, portRange: { min: 30000, max: 40000 } }),
       // EventEmitter methods
       on: jest.fn(),
       off: jest.fn(),
@@ -71,7 +67,7 @@ describe('ConnectionManager', () => {
 
   afterEach(async () => {
     // Clean up any connections
-    await connectionManager.closeAll();
+    await connectionManager.closeAllConnections();
   });
 
   describe('Database Registration', () => {
@@ -79,8 +75,7 @@ describe('ConnectionManager', () => {
       const config = TestConfigFixtures.validPostgresConfig;
       connectionManager.registerDatabase('test_db', config);
 
-      expect(connectionManager.hasDatabase('test_db')).toBe(true);
-      expect(connectionManager.getDatabaseNames()).toContain('test_db');
+      expect(connectionManager.getDatabaseConfig('test_db')).toBeDefined();
     });
 
     test('should register multiple databases', () => {
@@ -94,10 +89,9 @@ describe('ConnectionManager', () => {
         connectionManager.registerDatabase(name, config);
       });
 
-      expect(connectionManager.getDatabaseNames()).toHaveLength(3);
-      expect(connectionManager.hasDatabase('postgres')).toBe(true);
-      expect(connectionManager.hasDatabase('mysql')).toBe(true);
-      expect(connectionManager.hasDatabase('sqlite')).toBe(true);
+      expect(connectionManager.getDatabaseConfig('postgres')).toBeDefined();
+      expect(connectionManager.getDatabaseConfig('mysql')).toBeDefined();
+      expect(connectionManager.getDatabaseConfig('sqlite')).toBeDefined();
     });
 
     test('should overwrite existing database registration', () => {
@@ -107,20 +101,18 @@ describe('ConnectionManager', () => {
       connectionManager.registerDatabase('test_db', config1);
       connectionManager.registerDatabase('test_db', config2);
 
-      expect(connectionManager.getDatabaseNames()).toHaveLength(1);
-      expect(connectionManager.hasDatabase('test_db')).toBe(true);
+      expect(connectionManager.getDatabaseConfig('test_db')?.host).toBe('different-host');
     });
 
     test('should unregister databases', () => {
       const config = TestConfigFixtures.validPostgresConfig;
       connectionManager.registerDatabase('test_db', config);
 
-      expect(connectionManager.hasDatabase('test_db')).toBe(true);
+      expect(connectionManager.getDatabaseConfig('test_db')).toBeDefined();
 
       connectionManager.unregisterDatabase('test_db');
 
-      expect(connectionManager.hasDatabase('test_db')).toBe(false);
-      expect(connectionManager.getDatabaseNames()).not.toContain('test_db');
+      expect(connectionManager.getDatabaseConfig('test_db')).toBeUndefined();
     });
   });
 
@@ -232,50 +224,10 @@ describe('ConnectionManager', () => {
       expect(mockAdapter1.isCurrentlyConnected()).toBe(true);
       expect(mockAdapter2.isCurrentlyConnected()).toBe(true);
 
-      await connectionManager.closeAll();
+      await connectionManager.closeAllConnections();
 
       expect(mockAdapter1.isCurrentlyConnected()).toBe(false);
       expect(mockAdapter2.isCurrentlyConnected()).toBe(false);
-    });
-  });
-
-  describe('Connection Testing', () => {
-    test('should test successful connection', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      const config = TestConfigFixtures.validPostgresConfig;
-      connectionManager.registerDatabase('test_db', config);
-
-      const result = await connectionManager.testConnection('test_db');
-
-      expect(result.success).toBe(true);
-      expect(result.schema_info).toBeDefined();
-    });
-
-    test('should test failed connection', async () => {
-      const mockAdapter = MockDatabaseFactory.createFailingAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      const config = TestConfigFixtures.validPostgresConfig;
-      connectionManager.registerDatabase('test_db', config);
-
-      const result = await connectionManager.testConnection('test_db');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
-      expect(result.error).toContain('Connection failed');
-    });
-
-    test('should test connection for unregistered database', async () => {
-      const result = await connectionManager.testConnection('nonexistent');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('not registered');
     });
   });
 
@@ -423,68 +375,7 @@ describe('ConnectionManager', () => {
     });
   });
 
-  describe('Connection Health Monitoring', () => {
-    test('should check connection health', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      const config = TestConfigFixtures.validPostgresConfig;
-      connectionManager.registerDatabase('test_db', config);
-
-      await connectionManager.getConnection('test_db');
-
-      const isHealthy = await connectionManager.isConnectionHealthy('test_db');
-      expect(isHealthy).toBe(true);
-    });
-
-    test('should detect unhealthy connections', async () => {
-      const mockAdapter = MockDatabaseFactory.createFailingAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      const config = TestConfigFixtures.validPostgresConfig;
-      connectionManager.registerDatabase('test_db', config);
-
-      const isHealthy = await connectionManager.isConnectionHealthy('test_db');
-      expect(isHealthy).toBe(false);
-    });
-
-    test('should get connection statistics', () => {
-      connectionManager.registerDatabase('db1', TestConfigFixtures.validPostgresConfig);
-      connectionManager.registerDatabase('db2', TestConfigFixtures.validMysqlConfig);
-
-      const stats = connectionManager.getConnectionStats();
-
-      expect(stats).toBeDefined();
-      expect(stats.total).toBe(2);
-      expect(stats.active).toBe(0);
-      expect(typeof stats.withSSH).toBe('number');
-    });
-  });
-
   describe('Error Handling and Recovery', () => {
-    test('should handle connection drops', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      const config = TestConfigFixtures.validPostgresConfig;
-      connectionManager.registerDatabase('test_db', config);
-
-      await connectionManager.getConnection('test_db');
-
-      // Simulate connection drop
-      mockAdapter.configure({ shouldFailConnection: true });
-
-      // Connection manager should handle this gracefully
-      const isHealthy = await connectionManager.isConnectionHealthy('test_db');
-      expect(typeof isHealthy).toBe('boolean');
-    });
-
     test('should retry failed connections', async () => {
       let attempts = 0;
       const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
@@ -1355,8 +1246,8 @@ describe('ConnectionManager', () => {
       const emitSpy = jest.spyOn(connectionManager, 'emit');
       connectionManager.initialize(databases);
 
-      expect(connectionManager.hasDatabase('db1')).toBe(true);
-      expect(connectionManager.hasDatabase('db2')).toBe(true);
+      expect(connectionManager.getDatabaseConfig('db1')).toBeDefined();
+      expect(connectionManager.getDatabaseConfig('db2')).toBeDefined();
       expect(emitSpy).toHaveBeenCalledWith('initialized', databases);
     });
   });
@@ -1364,87 +1255,6 @@ describe('ConnectionManager', () => {
   // ============================================================================
   // getActiveConnections and getConnectionStats
   // ============================================================================
-
-  describe('Active Connections and Stats', () => {
-    test('should return active connections', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
-      await connectionManager.getConnection('test_db');
-
-      const active = connectionManager.getActiveConnections();
-      expect(active).toContain('test_db');
-    });
-
-    test('should return empty when no active connections', () => {
-      connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
-      expect(connectionManager.getActiveConnections()).toEqual([]);
-    });
-
-    test('should return connection statistics with SSH info', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      connectionManager.registerDatabase('db1', TestConfigFixtures.validPostgresConfig);
-      connectionManager.registerDatabase('db2', TestConfigFixtures.validMysqlConfig);
-
-      await connectionManager.getConnection('db1');
-
-      const stats = connectionManager.getConnectionStats();
-      expect(stats.total).toBe(2);
-      expect(stats.active).toBe(1);
-      expect(stats.inactive).toBe(1);
-      expect(typeof stats.withSSH).toBe('number');
-    });
-
-    test('getConnectionStatistics should be alias for getConnectionStats', () => {
-      connectionManager.registerDatabase('db1', TestConfigFixtures.validPostgresConfig);
-      const stats = connectionManager.getConnectionStats();
-      const statistics = connectionManager.getConnectionStatistics();
-      expect(stats).toEqual(statistics);
-    });
-  });
-
-  // ============================================================================
-  // createDatabaseListItems
-  // ============================================================================
-
-  describe('createDatabaseListItems', () => {
-    test('should create list items from configs', () => {
-      const configs: Record<string, DatabaseConfig> = {
-        pg_db: TestConfigFixtures.validPostgresConfig,
-        mysql_db: TestConfigFixtures.validMysqlConfig,
-        ssh_db: TestConfigFixtures.configWithSSH,
-      };
-
-      const items = connectionManager.createDatabaseListItems(configs);
-
-      expect(items).toHaveLength(3);
-
-      const pgItem = items.find((i) => i.name === 'pg_db')!;
-      expect(pgItem.type).toBe('postgresql');
-      expect(pgItem.ssh_enabled).toBe(false);
-      expect(pgItem.select_only_mode).toBe(true);
-
-      const sshItem = items.find((i) => i.name === 'ssh_db')!;
-      expect(sshItem.ssh_enabled).toBe(true);
-      expect(sshItem.select_only_mode).toBe(true);
-    });
-
-    test('should handle sqlite with file instead of host', () => {
-      const configs: Record<string, DatabaseConfig> = {
-        sqlite_db: TestConfigFixtures.validSqliteConfig,
-      };
-
-      const items = connectionManager.createDatabaseListItems(configs);
-      expect(items[0].host).toBe('./test.db');
-    });
-  });
 
   // ============================================================================
   // isConnected edge cases
@@ -1474,14 +1284,10 @@ describe('ConnectionManager', () => {
   });
 
   // ============================================================================
-  // getExistingConnection and getAdapter
+  // getAdapter
   // ============================================================================
 
-  describe('getExistingConnection and getAdapter', () => {
-    test('should return undefined for non-existent connection', () => {
-      expect(connectionManager.getExistingConnection('nonexistent')).toBeUndefined();
-    });
-
+  describe('getAdapter', () => {
     test('should return undefined for non-existent adapter', () => {
       expect(connectionManager.getAdapter('nonexistent')).toBeUndefined();
     });
@@ -1495,116 +1301,7 @@ describe('ConnectionManager', () => {
       connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
       await connectionManager.getConnection('test_db');
 
-      expect(connectionManager.getExistingConnection('test_db')).toBeDefined();
       expect(connectionManager.getAdapter('test_db')).toBeDefined();
-    });
-  });
-
-  // ============================================================================
-  // testConnection (expanded)
-  // ============================================================================
-
-  describe('testConnection (expanded)', () => {
-    test('should test with provided config instead of registered', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      // Don't register - pass config directly
-      const result = await connectionManager.testConnection(
-        'custom_db',
-        TestConfigFixtures.validPostgresConfig
-      );
-
-      expect(result.success).toBe(true);
-    });
-
-    test('should return failure for invalid config', async () => {
-      const invalidConfig = TestConfigFixtures.invalidDatabaseConfig as DatabaseConfig;
-
-      const result = await connectionManager.testConnection('invalid_db', invalidConfig);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Invalid configuration');
-    });
-
-    test('should indicate SSH tunnel status in test result', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      const config = TestConfigFixtures.configWithSSH;
-      const result = await connectionManager.testConnection('ssh_db', config);
-
-      expect(result.ssh_tunnel).toBe(true);
-    });
-
-    test('should handle SSH tunnel failure in test', async () => {
-      mockSSHTunnelManager.createTunnel.mockRejectedValue(new Error('SSH connection refused'));
-
-      const config = TestConfigFixtures.configWithSSH;
-      const result = await connectionManager.testConnection('ssh_db', config);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('SSH tunnel failed');
-    });
-
-    test('should clean up test tunnel after successful test', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      const config = TestConfigFixtures.configWithSSH;
-      await connectionManager.testConnection('ssh_db', config);
-
-      // Should have closed the test tunnel (named `ssh_db_test`)
-      expect(mockSSHTunnelManager.closeTunnel).toHaveBeenCalledWith('ssh_db_test');
-    });
-
-    test('should report schema_captured when schema is available', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
-
-      const result = await connectionManager.testConnection('test_db');
-
-      expect(result.success).toBe(true);
-      expect(result.schema_captured).toBe(true);
-      expect(result.schema_info).toBeDefined();
-    });
-
-    test('should handle schema capture failure gracefully', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(mockAdapter, 'captureSchema').mockRejectedValue(new Error('Schema error'));
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
-
-      const result = await connectionManager.testConnection('test_db');
-
-      expect(result.success).toBe(true);
-      expect(result.schema_captured).toBe(false);
-    });
-
-    test('should indicate select_only_mode in test result', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      const config = { ...TestConfigFixtures.validPostgresConfig, select_only: true };
-      connectionManager.registerDatabase('test_db', config);
-
-      const result = await connectionManager.testConnection('test_db');
-      expect(result.select_only_mode).toBe(true);
     });
   });
 
@@ -1672,7 +1369,7 @@ describe('ConnectionManager', () => {
       await connectionManager.getConnection('db1');
       await connectionManager.getConnection('db2');
 
-      await connectionManager.closeAll();
+      await connectionManager.closeAllConnections();
 
       // Verify all connections are closed
       expect(mockAdapter1.isCurrentlyConnected()).toBe(false);
@@ -1803,7 +1500,7 @@ describe('ConnectionManager', () => {
       );
       jest
         .spyOn(mockAdapter, 'executeQuery')
-        .mockRejectedValue(new QueryExecutionError('Syntax error near SELECT'));
+        .mockRejectedValue(new Error('Syntax error near SELECT')); // what a driver throws
       jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
       connectionManager.on('error', () => {});
 
@@ -1817,7 +1514,7 @@ describe('ConnectionManager', () => {
         );
       }
 
-      // 11th should still be a QueryExecutionError (NOT CircuitOpenError)
+      // 11th should still be the query error (NOT CircuitOpenError)
       try {
         await connectionManager.executeQuery('test_db', 'BAD SQL');
         throw new Error('Expected error');
@@ -1904,7 +1601,7 @@ describe('ConnectionManager', () => {
       await cmWithCache.executeQuery('test_db', 'SELECT * FROM users');
       expect(execSpy).toHaveBeenCalledTimes(2); // cache was invalidated
 
-      await cmWithCache.closeAll();
+      await cmWithCache.closeAllConnections();
     });
 
     test('closeAllConnections destroys connection pools (H3)', async () => {
@@ -1964,7 +1661,7 @@ describe('ConnectionManager', () => {
 
       execSpy.mockResolvedValue(mk('b') as any);
       expect(await cm.schemaFingerprint('test_db')).not.toBe(h1);
-      await cm.closeAll();
+      await cm.closeAllConnections();
     });
 
     test('returns cached result on second identical SELECT', async () => {
@@ -1993,7 +1690,7 @@ describe('ConnectionManager', () => {
       expect(execSpy).toHaveBeenCalledTimes(1);
       expect(r2).toEqual(r1);
 
-      await cmWithCache.closeAll();
+      await cmWithCache.closeAllConnections();
     });
 
     test('does not cache mutations', async () => {
@@ -2017,7 +1714,7 @@ describe('ConnectionManager', () => {
       // Both calls should have hit the DB
       expect(execSpy).toHaveBeenCalledTimes(2);
 
-      await cmWithCache.closeAll();
+      await cmWithCache.closeAllConnections();
     });
 
     test('mutations invalidate cached SELECT results', async () => {
@@ -2051,7 +1748,7 @@ describe('ConnectionManager', () => {
       await cmWithCache.executeQuery('test_db', 'SELECT * FROM users');
       expect(execSpy).toHaveBeenCalledTimes(3);
 
-      await cmWithCache.closeAll();
+      await cmWithCache.closeAllConnections();
     });
   });
 

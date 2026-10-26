@@ -6,12 +6,11 @@
  * Pure: a `SchemaView` in, rows out. The marker walks {@link filteredList}.
  */
 import type { Arrangement, Block, Section } from './cards'
-import { arrange, noteOf, scrolledTo, windowedTable } from './cards'
+import { noteOf, windowedTable } from './cards'
 import type { SchemaChange, SchemaView, TableInfo } from './contract'
 import { KEY, mark } from './marks'
 import { engineColour, STAT_HUES, STATUS_COLOURS } from './palette'
 import { button, clip, dimRow, walkedRow } from './rows'
-import { tierOf } from './table'
 import type { Tier } from './table'
 import { fit, grouped, padEnd, padStart, spaces } from './text'
 import { tilesBlock } from './tiles'
@@ -187,13 +186,4 @@ export function schemaArrangement(view: SchemaView, selected: number, tier: Tier
   const columns = columnsBlock(view, table)
   const relations = relationsBlock(view, table)
   return { top: [tiles], left: [tables], right: [columns, relations], split: 0.4, order: [tiles, tables, columns, relations] }
-}
-
-/**
- * The Schema tab's rows in `columns` cells and `room` rows at `tier`: the
- * lists cut to windows round the marker, or where the wheel left them
- * (`scroll`, by card key).
- */
-export function schemaRows(view: SchemaView, selected: number, columns: number, tier: Tier, room: number, scroll: Record<string, number>, options: SchemaOptions = {}): Row[] {
-  return arrange(scrolledTo(schemaArrangement(view, selected, tier, options), scroll), columns, room, true, tier === tierOf(columns) ? undefined : tier)
 }

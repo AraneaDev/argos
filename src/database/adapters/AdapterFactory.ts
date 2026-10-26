@@ -3,7 +3,6 @@
  */
 
 import type { DatabaseConfig, DatabaseTypeString } from '../../types/index.js';
-import { DEFAULT_DATABASE_PORTS } from '../../types/index.js';
 import { usesAzureCliAuth } from '../../utils/config.js';
 import type { DatabaseAdapter } from './base.js';
 import { MySQLAdapter } from './mysql.js';
@@ -57,13 +56,6 @@ export class AdapterFactory {
    */
   static isSupported(type: string): boolean {
     return this.getSupportedTypes().includes(type.toLowerCase() as DatabaseTypeString);
-  }
-
-  /**
-   * Get default port for a database type
-   */
-  static getDefaultPort(type: DatabaseTypeString): number {
-    return DEFAULT_DATABASE_PORTS[type.toLowerCase() as DatabaseTypeString] ?? 0;
   }
 
   /**

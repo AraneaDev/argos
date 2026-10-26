@@ -71,22 +71,18 @@ graph TB
 ### Implementation Classes
 
 #### MCPServer (SQLMCPServer)
-Main server class handling protocol implementation:
+The JSON-RPC transport, the `initialize` handshake and the message envelope are handled by
+the MCP SDK (`@modelcontextprotocol/sdk`): `SQLMCPServer` registers two request handlers on
+the SDK `Server` and connects it to a `StdioServerTransport`.
 
 ```typescript
 export class SQLMCPServer extends EventEmitter {
- // Core protocol methods
- private async handleInitialize(request: MCPRequest): Promise<MCPResponse>;
- private async handleToolsList(request: MCPRequest): Promise<MCPResponse>;
- private async handleToolCall(request: MCPRequest): Promise<MCPResponse>;
- 
- // Message processing
- private async handleMessage(messageStr: string): Promise<void>;
- private async handleRequest(request: MCPRequest): Promise<MCPResponse | null>;
- 
- // Protocol utilities
- private sendMessage(message: MCPMessage): void;
- private sendErrorResponse(id: string | number | null, code: number, message: string): void;
+ // tools/list and tools/call, as registered with the SDK
+ listTools(): { tools: MCPTool[] };
+ callTool(name: string, args: Record<string, unknown> | undefined): Promise<{
+ content: Array<{ type: 'text'; text: string }>;
+ isError: boolean;
+ }>;
 }
 ```
 
@@ -109,68 +105,15 @@ The server implements all required MCP methods:
 ### Message Processing Pipeline
 
 ```typescript
-// 1. Input Processing
-process.stdin.on('data', (chunk: string) => {
- buffer += chunk;
- const lines = buffer.split('\n');
- buffer = lines.pop() || '';
+// The SDK parses each stdin message, answers initialize itself, and routes:
+this.mcpServer.setRequestHandler(ListToolsRequestSchema, async () => this.listTools());
+this.mcpServer.setRequestHandler(CallToolRequestSchema, async (request) =>
+ this.callTool(request.params.name, request.params.arguments)
+);
 
- for (const line of lines) {
- if (line.trim()) {
- this.handleMessage(line.trim());
- }
- }
-});
-
-// 2. Message Parsing & Validation
-private async handleMessage(messageStr: string): Promise<void> {
- try {
- const message: MCPMessage = JSON.parse(messageStr);
- 
- if (isMCPRequest(message)) {
- const response = await this.handleRequest(message);
- if (response) {
- this.sendMessage(response);
- }
- }
- } catch (error) {
- this.sendErrorResponse(null, -32700, 'Parse error');
- }
-}
-
-// 3. Request Routing
-private async handleRequest(request: MCPRequest): Promise<MCPResponse | null> {
- switch (request.method) {
- case 'initialize': return await this.handleInitialize(request);
- case 'tools/list': return await this.handleToolsList(request);
- case 'tools/call': return await this.handleToolCall(request);
- case 'notifications/initialized': return null; // No response needed
- default: return this.createErrorResponse(request.id, -32601, 'Method not found');
- }
-}
-```
-
-### Initialize Method Implementation
-```typescript
-private async handleInitialize(request: MCPRequest): Promise<MCPResponse> {
- const result: MCPInitializeResult = {
- protocolVersion: MCP_PROTOCOL_VERSION,
- capabilities: {
- tools: {}, // Tool-related capabilities
- logging: {} // Logging capabilities
- },
- serverInfo: {
- name: SERVER_NAME,
- version: SERVER_VERSION
- }
- };
-
- return {
- jsonrpc: '2.0',
- id: request.id,
- result
- };
-}
+// callTool validates the arguments, runs the tool through the dispatcher
+// (src/tools/dispatcher.ts), and turns any thrown error into an isError result
+// with a sanitized message, so a failing tool never breaks the connection.
 ```
 
 ### Tools List Implementation
@@ -505,104 +448,34 @@ private sanitizeOutput(result: QueryResult, config: DatabaseConfig): QueryResult
 ## Testing & Validation
 
 ### Protocol Compliance Testing
+The SDK owns the JSON-RPC layer, so tests call the two handler methods directly
+(`tests/integration/mcp-server.test.ts`):
+
 ```typescript
-describe('MCP Protocol Compliance', () => {
- it('should handle initialize request correctly', async () => {
- const request: MCPRequest = {
- jsonrpc: '2.0',
- id: 1,
- method: 'initialize',
- params: {
- protocolVersion: '2025-06-18',
- capabilities: {},
- clientInfo: { name: 'test-client', version: '1.0.0' }
- }
- };
- 
- const response = await server.handleRequest(request);
- 
- expect(response).toBeDefined();
- expect(response?.result).toHaveProperty('protocolVersion');
- expect(response?.result).toHaveProperty('capabilities');
- expect(response?.result).toHaveProperty('serverInfo');
- });
- 
- it('should return valid tools list', async () => {
- const request: MCPRequest = {
- jsonrpc: '2.0',
- id: 2,
- method: 'tools/list'
- };
- 
- const response = await server.handleRequest(request);
- 
- expect(response?.result).toHaveProperty('tools');
- expect(Array.isArray(response?.result.tools)).toBe(true);
- 
- // Validate each tool has required fields
- response?.result.tools.forEach((tool: MCPTool) => {
+describe('MCP tools', () => {
+ it('should return valid tools list', () => {
+ const { tools } = server.listTools();
+
+ expect(tools.length).toBeGreaterThan(0);
+ tools.forEach((tool: MCPTool) => {
  expect(tool).toHaveProperty('name');
  expect(tool).toHaveProperty('description');
  expect(tool).toHaveProperty('inputSchema');
  });
  });
-});
-```
 
-### Tool Integration Testing
-```typescript
-describe('Tool Integration', () => {
  it('should execute sql_query tool successfully', async () => {
- const request: MCPToolCallRequest = {
- jsonrpc: '2.0',
- id: 3,
- method: 'tools/call',
- params: {
- name: 'sql_query',
- arguments: {
- database: 'test',
- query: 'SELECT 1 as test_value'
- }
- }
- };
- 
- const response = await server.handleRequest(request);
- 
- expect(response?.result).toHaveProperty('content');
- expect(response?.result.isError).toBeFalsy();
- });
-});
-```
+ const result = await server.callTool('sql_query', { database: 'test', query: 'SELECT 1 as test_value' });
 
-### Error Handling Testing
-```typescript
-describe('Error Handling', () => {
- it('should handle invalid JSON gracefully', async () => {
- const invalidJson = '{ invalid json }';
- 
- // Mock stdout to capture error response
- const mockWrite = jest.spyOn(process.stdout, 'write').mockImplementation();
- 
- await server.handleMessage(invalidJson);
- 
- expect(mockWrite).toHaveBeenCalledWith(
- expect.stringContaining('"code":-32700')
- );
- 
- mockWrite.mockRestore();
+ expect(result.isError).toBe(false);
+ expect(result.content[0].text).toContain('test_value');
  });
- 
- it('should handle unknown methods', async () => {
- const request: MCPRequest = {
- jsonrpc: '2.0',
- id: 4,
- method: 'unknown/method'
- };
- 
- const response = await server.handleRequest(request);
- 
- expect(response?.error).toBeDefined();
- expect(response?.error?.code).toBe(-32601);
+
+ it('should report an unknown tool as an error result', async () => {
+ const result = await server.callTool('no_such_tool', {});
+
+ expect(result.isError).toBe(true);
+ expect(result.content[0].text).toContain('Unknown tool');
  });
 });
 ```

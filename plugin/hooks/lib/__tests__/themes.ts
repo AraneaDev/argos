@@ -2,15 +2,12 @@
  * Claude Code's dark and light themes: each theme key's colour, as `#rrggbb`.
  *
  * The pane names its colours by theme key (see palette.ts) and Claude Code
- * resolves them. A host that draws the pane itself, the web page or the
- * preview tool, resolves them here instead, so every host shows the same
- * colour for a key. The raster's dark and light grids are built from these
- * values too.
+ * resolves them; palette.spec.ts checks every key the pane uses against
+ * these.
  *
  * Taken from Claude Code 2.1.288's theme objects, verbatim, apart from
  * `ground`: the terminal background the pane is drawn on, which no theme
- * names. The web page is laid on it, and the raster's heat steps start
- * from it.
+ * names.
  */
 
 export type WebTheme = 'dark' | 'light'
@@ -66,11 +63,4 @@ export const THEMES: Record<WebTheme, Record<string, string>> = {
     rainbow_indigo_shimmer: '#c3b4e6', rainbow_violet_shimmer: '#e6b4d2',
     ground: '#ffffff',
   },
-}
-
-/** A segment's colour as `#rrggbb` under `theme`: a theme key's value, or a raw `#rrggbb` as it is; undefined for none or a key the theme lacks. */
-export function themeColour(key: string | undefined, theme: WebTheme): string | undefined {
-  if (key === undefined) return undefined
-  if (/^#[0-9a-f]{6}$/i.test(key)) return key
-  return Object.hasOwn(THEMES[theme], key) ? THEMES[theme][key] : undefined
 }

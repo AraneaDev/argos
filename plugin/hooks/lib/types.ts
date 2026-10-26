@@ -6,11 +6,6 @@
  */
 /** A pressable segment: drawn as a plain Button, `hotkey: label` when it has a hotkey. */
 export type Press = { id: string; label: string; hotkey?: string }
-/**
- * A place in a file: an absolute path and, when known, a line. A segment
- * that carries one is drawn as a link the person can click to open it.
- */
-export type Loc = { path: string; line: number | null }
 /** A one-line text field: drawn as an Input keyed `id`, holding `value`. */
 export type Field = { id: string; value: string; placeholder: string; /** A new input is drawn when this changes, holding `value` again. */ epoch?: number }
 /**
