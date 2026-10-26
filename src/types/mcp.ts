@@ -9,27 +9,6 @@ import type { SchemaChange } from '../schema/diff.js';
 // MCP Core Protocol Types
 // ============================================================================
 
-export interface MCPMessage {
-  jsonrpc: '2.0';
-  id?: string | number | null;
-  method?: string;
-  params?: unknown;
-  result?: unknown;
-  error?: MCPError;
-}
-
-export interface MCPError {
-  code: number;
-  message: string;
-  data?: unknown;
-}
-
-export interface MCPRequest extends MCPMessage {
-  id: string | number;
-  method: string;
-  params?: unknown;
-}
-
 // ============================================================================
 // MCP Capabilities and Server Info
 // ============================================================================

@@ -301,28 +301,7 @@ export interface BatchResultItem {
 
 ## MCP Protocol Types
 
-### MCPRequest
-Base MCP request structure.
-
-```typescript
-export interface MCPRequest {
- jsonrpc: '2.0';
- id: string | number | null;
- method: string;
- params?: Record<string, any>;
-}
-```
-
-### MCPError
-The error object of a JSON-RPC response (the MCP SDK builds the response itself).
-
-```typescript
-export interface MCPError {
- code: number;
- message: string;
- data?: any;
-}
-```
+The JSON-RPC request and response envelopes come from the MCP SDK.
 
 ### Tool definitions
 The tool list served for `tools/list`.
@@ -549,10 +528,10 @@ Custom error classes with specific error codes.
 
 ```typescript
 export class SQLMCPError extends Error {
- code: number;
- details?: Record<string, any>;
- 
- constructor(message: string, code: number, details?: Record<string, any>);
+ _code: string;
+ _details?: Record<string, unknown>;
+
+ constructor(message: string, code: string, details?: Record<string, unknown>);
 }
 
 export class SecurityViolationError extends SQLMCPError {
