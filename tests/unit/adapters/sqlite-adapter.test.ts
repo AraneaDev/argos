@@ -21,12 +21,38 @@ const mockClose = jest.fn();
 const mockEach = jest.fn();
 const mockInterrupt = jest.fn();
 
+// db.prepare(sql) as node-sqlite3 runs it: each() steps through mockEach(sql, params, rowCb,
+// completeCb), and finalize() calls back only once the step has finished reporting, which
+// for a step that never completes is never.
+const mockPrepare = jest.fn((sql: string, _prepared?: (err: Error | null) => void) => {
+  let stepped = false;
+  let finalized: (() => void) | undefined;
+  const statement = {
+    each(params: unknown, rowCb: Function, completeCb: Function) {
+      mockEach(sql, params, rowCb, (...args: unknown[]) => {
+        completeCb(...args);
+        setImmediate(() => {
+          stepped = true;
+          finalized?.();
+        });
+      });
+      return statement;
+    },
+    finalize(cb: () => void) {
+      finalized = cb;
+      if (stepped) cb();
+      return statement;
+    },
+  };
+  return statement;
+});
+
 const mockDatabase = {
   all: mockAll,
   run: mockRun,
   get: mockGet,
   close: mockClose,
-  each: mockEach,
+  prepare: mockPrepare,
   interrupt: mockInterrupt,
   open: true,
 };
@@ -36,7 +62,10 @@ function eachEmits(rows: unknown[] | null, err: Error | null = null) {
   return (_sql: string, _params: unknown, rowCb: Function, completeCb: Function) => {
     process.nextTick(() => {
       if (err) {
-        completeCb(err);
+        // node-sqlite3 never passes a statement's error to the completion callback: it
+        // completes with null, then reports the error through the row callback.
+        completeCb(null, 0);
+        rowCb(err);
         return;
       }
       for (const r of rows ?? []) rowCb(null, r);
@@ -259,7 +288,7 @@ describe('SQLiteAdapter', () => {
       connection = await adapter.connect();
     });
 
-    it('should execute query successfully (streamed via db.each)', async () => {
+    it('should execute query successfully (streamed via a prepared statement)', async () => {
       const mockRows = [
         { id: 1, name: 'John' },
         { id: 2, name: 'Jane' },
@@ -300,6 +329,46 @@ describe('SQLiteAdapter', () => {
 
       await expect(adapter.executeQuery(connection, 'INVALID SQL')).rejects.toThrow(
         'sqlite adapter error: Failed to execute SQLite query - Query execution failed'
+      );
+    });
+
+    it('keeps the rows delivered after finalize calls back', async () => {
+      // Rows reach JS through each()'s own async handle, so finalize can call back first.
+      mockPrepare.mockImplementationOnce(() => {
+        const statement = {
+          each: (_params: unknown, rowCb: Function, completeCb: Function) => {
+            setImmediate(() => {
+              rowCb(null, { id: 1 });
+              rowCb(null, { id: 2 });
+              completeCb(null, 2);
+            });
+            return statement;
+          },
+          finalize: (cb: () => void) => {
+            process.nextTick(cb);
+            return statement;
+          },
+        };
+        return statement as any;
+      });
+
+      const result = await adapter
+        .executeQuery(connection, 'SELECT id FROM t')
+        .then((r) => ({ ...r, rows: [...r.rows] }));
+      expect(result.rows).toEqual([{ id: 1 }, { id: 2 }]);
+      expect(result.rowCount).toBe(2);
+    });
+
+    it('rejects a query that fails to prepare', async () => {
+      // node-sqlite3 reports a failed prepare to its callback and drops the queued each()
+      // and finalize() without calling them.
+      mockPrepare.mockImplementationOnce((_sql, prepared) => {
+        process.nextTick(() => prepared?.(new Error('no such table: missing')));
+        return { each: () => undefined, finalize: () => undefined } as any;
+      });
+
+      await expect(adapter.executeQuery(connection, 'SELECT * FROM missing')).rejects.toThrow(
+        'no such table: missing'
       );
     });
 
@@ -396,10 +465,14 @@ describe('SQLiteAdapter', () => {
       expect(mockInterrupt).not.toHaveBeenCalled();
     });
 
-    it('should reject when a row callback reports an error', async () => {
+    it('should reject when the error arrives before the step completes', async () => {
+      // The other order node-sqlite3 can report a failing step in (eachEmits covers the first).
       mockEach.mockImplementation(
-        (_sql: string, _params: unknown, rowCb: Function, _completeCb: Function) => {
-          process.nextTick(() => rowCb(new Error('row decode failed'), undefined));
+        (_sql: string, _params: unknown, rowCb: Function, completeCb: Function) => {
+          process.nextTick(() => {
+            rowCb(new Error('row decode failed'), undefined);
+            completeCb(null, 0);
+          });
         }
       );
 

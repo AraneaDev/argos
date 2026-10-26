@@ -165,20 +165,34 @@ export class SQLiteAdapter extends DatabaseAdapter {
       // Stream rows one at a time, retaining only up to maxRows so a huge result set never
       // fully materializes in the Node heap (FIND-109). The observed count and truncation
       // flag are tracked independently of what is retained.
-      sqliteDb.each(
-        query,
+      //
+      // A failing step completes each() with null and reports its error through the row
+      // callback, and the two arrive in no fixed order. The rows and the completion share
+      // one async handle, the error comes before finalize on the statement's queue, so the
+      // result settles once both have called back. A failed prepare drops the queued calls
+      // without their callbacks, so it settles there.
+      let failure: Error | null = null;
+      let pending = 2;
+      const done = (): void => {
+        if (--pending === 0) finish(failure);
+      };
+      const statement = sqliteDb.prepare(query, (err: Error | null) => {
+        if (err) finish(err);
+      });
+      statement.each(
         params,
         (err: Error | null, row: Record<string, unknown>) => {
           if (err) {
-            finish(err);
+            failure ??= err;
             return;
           }
           observed++;
           if (kept.length < cap) kept.push(row);
           else truncated = true;
         },
-        (err: Error | null) => finish(err)
+        done
       );
+      statement.finalize(done);
     });
   }
 
