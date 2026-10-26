@@ -311,11 +311,6 @@ export interface MCPRequest {
  method: string;
  params?: Record<string, any>;
 }
-
-export interface MCPToolCallParams {
- name: string;
- arguments: Record<string, any>;
-}
 ```
 
 ### MCPError
@@ -545,31 +540,6 @@ export interface ExtensionConfig {
 }
 ```
 
-### DatabaseSectionConfig
-One `[database.<name>]` section as INI parsing gives it.
-
-```typescript
-export interface DatabaseSectionConfig {
- type: string;
- host?: string;
- port?: string;
- database?: string;
- username?: string;
- password?: string;
- file?: string;
- ssl?: string;
- select_only?: string;
- timeout?: string;
- ssh_host?: string;
- ssh_port?: string;
- ssh_username?: string;
- ssh_password?: string;
- ssh_private_key?: string;
- ssh_passphrase?: string;
- mcp_configurable?: string;
-}
-```
-
 ---
 
 ## Error Types
@@ -624,7 +594,6 @@ Functions to check types at runtime.
 ```typescript
 // Redaction config guards (src/types/database.ts)
 export function isValidRedactionType(value: string): value is RedactionType;
-export function isValidFieldPatternType(value: string): value is FieldPatternType;
 
 // MCP guards (src/types/mcp.ts)
 export function isSQLQueryArgs(args: unknown): args is SQLQueryArgs;

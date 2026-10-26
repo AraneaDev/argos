@@ -75,23 +75,3 @@ export type Engine = keyof typeof ENGINE_COLOURS
 export function engineColour(engine: string | null | undefined): string | undefined {
   return typeof engine === 'string' && Object.hasOwn(ENGINE_COLOURS, engine) ? ENGINE_COLOURS[engine as Engine] : undefined
 }
-
-/**
- * Each chip's colour by its full name. A table or a chip given none draws
- * its names neutral. {@link ENGINE_HUES} is the map for engines.
- */
-export type Hues = ReadonlyMap<string, string>
-export const NO_HUES: Hues = new Map()
-/** The engines' chip colours as {@link Hues}. */
-export const ENGINE_HUES: Hues = new Map(Object.entries(ENGINE_COLOURS))
-
-/** A chip's colour, by its full name: its hue in `hues`, or undefined for none (drawn neutral). */
-export function boundaryColour(name: string | null | undefined, hues: Hues = NO_HUES): string | undefined {
-  if (name === null || name === undefined || name === '') return undefined
-  return hues.get(name)
-}
-
-/** A chip's name as the pane prints it: as written. */
-export function boundaryLabel(name: string | null | undefined, _hues: Hues = NO_HUES): string {
-  return name ?? ''
-}

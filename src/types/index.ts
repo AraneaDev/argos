@@ -36,7 +36,6 @@ export type {
   MCPMessage,
   MCPError,
   MCPRequest,
-  MCPToolCallParams,
   MCPToolContent,
   MCPToolResponse,
   SQLQueryArgs,
@@ -76,12 +75,7 @@ export type {
 } from './ssh.js';
 
 // Configuration types
-export type {
-  DatabaseSectionConfig,
-  ParsedServerConfig,
-  ParsedSecurityConfig,
-  ParsedExtensionConfig,
-} from './config.js';
+export type { ParsedServerConfig, ParsedSecurityConfig, ParsedExtensionConfig } from './config.js';
 
 // Performance types
 
@@ -98,7 +92,7 @@ export {
 } from '../utils/error-handler.js';
 
 // Type guards
-export { isValidRedactionType, isValidFieldPatternType } from './database.js';
+export { isValidRedactionType } from './database.js';
 
 export {
   isSQLQueryArgs,

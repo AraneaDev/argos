@@ -316,10 +316,3 @@ export interface QueryResultWithRedaction extends QueryResult {
 export function isValidRedactionType(value: string): value is RedactionType {
   return ['full_mask', 'partial_mask', 'replace', 'custom'].includes(value);
 }
-
-/**
- *
- */
-export function isValidFieldPatternType(value: string): value is FieldPatternType {
-  return ['exact', 'wildcard', 'regex'].includes(value);
-}

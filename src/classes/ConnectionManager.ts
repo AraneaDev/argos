@@ -486,13 +486,6 @@ export class ConnectionManager extends EventEmitter {
   // Information and Statistics
   // ============================================================================
 
-  /**
-   * Get list of all active connections
-   */
-  getActiveConnections(): string[] {
-    return Array.from(this.connections.keys()).filter((dbName) => this.isConnected(dbName));
-  }
-
   // ============================================================================
   // Query Execution Methods
   // ============================================================================

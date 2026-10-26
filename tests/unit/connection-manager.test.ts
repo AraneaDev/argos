@@ -1256,26 +1256,6 @@ describe('ConnectionManager', () => {
   // getActiveConnections and getConnectionStats
   // ============================================================================
 
-  describe('Active Connections and Stats', () => {
-    test('should return active connections', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
-      await connectionManager.getConnection('test_db');
-
-      const active = connectionManager.getActiveConnections();
-      expect(active).toContain('test_db');
-    });
-
-    test('should return empty when no active connections', () => {
-      connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
-      expect(connectionManager.getActiveConnections()).toEqual([]);
-    });
-  });
-
   // ============================================================================
   // isConnected edge cases
   // ============================================================================

@@ -64,32 +64,6 @@ export interface SetupWizardAction {
 // Configuration File Types
 // ============================================================================
 
-export interface DatabaseSectionConfig {
-  type: string;
-  host?: string;
-  port?: string | number;
-  database?: string;
-  username?: string;
-  password?: string;
-  ssl?: string | boolean;
-  select_only?: string | boolean;
-  timeout?: string | number;
-  file?: string;
-  encrypt?: string | boolean;
-
-  // SSH Configuration
-  ssh_host?: string;
-  ssh_port?: string | number;
-  ssh_username?: string;
-  ssh_password?: string;
-  ssh_private_key?: string;
-  ssh_passphrase?: string;
-  local_port?: string | number;
-
-  // MCP Configuration Access Control
-  mcp_configurable?: string | boolean;
-}
-
 // ============================================================================
 // Parsed Configuration Types
 // ============================================================================

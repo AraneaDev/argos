@@ -38,11 +38,6 @@ export interface MCPRequest extends MCPMessage {
 // MCP Tool Types
 // ============================================================================
 
-export interface MCPToolCallParams {
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
 export interface MCPToolContent {
   type: 'text';
   text: string;

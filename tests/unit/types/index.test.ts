@@ -17,7 +17,6 @@ import {
   SSH_TUNNEL_STATUSES,
   // Type guards from types/database.ts
   isValidRedactionType,
-  isValidFieldPatternType,
   // Type guards from types/mcp.ts
   isSQLQueryArgs,
   isSQLBatchQueryArgs,
@@ -136,19 +135,6 @@ describe('database type guards', () => {
     it('should return false for invalid types', () => {
       expect(isValidRedactionType('hash')).toBe(false);
       expect(isValidRedactionType('')).toBe(false);
-    });
-  });
-
-  describe('isValidFieldPatternType', () => {
-    it('should return true for valid pattern types', () => {
-      expect(isValidFieldPatternType('exact')).toBe(true);
-      expect(isValidFieldPatternType('wildcard')).toBe(true);
-      expect(isValidFieldPatternType('regex')).toBe(true);
-    });
-
-    it('should return false for invalid types', () => {
-      expect(isValidFieldPatternType('glob')).toBe(false);
-      expect(isValidFieldPatternType('')).toBe(false);
     });
   });
 });

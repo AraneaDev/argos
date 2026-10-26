@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ACCENT, ENGINE_COLOURS, ENGINE_HUES, FAINT, HEADING, SECONDARY, STAT_HUES, STATUS_COLOURS, TITLE, boundaryColour, boundaryLabel, engineColour } from './palette'
+import { ACCENT, ENGINE_COLOURS, FAINT, HEADING, SECONDARY, STAT_HUES, STATUS_COLOURS, TITLE, engineColour } from './palette'
 import { THEMES } from './__tests__/themes'
 
 describe('engineColour', () => {
@@ -13,17 +13,6 @@ describe('engineColour', () => {
   })
   it('leaves a name that is no engine uncoloured, even one named like an Object.prototype member', () => {
     for (const odd of [null, undefined, '', 'oracle', 'constructor', 'toString', '__proto__']) expect(engineColour(odd), String(odd)).toBeUndefined()
-  })
-  it('is the colour a chip is drawn with when given the engine hues', () => {
-    expect(boundaryColour('mysql', ENGINE_HUES)).toBe(ENGINE_COLOURS.mysql)
-    expect(boundaryColour('mysql')).toBeUndefined()
-    expect(boundaryColour(null, ENGINE_HUES)).toBeUndefined()
-    expect(boundaryColour('', ENGINE_HUES)).toBeUndefined()
-  })
-  it('prints a chip name as written, and nothing for none', () => {
-    expect(boundaryLabel('postgresql')).toBe('postgresql')
-    expect(boundaryLabel(null)).toBe('')
-    expect(boundaryLabel(undefined)).toBe('')
   })
 })
 
