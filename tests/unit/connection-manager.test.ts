@@ -375,20 +375,6 @@ describe('ConnectionManager', () => {
     });
   });
 
-  describe('Connection Health Monitoring', () => {
-    test('should get connection statistics', () => {
-      connectionManager.registerDatabase('db1', TestConfigFixtures.validPostgresConfig);
-      connectionManager.registerDatabase('db2', TestConfigFixtures.validMysqlConfig);
-
-      const stats = connectionManager.getConnectionStats();
-
-      expect(stats).toBeDefined();
-      expect(stats.total).toBe(2);
-      expect(stats.active).toBe(0);
-      expect(typeof stats.withSSH).toBe('number');
-    });
-  });
-
   describe('Error Handling and Recovery', () => {
     test('should retry failed connections', async () => {
       let attempts = 0;
@@ -1287,24 +1273,6 @@ describe('ConnectionManager', () => {
     test('should return empty when no active connections', () => {
       connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
       expect(connectionManager.getActiveConnections()).toEqual([]);
-    });
-
-    test('should return connection statistics with SSH info', async () => {
-      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
-        TestConfigFixtures.validPostgresConfig
-      );
-      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
-
-      connectionManager.registerDatabase('db1', TestConfigFixtures.validPostgresConfig);
-      connectionManager.registerDatabase('db2', TestConfigFixtures.validMysqlConfig);
-
-      await connectionManager.getConnection('db1');
-
-      const stats = connectionManager.getConnectionStats();
-      expect(stats.total).toBe(2);
-      expect(stats.active).toBe(1);
-      expect(stats.inactive).toBe(1);
-      expect(typeof stats.withSSH).toBe('number');
     });
   });
 

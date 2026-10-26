@@ -477,35 +477,4 @@ export class RedactionManager {
 
     this.rules.set(rule.field_pattern, rule);
   }
-
-  /**
-   * Get current configuration summary
-   */
-  getConfigurationSummary(): {
-    enabled: boolean;
-    rule_count: number;
-    rules: Array<{ pattern: string; type: string; redaction: string }>;
-    settings: {
-      log_access: boolean;
-      audit_queries: boolean;
-      case_sensitive: boolean;
-    };
-  } {
-    const rules = Array.from(this.rules.values()).map((rule) => ({
-      pattern: rule.field_pattern,
-      type: rule.pattern_type,
-      redaction: rule.redaction_type,
-    }));
-
-    return {
-      enabled: true,
-      rule_count: this.rules.size,
-      rules,
-      settings: {
-        log_access: this.logAccess,
-        audit_queries: this.auditQueries,
-        case_sensitive: this.caseSensitive,
-      },
-    };
-  }
 }

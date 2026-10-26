@@ -90,13 +90,6 @@ export interface DatabaseSectionConfig {
   mcp_configurable?: string | boolean;
 }
 
-export interface RawConfigFile {
-  database?: Record<string, DatabaseSectionConfig>;
-  security?: Record<string, string | number>;
-  extension?: Record<string, string | number>;
-  [section: string]: unknown;
-}
-
 // ============================================================================
 // Parsed Configuration Types
 // ============================================================================
@@ -125,14 +118,6 @@ export interface ParsedServerConfig {
 // ============================================================================
 // Configuration Validation Types
 // ============================================================================
-
-export interface ConfigValidationError {
-  section: string;
-  field: string;
-  value: unknown;
-  message: string;
-  severity: 'error' | 'warning';
-}
 
 // ============================================================================
 // Configuration Loading Interface
@@ -173,21 +158,3 @@ export const DEFAULT_SSH_PORT = 22;
 // ============================================================================
 // Configuration Utilities
 // ============================================================================
-
-/**
- *
- */
-export function getRequiredFields(type: DatabaseTypeString): string[] {
-  switch (type) {
-    case 'sqlite':
-      return ['file'];
-    case 'mysql':
-    case 'postgresql':
-    case 'postgres':
-    case 'mssql':
-    case 'sqlserver':
-      return ['host', 'database', 'username', 'password'];
-    default:
-      return [];
-  }
-}

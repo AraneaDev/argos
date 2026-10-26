@@ -18,15 +18,12 @@ import {
   // Type guards from types/database.ts
   isValidRedactionType,
   isValidFieldPatternType,
-  isFieldRedactionRule,
   // Type guards from types/mcp.ts
-  isMCPRequest,
   isSQLQueryArgs,
   isSQLBatchQueryArgs,
   isSQLGetSchemaArgs,
   isSQLTestConnectionArgs,
   // Config utilities from types/config.ts
-  getRequiredFields,
   DEFAULT_SECURITY_CONFIG,
   DEFAULT_EXTENSION_CONFIG,
   DEFAULT_DATABASE_PORTS,
@@ -154,37 +151,6 @@ describe('database type guards', () => {
       expect(isValidFieldPatternType('')).toBe(false);
     });
   });
-
-  describe('isFieldRedactionRule', () => {
-    it('should return true for valid rules', () => {
-      expect(
-        isFieldRedactionRule({
-          field_pattern: 'email',
-          pattern_type: 'exact',
-          redaction_type: 'full_mask',
-        })
-      ).toBe(true);
-    });
-
-    it('should return false for invalid rules', () => {
-      expect(isFieldRedactionRule(null)).toBe(false);
-      expect(isFieldRedactionRule({})).toBe(false);
-      expect(
-        isFieldRedactionRule({
-          field_pattern: 'email',
-          pattern_type: 'invalid',
-          redaction_type: 'full_mask',
-        })
-      ).toBe(false);
-      expect(
-        isFieldRedactionRule({
-          field_pattern: 'email',
-          pattern_type: 'exact',
-          redaction_type: 'invalid',
-        })
-      ).toBe(false);
-    });
-  });
 });
 
 // ============================================================================
@@ -192,20 +158,6 @@ describe('database type guards', () => {
 // ============================================================================
 
 describe('MCP type guards', () => {
-  describe('isMCPRequest', () => {
-    it('should return true for valid MCP requests', () => {
-      expect(isMCPRequest({ jsonrpc: '2.0', id: 1, method: 'test' })).toBe(true);
-      expect(isMCPRequest({ jsonrpc: '2.0', id: 'abc', method: 'test' })).toBe(true);
-    });
-
-    it('should return false for non-requests', () => {
-      // No id means not a request
-      expect(isMCPRequest({ jsonrpc: '2.0', method: 'test' })).toBe(false);
-      // Has id but no method - still not a valid request
-      expect(isMCPRequest({ jsonrpc: '2.0', id: 1 })).toBe(false);
-    });
-  });
-
   describe('isSQLQueryArgs', () => {
     it('should return true for valid query args', () => {
       expect(isSQLQueryArgs({ database: 'test', query: 'SELECT 1' })).toBe(true);
@@ -264,22 +216,3 @@ describe('MCP type guards', () => {
 // ============================================================================
 // Config Type Guards and Utilities (types/config.ts)
 // ============================================================================
-
-describe('config type guards and utilities', () => {
-  describe('getRequiredFields', () => {
-    it('should return file for sqlite', () => {
-      expect(getRequiredFields('sqlite')).toEqual(['file']);
-    });
-
-    it('should return connection fields for server databases', () => {
-      const expected = ['host', 'database', 'username', 'password'];
-      expect(getRequiredFields('mysql')).toEqual(expected);
-      expect(getRequiredFields('postgresql')).toEqual(expected);
-      expect(getRequiredFields('mssql')).toEqual(expected);
-    });
-
-    it('should return empty array for unknown type', () => {
-      expect(getRequiredFields('unknown' as any)).toEqual([]);
-    });
-  });
-});

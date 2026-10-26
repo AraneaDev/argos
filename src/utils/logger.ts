@@ -189,23 +189,6 @@ export class Logger {
   /**
    *
    */
-  critical(message: string, contextOrError?: Record<string, unknown> | Error): void {
-    let actualContext: Record<string, unknown> = {};
-
-    if (contextOrError) {
-      if (contextOrError instanceof Error) {
-        actualContext.error = this.serializeError(contextOrError);
-      } else {
-        actualContext = contextOrError;
-      }
-    }
-
-    this.log('CRITICAL', message, actualContext);
-  }
-
-  /**
-   *
-   */
   debug(message: string, context?: Record<string, unknown>): void {
     // Debug logs are only shown when log level is INFO or lower
     if (this.shouldLog('INFO')) {

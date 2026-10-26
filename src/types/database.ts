@@ -169,12 +169,6 @@ export interface DatabaseSchema {
 // Query and Batch Types
 // ============================================================================
 
-export interface QueryObject {
-  query: string;
-  params?: unknown[];
-  label?: string;
-}
-
 export interface BatchResultItem {
   index: number;
   label: string;
@@ -328,20 +322,4 @@ export function isValidRedactionType(value: string): value is RedactionType {
  */
 export function isValidFieldPatternType(value: string): value is FieldPatternType {
   return ['exact', 'wildcard', 'regex'].includes(value);
-}
-
-/**
- *
- */
-export function isFieldRedactionRule(value: unknown): value is FieldRedactionRule {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'field_pattern' in value &&
-    'pattern_type' in value &&
-    'redaction_type' in value &&
-    typeof (value as FieldRedactionRule).field_pattern === 'string' &&
-    isValidFieldPatternType((value as FieldRedactionRule).pattern_type) &&
-    isValidRedactionType((value as FieldRedactionRule).redaction_type)
-  );
 }

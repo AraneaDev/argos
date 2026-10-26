@@ -30,17 +30,6 @@ export interface MCPRequest extends MCPMessage {
   params?: unknown;
 }
 
-export interface MCPResponse extends MCPMessage {
-  id: string | number | null;
-  result?: unknown;
-  error?: MCPError;
-}
-
-export interface MCPNotification extends MCPMessage {
-  method: string;
-  params?: unknown;
-}
-
 // ============================================================================
 // MCP Capabilities and Server Info
 // ============================================================================
@@ -52,11 +41,6 @@ export interface MCPNotification extends MCPMessage {
 export interface MCPToolCallParams {
   name: string;
   arguments: Record<string, unknown>;
-}
-
-export interface MCPToolCallRequest extends MCPRequest {
-  method: 'tools/call';
-  params: MCPToolCallParams;
 }
 
 export interface MCPToolContent {
@@ -127,13 +111,6 @@ export interface SQLRefreshSchemaArgs {
 // ============================================================================
 // Type Guards for MCP Messages
 // ============================================================================
-
-/**
- *
- */
-export function isMCPRequest(message: MCPMessage): message is MCPRequest {
-  return 'id' in message && 'method' in message && message.id !== undefined;
-}
 
 // ============================================================================
 // Tool-specific Type Guards

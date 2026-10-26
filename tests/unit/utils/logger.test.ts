@@ -244,32 +244,6 @@ describe('Logger', () => {
     });
   });
 
-  describe('critical', () => {
-    it('should log critical messages', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
-      logger.critical('critical message');
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('critical message'));
-    });
-
-    it('should log critical with Error object', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
-      logger.critical('fail', new Error('critical error'));
-      expect(console.error).toHaveBeenCalled();
-    });
-
-    it('should log critical with context object', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
-      logger.critical('fail', { detail: 'info' });
-      expect(console.error).toHaveBeenCalled();
-    });
-
-    it('should handle critical with no context', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
-      logger.critical('bare critical');
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('bare critical'));
-    });
-  });
-
   describe('debug', () => {
     it('should log debug messages when level is INFO', () => {
       const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'INFO' });
@@ -307,19 +281,12 @@ describe('Logger', () => {
       expect(console.error).not.toHaveBeenCalled();
     });
 
-    it('should show CRITICAL at all levels', () => {
-      const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'CRITICAL' });
-      logger.critical('should appear');
-      expect(console.error).toHaveBeenCalled();
-    });
-
     it('should show WARNING and above when level is WARNING', () => {
       const logger = new Logger({ enableFile: false, enableConsole: true, logLevel: 'WARNING' });
       logger.warning('warn');
       logger.error('err');
-      logger.critical('crit');
       expect(console.warn).toHaveBeenCalledTimes(1);
-      expect(console.error).toHaveBeenCalledTimes(2);
+      expect(console.error).toHaveBeenCalledTimes(1);
     });
   });
 

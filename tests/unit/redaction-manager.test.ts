@@ -120,12 +120,18 @@ describe('RedactionManager', () => {
   describe('settings default to off', () => {
     const summary = (
       config: Partial<DatabaseRedactionConfig>
-    ): { log_access: boolean; audit_queries: boolean; case_sensitive: boolean } =>
-      new RedactionManager({
+    ): { log_access: boolean; audit_queries: boolean; case_sensitive: boolean } => {
+      const manager = new RedactionManager({
         enabled: true,
         rules: [],
         ...config,
-      } as DatabaseRedactionConfig).getConfigurationSummary().settings;
+      } as DatabaseRedactionConfig) as any;
+      return {
+        log_access: manager.logAccess,
+        audit_queries: manager.auditQueries,
+        case_sensitive: manager.caseSensitive,
+      };
+    };
 
     it('should leave all three off when the configuration is silent', () => {
       expect(summary({})).toEqual({
@@ -434,23 +440,6 @@ describe('RedactionManager', () => {
     });
   });
 
-  describe('getConfigurationSummary', () => {
-    it('should return configuration summary', () => {
-      const summary = redactionManager.getConfigurationSummary();
-
-      expect(summary.enabled).toBe(true);
-      expect(summary.rule_count).toBe(3);
-      expect(summary.rules).toHaveLength(3);
-      expect(summary.settings.log_access).toBe(false);
-      expect(summary.settings.case_sensitive).toBe(false);
-
-      const emailRule = summary.rules.find((r) => r.pattern === 'email');
-      expect(emailRule).toBeDefined();
-      expect(emailRule?.type).toBe('exact');
-      expect(emailRule?.redaction).toBe('partial_mask');
-    });
-  });
-
   describe('redactResults with log_redacted_access enabled', () => {
     it('should log when redactions occur and logging is enabled', () => {
       const config: DatabaseRedactionConfig = {
@@ -741,9 +730,8 @@ describe('RedactionManager', () => {
       };
 
       const manager = new RedactionManager(config);
-      const summary = manager.getConfigurationSummary();
       // The empty pattern rule should be skipped
-      expect(summary.rule_count).toBe(1);
+      expect((manager as any).rules.size).toBe(1);
     });
   });
 
@@ -893,10 +881,8 @@ describe('Configuration Integration', () => {
     };
 
     const manager = new RedactionManager(config);
-    const summary = manager.getConfigurationSummary();
-
-    expect(summary.rule_count).toBe(2);
-    expect(summary.settings.log_access).toBe(true);
-    expect(summary.settings.case_sensitive).toBe(true);
+    expect((manager as any).rules.size).toBe(2);
+    expect((manager as any).logAccess).toBe(true);
+    expect((manager as any).caseSensitive).toBe(true);
   });
 });

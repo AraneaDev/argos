@@ -312,28 +312,16 @@ export interface MCPRequest {
  params?: Record<string, any>;
 }
 
-export interface MCPToolCallRequest extends MCPRequest {
- method: 'tools/call';
- params: MCPToolCallParams;
-}
-
 export interface MCPToolCallParams {
  name: string;
  arguments: Record<string, any>;
 }
 ```
 
-### MCPResponse
-Base MCP response structure.
+### MCPError
+The error object of a JSON-RPC response (the MCP SDK builds the response itself).
 
 ```typescript
-export interface MCPResponse {
- jsonrpc: '2.0';
- id: string | number | null;
- result?: any;
- error?: MCPError;
-}
-
 export interface MCPError {
  code: number;
  message: string;
@@ -377,7 +365,7 @@ export interface SQLQueryArgs {
 
 export interface SQLBatchQueryArgs {
  database: string;
- queries: QueryObject[];
+ queries: Array<{ query: string; params?: string[]; label?: string }>;
  transaction?: boolean;
 }
 
@@ -557,17 +545,10 @@ export interface ExtensionConfig {
 }
 ```
 
-### RawConfigFile
-Raw configuration file structure from INI parsing.
+### DatabaseSectionConfig
+One `[database.<name>]` section as INI parsing gives it.
 
 ```typescript
-export interface RawConfigFile {
- database?: Record<string, DatabaseSectionConfig>;
- security?: Record<string, string>;
- extension?: Record<string, string>;
- [key: string]: any;
-}
-
 export interface DatabaseSectionConfig {
  type: string;
  host?: string;
@@ -644,10 +625,8 @@ Functions to check types at runtime.
 // Redaction config guards (src/types/database.ts)
 export function isValidRedactionType(value: string): value is RedactionType;
 export function isValidFieldPatternType(value: string): value is FieldPatternType;
-export function isFieldRedactionRule(value: unknown): value is FieldRedactionRule;
 
 // MCP guards (src/types/mcp.ts)
-export function isMCPRequest(message: MCPMessage): message is MCPRequest;
 export function isSQLQueryArgs(args: unknown): args is SQLQueryArgs;
 export function isSQLBatchQueryArgs(args: unknown): args is SQLBatchQueryArgs;
 export function isSQLGetSchemaArgs(args: unknown): args is SQLGetSchemaArgs;
@@ -661,7 +640,8 @@ export function validateSSHConfig(config: SSHConnectionConfig): SSHTunnelValidat
 Helper functions for configuration management.
 
 ```typescript
-export function getRequiredFields(type: DatabaseTypeString): string[];
+// src/database/adapters/AdapterFactory.ts
+AdapterFactory.getRequiredFields(type: DatabaseTypeString, config?: DatabaseConfig): string[];
 ```
 
 ---
@@ -779,12 +759,13 @@ offending statement is `blockedCommand`.
 
 ### Type-Safe Configuration
 ```typescript
-import { DEFAULT_DATABASE_PORTS, getRequiredFields } from '../../src/types/index.js';
+import { DEFAULT_DATABASE_PORTS } from '../../src/types/index.js';
+import { AdapterFactory } from '../../src/database/adapters/AdapterFactory.js';
 import type { DatabaseConfig } from '../../src/types/index.js';
 
 function createDatabaseConfig(rawConfig: any): DatabaseConfig {
  // Check required fields
- const required = getRequiredFields(rawConfig.type);
+ const required = AdapterFactory.getRequiredFields(rawConfig.type);
  const missing = required.filter((field) => !rawConfig[field]);
  
  if (missing.length > 0) {

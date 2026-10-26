@@ -493,29 +493,6 @@ export class ConnectionManager extends EventEmitter {
     return Array.from(this.connections.keys()).filter((dbName) => this.isConnected(dbName));
   }
 
-  /**
-   * Get connection statistics
-   */
-  getConnectionStats(): {
-    total: number;
-    active: number;
-    inactive: number;
-    withSSH: number;
-  } {
-    const totalRegistered = Object.keys(this.databases).length;
-    const active = this.getActiveConnections().length;
-    const withSSH = Array.from(this.connections.keys()).filter((dbName) =>
-      this.sshTunnelManager.isConnected(dbName)
-    ).length;
-
-    return {
-      total: totalRegistered,
-      active,
-      inactive: totalRegistered - active,
-      withSSH,
-    };
-  }
-
   // ============================================================================
   // Query Execution Methods
   // ============================================================================

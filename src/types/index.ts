@@ -15,7 +15,6 @@ export type {
   TableInfo,
   ForeignKey,
   DatabaseSchema,
-  QueryObject,
   BatchResultItem,
   BatchResult,
   ExtensionConfig,
@@ -37,10 +36,7 @@ export type {
   MCPMessage,
   MCPError,
   MCPRequest,
-  MCPResponse,
-  MCPNotification,
   MCPToolCallParams,
-  MCPToolCallRequest,
   MCPToolContent,
   MCPToolResponse,
   SQLQueryArgs,
@@ -82,11 +78,9 @@ export type {
 // Configuration types
 export type {
   DatabaseSectionConfig,
-  RawConfigFile,
   ParsedServerConfig,
   ParsedSecurityConfig,
   ParsedExtensionConfig,
-  ConfigValidationError,
 } from './config.js';
 
 // Performance types
@@ -104,10 +98,9 @@ export {
 } from '../utils/error-handler.js';
 
 // Type guards
-export { isValidRedactionType, isValidFieldPatternType, isFieldRedactionRule } from './database.js';
+export { isValidRedactionType, isValidFieldPatternType } from './database.js';
 
 export {
-  isMCPRequest,
   isSQLQueryArgs,
   isSQLBatchQueryArgs,
   isSQLGetSchemaArgs,
@@ -115,8 +108,6 @@ export {
 } from './mcp.js';
 
 export { validateSSHConfig } from './ssh.js';
-
-export { getRequiredFields } from './config.js';
 
 export {} from './performance.js';
 
