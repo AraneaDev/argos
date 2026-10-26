@@ -5,6 +5,13 @@ All notable changes to the Argos-MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.1](https://github.com/AraneaDev/argos/compare/v6.0.0...v6.0.1) (2026-10-26)
+
+
+### Refactoring
+
+* remove the MCP envelope types and SQLMCPError.toJSON ([#56](https://github.com/AraneaDev/argos/issues/56)) ([7226bef](https://github.com/AraneaDev/argos/commit/7226bef2a66dc024cb87d972a0b36bc4be4ebf4f))
+
 ## [6.0.0](https://github.com/AraneaDev/argos/compare/v5.0.0...v6.0.0) (2026-10-26)
 
 
