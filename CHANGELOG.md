@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ⚠ BREAKING CHANGES
 
-* **pane:** Node.js 22 is no longer supported; engines is >=24.15.0.
 * **deps:** Node.js 22 is no longer supported; engines is >=24.15.0.
 
 ### Fixes
