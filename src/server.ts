@@ -10,24 +10,26 @@
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { SQLMCPServer } from './classes/SQLMCPServer.js';
-import { Logger, initializeLogger } from './utils/logger.js';
+import { cleanupLogger, initializeLogger } from './utils/logger.js';
 
 const _currentFile = fileURLToPath(import.meta.url);
 const _currentDir = dirname(_currentFile);
 const PROJECT_ROOT = resolve(_currentDir, '..');
 
-// Initialize logger for main process with console disabled for MCP mode
-const logger = new Logger({
-  component: 'Main',
-  enableConsole: false, // Disable console output for MCP protocol
-});
+/**
+ * Exit once the log file has its last lines: `process.exit` drops writes still queued on the stream
+ */
+async function exitAfterFlush(code: number): Promise<never> {
+  await cleanupLogger();
+  process.exit(code);
+}
 
 /**
  * Start the MCP server on stdio
  */
 export async function runServer(): Promise<void> {
   // Initialize global logger for all components BEFORE creating any other components
-  await initializeLogger({
+  const logger = await initializeLogger({
     enableConsole: false, // Critical: Disable console output to prevent JSON-RPC interference
     logFile: join(PROJECT_ROOT, 'argos.log'),
     logLevel: 'INFO',
@@ -53,10 +55,10 @@ export async function runServer(): Promise<void> {
         ),
       ]);
       logger.info('Server shutdown complete');
-      process.exit(0);
+      await exitAfterFlush(0);
     } catch (error) {
       logger.error('Error during shutdown (forcing exit)', error as Error);
-      process.exit(1);
+      await exitAfterFlush(1);
     }
   };
 
@@ -80,7 +82,7 @@ export async function runServer(): Promise<void> {
     await server.run();
   } catch (error) {
     logger.error('Failed to start server', error as Error);
-    process.exit(1);
+    await exitAfterFlush(1);
   }
 }
 
