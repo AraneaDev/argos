@@ -5,6 +5,7 @@ interface GetMetricsArgs {
   database?: string;
 }
 
+/** sql_get_metrics: query metrics for one database, or for all of them. */
 export async function handleGetMetrics(
   args: GetMetricsArgs,
   ctx: ToolHandlerContext

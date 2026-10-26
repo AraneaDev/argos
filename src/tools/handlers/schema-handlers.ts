@@ -15,6 +15,7 @@ import { getErrorMessage, sanitizeError, ConnectionError } from '../../utils/err
 import type { ToolHandlerContext } from './types.js';
 import { requireDbConfig } from './types.js';
 
+/** sql_get_schema: the cached schema of a database, or of one table in it. */
 export async function handleGetSchema(
   ctx: ToolHandlerContext,
   args: SQLGetSchemaArgs
@@ -38,6 +39,7 @@ export async function handleGetSchema(
   }
 }
 
+/** sql_refresh_schema: capture a database's schema again and update the cache. */
 export async function handleRefreshSchema(
   ctx: ToolHandlerContext,
   args: SQLRefreshSchemaArgs
@@ -71,6 +73,7 @@ export async function handleRefreshSchema(
   }
 }
 
+/** sql_list_databases: the configured databases (without credentials) and the global security limits. */
 export async function handleListDatabases(ctx: ToolHandlerContext): Promise<MCPToolResponse> {
   try {
     const databases: DatabaseListItem[] = [];
@@ -121,6 +124,7 @@ export async function handleListDatabases(ctx: ToolHandlerContext): Promise<MCPT
   }
 }
 
+/** sql_test_connection: connect and run SELECT 1, capturing the schema if none is cached yet. */
 export async function handleTestConnection(
   ctx: ToolHandlerContext,
   args: SQLTestConnectionArgs
