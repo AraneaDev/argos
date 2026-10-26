@@ -72,7 +72,7 @@ refusing a `DELETE` on a connection that allows writes.
 
 ## Installation
 
-**Requirements:** Node.js >= 24 and the [Claude Code CLI](https://docs.claude.com/en/docs/claude-code).
+**Requirements:** Node.js >= 24.15 and the [Claude Code CLI](https://docs.claude.com/en/docs/claude-code).
 Connecting to Azure SQL with `authentication=azure-cli` additionally needs the
 [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) on `PATH`
 and a completed `az login`; nothing else does.

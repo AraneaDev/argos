@@ -404,7 +404,7 @@ What actually happened.
 
 **Environment**
 - OS: [e.g. macOS 12.0, Ubuntu 20.04]
-- Node.js version: [e.g. 16.14.0]
+- Node.js version: [e.g. 24.15.0]
 - Server version: [e.g. 2.0.0]
 - Database type: [e.g. PostgreSQL 13]
 

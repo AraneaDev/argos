@@ -198,7 +198,7 @@ Three workflows carry the release, all under `.github/workflows/`:
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| `ci.yml` | push/PR to `main` | lint, format check, typecheck; tests on Node 20/22/24; build, artifact assertions, `validate-docs` |
+| `ci.yml` | push/PR to `main` | lint, format check, typecheck; tests on Node 24/26; build, artifact assertions, `validate-docs` |
 | `pr-title.yml` | pull request opened/edited | Rejects a PR title that is not a Conventional Commit |
 | `release-please.yml` | push to `main` | Opens/updates the Release PR; on merge, tags, releases, verifies, and attaches artifacts |
 

@@ -188,7 +188,7 @@ wizard.setEnvironmentOverrides('production', {
 
 ### Docker Integration
 ```dockerfile
-FROM node:18-alpine
+FROM node:24-alpine
 COPY config-wizard/ /app/config-wizard/
 RUN cd /app/config-wizard && npm install
 EXPOSE 8080

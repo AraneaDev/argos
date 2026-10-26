@@ -6,8 +6,8 @@ This tutorial walks you through installing and setting up the Argos from start t
 
 ### System Requirements
 
-- **Node.js**: Version 22.0.0 or higher
-- **npm**: Version 8.0.0 or higher 
+- **Node.js**: Version 24.15.0 or higher
+- **npm**: Version 10.0.0 or higher 
 - **Operating System**: Windows, macOS, or Linux
 - **Memory**: At least 512MB RAM available
 - **Disk Space**: 50MB for installation
@@ -250,7 +250,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | argos serve
 
 **Error:**
 ```
-Error: Node.js version 14.x is not supported
+Error: Node.js version 22.x is not supported
 ```
 
 **Solution:**

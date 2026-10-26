@@ -52,8 +52,8 @@ Error: Failed to initialize server
 **Diagnostic Steps:**
 1. **Check Node.js version**:
  ```bash
- node --version # Should be 22.0.0 or higher
- npm --version # Should be 8.0.0 or higher
+ node --version # Should be 24.15.0 or higher
+ npm --version # Should be 10.0.0 or higher
  ```
 
 2. **Verify dependencies**:

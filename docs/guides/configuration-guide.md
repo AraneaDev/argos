@@ -607,7 +607,7 @@ Examples:
 ### Docker Environment Configuration
 ```dockerfile
 # Dockerfile
-FROM node:18-alpine
+FROM node:24-alpine
 COPY . /app
 WORKDIR /app
 
