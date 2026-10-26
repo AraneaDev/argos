@@ -33,7 +33,7 @@ import { SecurityManager } from './SecurityManager.js';
 import { SchemaWatch } from '../schema/watch.js';
 import { SchemaManager } from './SchemaManager.js';
 import { EnhancedSSHTunnelManager } from './EnhancedSSHTunnelManager.js';
-import { Logger } from '../utils/logger.js';
+import { getLogger, type Logger } from '../utils/logger.js';
 import { getErrorMessage, sanitizeError, sanitizeMessage } from '../utils/error-handler.js';
 import { getToolDefinitions } from '../tools/tool-definitions.js';
 import { createToolDispatcher, type ToolDispatchFn } from '../tools/dispatcher.js';
@@ -117,12 +117,9 @@ export class SQLMCPServer extends EventEmitter {
   constructor() {
     super();
 
-    this.logger = new Logger({
-      logFile: join(PROJECT_ROOT, 'argos.log'),
-      logLevel: 'INFO',
-      component: 'SQLMCPServer',
-      enableConsole: false,
-    });
+    // The shared logger: `runServer` opens its file before building the server. A
+    // Logger of its own would never be initialized, and every line would be dropped.
+    this.logger = getLogger();
 
     this.mcpServer = new Server(
       { name: SERVER_NAME, version: SERVER_VERSION },
