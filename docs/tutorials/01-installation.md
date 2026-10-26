@@ -62,7 +62,7 @@ dist/cli.js   argos serve (the MCP server) and argos setup (the configuration wi
 
 <!-- x-release-please-start-version -->
 ```
-Argos v5.0.0
+Argos v6.0.0
 ```
 <!-- x-release-please-end-version -->
 
