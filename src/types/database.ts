@@ -175,6 +175,8 @@ export interface BatchResultItem {
   success: boolean;
   data?: QueryResult;
   error?: string;
+  /** The original thrown value for a failed query (not serialized to clients). */
+  cause?: unknown;
   query: string;
   execution_time_ms?: number;
 }

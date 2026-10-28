@@ -1119,6 +1119,21 @@ describe('ConnectionManager', () => {
       expect(result.transactionUsed).toBe(true);
     });
 
+    test('batch results keep the failing error as cause', async () => {
+      const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
+        TestConfigFixtures.validPostgresConfig
+      );
+      const failure = Object.assign(new Error('bad column'), { code: '42703' });
+      jest.spyOn(mockAdapter, 'executeQuery').mockRejectedValue(failure);
+      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(mockAdapter);
+      connectionManager.registerDatabase('test_db', TestConfigFixtures.validPostgresConfig);
+
+      const result = await connectionManager.executeBatch('test_db', [{ query: 'SELECT x' }]);
+
+      expect(result.results[0].success).toBe(false);
+      expect(result.results[0].cause).toBe(failure);
+    });
+
     test('should continue batch without transaction on partial failure', async () => {
       const mockAdapter = MockDatabaseFactory.createPostgresAdapter(
         TestConfigFixtures.validPostgresConfig
