@@ -11,6 +11,8 @@ password=your_password
 ssl=false
 select_only=true
 timeout=30000
+# Check column names against the cached schema before running a query (default: true)
+# name_check=true
 
 # Field Redaction Configuration (optional)
 # redaction_enabled=true

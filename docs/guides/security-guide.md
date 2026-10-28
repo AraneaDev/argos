@@ -122,6 +122,16 @@ the statement.
 **In config:** `config.ini` holds credentials in the clear. Keep it `0600`; the
 server warns on startup if it is group- or world-readable.
 
+## Name check
+
+`name_check` (default `true`) is a per-connection option. Before a SELECT runs,
+Argos compares its column names with the cached schema and, when it is sure a
+column doesn't exist, returns the correction instead of running the query. It
+only reads the cached schema and never blocks on table names. Set
+`name_check=false` to turn this off for a connection; the corrections appended
+to the database's own unknown-name errors stay on. It is a convenience, not a
+security control.
+
 ## Connections
 
 Prefer `ssl=true` and leave `ssl_verify` alone — verification is on unless the
