@@ -49,6 +49,27 @@ describe('SchemaWatch', () => {
     expect(cm.schemaFingerprint).toHaveBeenCalledTimes(2);
   });
 
+  it('force runs the fingerprint check inside the 60 s window', async () => {
+    const { cm, watch, advance } = setup(schema(['id'], 'fp1'));
+    await watch.check('d', cfg);
+    advance(1_000);
+    await watch.check('d', cfg, { force: true });
+    expect(cm.schemaFingerprint).toHaveBeenCalledTimes(2);
+    // force still records the check time: an unforced call right after is rate-limited
+    advance(1_000);
+    await watch.check('d', cfg);
+    expect(cm.schemaFingerprint).toHaveBeenCalledTimes(2);
+  });
+
+  it('force still skips when not connected or nothing is cached', async () => {
+    const a = setup(schema(['id'], 'fp1'), false);
+    await a.watch.check('d', cfg, { force: true });
+    expect(a.cm.schemaFingerprint).not.toHaveBeenCalled();
+    const b = setup(null);
+    await b.watch.check('d', cfg, { force: true });
+    expect(b.cm.schemaFingerprint).not.toHaveBeenCalled();
+  });
+
   it('skips when no connection is open', async () => {
     const { cm, watch } = setup(schema(['id'], 'fp1'), false);
     expect(await watch.check('d', cfg)).toEqual([]);

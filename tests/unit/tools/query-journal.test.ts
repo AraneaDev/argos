@@ -12,6 +12,7 @@ import {
 } from '../../../src/tools/handlers/query-handlers.js';
 import type { ToolHandlerContext } from '../../../src/tools/handlers/types.js';
 import type { ParsedServerConfig, DatabaseConfig } from '../../../src/types/index.js';
+import { NameCheckError } from '../../../src/utils/error-handler.js';
 import { PaneStore } from '../../../src/pane/store.js';
 
 const dbs = { db: { type: 'postgresql', select_only: true } as DatabaseConfig };
@@ -85,6 +86,19 @@ describe('query journaling', () => {
     expect(e.spool).toBeNull();
     expect(r.isError).toBe(true);
     expect(r._meta.argos).toEqual({ journalId: e.id, spool: null });
+  });
+
+  it('journals a NameCheckError as blocked', async () => {
+    const ctx = makeCtx(store);
+    const { journalFailure } = await import('../../../src/tools/handlers/journal.js');
+    await journalFailure(
+      ctx,
+      { tool: 'sql_query', database: 'db', sql: 'SELECT x FROM t' } as any,
+      new NameCheckError('Unknown column x', 'Did you mean y?')
+    );
+    const [e] = await store.history();
+    expect(e.outcome).toBe('blocked');
+    expect(e.reason).toBe('Unknown column x');
   });
 
   it('journals a failing query as error', async () => {

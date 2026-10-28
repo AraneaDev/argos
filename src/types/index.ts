@@ -82,6 +82,7 @@ export type { ParsedServerConfig, ParsedSecurityConfig, ParsedExtensionConfig } 
 export {
   SQLMCPError,
   SecurityViolationError,
+  NameCheckError,
   ConnectionError,
   ConfigurationError,
   CircuitOpenError,

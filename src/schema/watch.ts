@@ -56,12 +56,19 @@ export class SchemaWatch {
     }
   }
 
-  /** Returns [] when skipped, unchanged, first seen or failed. Never throws. */
-  async check(dbName: string, _config: DatabaseConfig): Promise<SchemaChange[]> {
+  /**
+   * Returns [] when skipped, unchanged, first seen or failed. Never throws.
+   * `force` bypasses only the rate limit; it still records the check time.
+   */
+  async check(
+    dbName: string,
+    _config: DatabaseConfig,
+    opts: { force?: boolean } = {}
+  ): Promise<SchemaChange[]> {
     try {
       const t = this.now();
       const last = await this.lastChecked(dbName, t);
-      if (last !== undefined && t - last < this.intervalMs) return [];
+      if (!opts.force && last !== undefined && t - last < this.intervalMs) return [];
       if (!this.cm.isConnected(dbName)) return [];
 
       const cached = this.sm.getSchema(dbName);

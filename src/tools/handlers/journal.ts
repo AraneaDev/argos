@@ -6,7 +6,7 @@
 import type { JournalEntry } from '../../pane/contract.js';
 import type { SchemaChange } from '../../schema/diff.js';
 import type { MCPToolResponse, QueryResult } from '../../types/index.js';
-import { SecurityViolationError } from '../../types/index.js';
+import { NameCheckError, SecurityViolationError } from '../../types/index.js';
 import { getErrorMessage, sanitizeError } from '../../utils/error-handler.js';
 import type { ToolHandlerContext } from './types.js';
 
@@ -99,7 +99,10 @@ export function journalFailure(
       ...base,
       durationMs: null,
       rowCount: null,
-      outcome: error instanceof SecurityViolationError ? 'blocked' : 'error',
+      outcome:
+        error instanceof SecurityViolationError || error instanceof NameCheckError
+          ? 'blocked'
+          : 'error',
       reason: sanitizeError(error),
       ...(schemaChange.length > 0 ? { schemaChange } : {}),
       spool: null,

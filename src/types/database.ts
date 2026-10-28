@@ -48,6 +48,7 @@ export interface DatabaseConfig {
   ssl?: boolean;
   ssl_verify?: boolean; // Verify SSL certificates (default: true)
   select_only?: boolean;
+  name_check?: boolean; // Check table/column names against the cached schema before running a query
   // Ask the database itself to refuse writes for the whole session (PostgreSQL and
   // MySQL only). Never read from config.ini: the pane CLI sets it on its own copy of
   // each connection so the MCP server's behaviour is unchanged.
