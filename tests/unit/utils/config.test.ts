@@ -605,6 +605,13 @@ describe('config', () => {
       expect(config.mcp_configurable).toBe(false);
     });
 
+    it('parses name_check: default true, explicit false, junk rejected', () => {
+      const b = { type: 'mysql', host: 'localhost', username: 'root' };
+      expect(parseDatabaseConfig('db', b).name_check).toBe(true);
+      expect(parseDatabaseConfig('db', { ...b, name_check: 'false' }).name_check).toBe(false);
+      expect(() => parseDatabaseConfig('db', { ...b, name_check: 'maybe' })).toThrow(/name_check/);
+    });
+
     it('honors an explicit select_only=false', () => {
       const config = parseDatabaseConfig('db', {
         type: 'mysql',

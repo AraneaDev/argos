@@ -193,7 +193,9 @@ export abstract class DatabaseAdapter {
     const errorMessage = `${this.getType()} adapter error: ${message}`;
 
     if (originalError) {
-      const error = new Error(`${errorMessage} - ${originalError.message}`);
+      const error = new Error(`${errorMessage} - ${originalError.message}`, {
+        cause: originalError,
+      });
       error.stack = originalError.stack;
       return error;
     }

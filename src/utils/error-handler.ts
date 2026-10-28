@@ -29,6 +29,21 @@ export class SecurityViolationError extends SQLMCPError {
 }
 
 /**
+ * A query was refused because it names a table or column that does not exist.
+ * The message is safe to show the agent; `correction` is the suggested fix.
+ */
+export class NameCheckError extends SQLMCPError {
+  constructor(
+    message: string,
+    readonly correction: string,
+    details?: Record<string, unknown>
+  ) {
+    super(message, 'NAME_CHECK', details);
+    this.name = 'NameCheckError';
+  }
+}
+
+/**
  * Database connection error
  */
 export class ConnectionError extends SQLMCPError {
@@ -91,8 +106,8 @@ export function getErrorMessage(error: unknown): string {
  * Create a sanitized error message for security
  */
 export function sanitizeError(error: unknown): string {
-  if (error instanceof SecurityViolationError) {
-    // Already sanitized for security violations
+  if (error instanceof SecurityViolationError || error instanceof NameCheckError) {
+    // Already sanitized for security violations and name checks
     return error.message;
   }
 

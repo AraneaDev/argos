@@ -24,6 +24,7 @@ Execute a single SQL query on a configured database with automatic schema awaren
 #### Features
 - **Security Validation**: Automatic query validation for SELECT-only mode
 - **Schema Awareness**: Uses cached schema information for context
+- **Name Check**: Before a SELECT (or `WITH`...`SELECT`, or `EXPLAIN` of one) runs, Argos compares its column names with the cached schema; see [Name Checking](#name-checking)
 - **SSH Tunneling**: Automatic SSH tunnel establishment if configured
 - **Result Formatting**: Structured table output with row limits
 - **Performance Tracking**: Query execution time measurement
@@ -77,6 +78,7 @@ Execute multiple SQL queries in batch for improved performance with optional tra
 - **Transaction Support**: Optional transactional execution for consistency
 - **Individual Results**: Detailed results for each query in the batch
 - **Failure Handling**: Continues on failures unless in transaction mode
+- **Name Check**: One statement naming a column that doesn't exist blocks the whole batch before any statement runs, and the response names the statement; see [Name Checking](#name-checking)
 - **Performance Metrics**: Total and individual query execution times
 
 #### Example Usage
@@ -129,6 +131,7 @@ Analyze query performance and provide optimization recommendations using databas
 - **Performance Metrics**: Execution time, row counts, column analysis
 - **Optimization Recommendations**: Automated suggestions for improvements
 - **Database-Specific**: Tailored analysis for PostgreSQL, MySQL, SQLite, SQL Server
+- **Name Check**: The query is checked against the cached schema before it is analyzed; see [Name Checking](#name-checking)
 
 #### Example Usage
 ```sql
@@ -217,6 +220,7 @@ Retrieve detailed schema information for a database including tables, columns, a
 - **Column Details**: Types, nullability, defaults, constraints
 - **Filtered Output**: Optional single table focus
 - **Cached Results**: Fast retrieval from schema cache
+- **Captured on Demand**: When no schema is cached yet, Argos captures it first (up to 5 seconds) instead of asking you to connect; if the capture fails or takes longer, the response says it could not capture the schema; a capture that takes longer keeps going in the background, so a later call can return it
 
 #### Response Format
 
@@ -651,6 +655,23 @@ When `select_only=true` in database configuration:
 - `TRUNCATE` - Data deletion
 - `GRANT`, `REVOKE` - Permission changes
 - `EXEC`, `CALL` - Stored procedure execution
+
+### Name Checking
+Agents often guess column names. Argos checks them in two layers.
+
+**Before the query runs** (`sql_query`, `sql_batch_query`, `sql_analyze_performance`): for a `SELECT`, a `WITH`...`SELECT` or an `EXPLAIN` of either, Argos compares the column names with the cached schema of the tables it knows. If it is confident a column doesn't exist, it doesn't run the query and returns:
+
+```
+ Query not run on mydb: it names a column that doesn't exist: users.user_name
+```
+
+followed by a correction: a "did you mean" suggestion and the table's columns with their types. In a batch, one bad statement blocks the whole batch before any statement runs, and the response names that statement. Table names never block, and when Argos is unsure the query runs. Before blocking, Argos re-checks the live schema fingerprint so a column that was just added is not blocked; the message suggests `sql_refresh_schema` for a stale cache. Blocked queries are journaled as blocked.
+
+**After the database rejects the query** (always on): when the database reports an unknown column or table, the same style of correction is appended after the database's own error.
+
+If no schema is cached, Argos captures it before the first query, once per call (once per batch). The capture waits up to 5 seconds; past that the query runs unchecked and the capture finishes in the background. While that capture is still running, other queries run unchecked without waiting. If a capture fails, queries run unchecked and Argos waits 60 seconds before trying to capture again.
+
+Corrections show names and types only, capped at 3 tables, 40 columns per table and 3 suggestions. Set `name_check=false` on a connection to turn off the first layer; the second stays on.
 
 ### Query Complexity Limits
 All queries are analyzed for complexity and resource usage:

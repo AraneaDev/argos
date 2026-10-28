@@ -12,6 +12,11 @@ import type { ToolHandlerContext } from '../../../src/tools/handlers/types.js';
 import type { ParsedServerConfig, DatabaseConfig } from '../../../src/types/index.js';
 import { SchemaWatch } from '../../../src/schema/watch.js';
 import { SecurityViolationError } from '../../../src/types/index.js';
+import {
+  correctionForError,
+  preflightNames,
+  SCHEMA_CAPTURE_LIMIT_MS,
+} from '../../../src/tools/handlers/name-check.js';
 import { ValidationError, ConfigurationError } from '../../../src/utils/error-handler.js';
 
 // Mock response-formatter
@@ -46,6 +51,8 @@ function createMockContext(
       getSchema: jest.fn(),
       hasSchema: jest.fn().mockReturnValue(true),
       captureSchema: jest.fn(),
+      captureSchemaOnce: jest.fn().mockResolvedValue(null),
+      isCapturing: jest.fn().mockReturnValue(false),
       refreshSchema: jest.fn(),
       generateSchemaContext: jest.fn(),
     } as any,
@@ -306,15 +313,14 @@ describe('query-handlers', () => {
 
       await handleSqlQuery(ctx, { database: 'testdb', query: 'SELECT 1' });
 
-      expect(ctx.schemaManager.captureSchema).toHaveBeenCalledWith('testdb', expect.anything());
+      expect(ctx.schemaManager.captureSchemaOnce).toHaveBeenCalledWith('testdb', expect.anything());
     });
 
     it('should handle schema capture failure gracefully', async () => {
       const ctx = createMockContext({
         testdb: { type: 'mysql', host: 'localhost', select_only: false } as DatabaseConfig,
       });
-      (ctx.schemaManager.hasSchema as jest.Mock).mockReturnValue(false);
-      (ctx.connectionManager.getConnection as jest.Mock).mockRejectedValue(new Error('conn error'));
+      (ctx.schemaManager.captureSchemaOnce as jest.Mock).mockRejectedValue(new Error('conn error'));
       (ctx.connectionManager.executeQuery as jest.Mock).mockResolvedValue({
         rows: [],
         fields: [],
@@ -871,5 +877,376 @@ describe('query-handlers', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Performance analysis failed');
     });
+  });
+});
+
+describe('name check', () => {
+  const col = (name: string) => ({ name, type: 'text', nullable: true, default: null });
+  const table = (name: string, cols: string[]) => ({ name, type: 'table', columns: cols.map(col) });
+  const makeSchema = (extra: Record<string, any> = {}): any => ({
+    database: 'db',
+    type: 'postgresql',
+    captured_at: '',
+    tables: {
+      users: table('users', ['id', 'username', 'email']),
+      orders: table('orders', ['id', 'user_id', 'total']),
+      ...extra,
+    },
+    views: {},
+    summary: { table_count: 2, view_count: 0, total_columns: 6 },
+  });
+  const dbs = (extra: Partial<DatabaseConfig> = {}) => ({
+    db: { type: 'postgresql', select_only: true, ...extra } as DatabaseConfig,
+  });
+  const BAD = 'SELECT u.user_name FROM users u';
+
+  function ctxWith(schema: any, extra: Partial<DatabaseConfig> = {}) {
+    const ctx = createMockContext(dbs(extra));
+    (ctx.schemaManager.getSchema as jest.Mock).mockReturnValue(schema);
+    (ctx.connectionManager.executeQuery as jest.Mock).mockResolvedValue({
+      rows: [],
+      rowCount: 0,
+      fields: [],
+    });
+    return ctx;
+  }
+
+  it('blocks a query naming a missing column and journals it as blocked', async () => {
+    const ctx = ctxWith(makeSchema());
+    const append = jest.fn();
+    ctx.paneStore = { newId: () => 'j1', append, writeSpool: jest.fn() } as any;
+    const r = await handleSqlQuery(ctx, { database: 'db', query: BAD });
+    expect(ctx.connectionManager.executeQuery).not.toHaveBeenCalled();
+    expect(r.isError).toBe(true);
+    const text = r.content[0].text;
+    expect(text).toContain('Query not run');
+    expect(text).toContain('Did you mean: username');
+    expect(text).toContain('Columns of users');
+    expect(text).toContain('sql_refresh_schema');
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'blocked',
+        reason: expect.stringContaining('user_name'),
+      })
+    );
+  });
+
+  it('names every wrong identifier, in the plural, in the block reason', async () => {
+    const ctx = ctxWith(makeSchema());
+    const append = jest.fn();
+    ctx.paneStore = { newId: () => 'j1', append, writeSpool: jest.fn() } as any;
+    const r = await handleSqlQuery(ctx, {
+      database: 'db',
+      query: 'SELECT u.user_name, o.totl FROM users u JOIN orders o ON o.user_id = u.id',
+    });
+    expect(r.content[0].text).toContain("columns that don't exist: users.user_name, orders.totl");
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'blocked',
+        reason: expect.stringContaining("columns that don't exist: users.user_name, orders.totl"),
+      })
+    );
+  });
+
+  it('runs the query when name_check is false', async () => {
+    const ctx = ctxWith(makeSchema(), { name_check: false });
+    await handleSqlQuery(ctx, { database: 'db', query: BAD });
+    expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+  });
+
+  it('re-reads the schema after a forced check and runs if the column now exists', async () => {
+    const ctx = ctxWith(makeSchema());
+    const fresh = makeSchema({ users: table('users', ['id', 'user_name']) });
+    const forced = { kind: 'column-added', table: 'users', column: 'user_name', type: 'text' };
+    (ctx.schemaWatch.check as jest.Mock).mockImplementation(async (_d, _c, opts) => {
+      if (!opts?.force) return [];
+      (ctx.schemaManager.getSchema as jest.Mock).mockReturnValue(fresh);
+      return [forced];
+    });
+    const r = await handleSqlQuery(ctx, { database: 'db', query: BAD });
+    expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    expect(ctx.schemaWatch.check).toHaveBeenCalledWith('db', expect.anything(), { force: true });
+    expect(r.isError).toBeUndefined();
+    expect(r._meta.argos?.schemaChange).toEqual([forced]);
+  });
+
+  it('reports the forced check changes when it still blocks', async () => {
+    const ctx = ctxWith(makeSchema());
+    const forced = { kind: 'column-added', table: 'orders', column: 'shipped_at', type: 'text' };
+    (ctx.schemaWatch.check as jest.Mock).mockImplementation(async (_d, _c, opts) =>
+      opts?.force ? [forced] : []
+    );
+    const r = await handleSqlQuery(ctx, { database: 'db', query: BAD });
+    expect(r.isError).toBe(true);
+    expect(r._meta.argos?.schemaChange).toEqual([forced]);
+  });
+
+  it('with name_check false still captures the schema, so layer 2 works', async () => {
+    const ctx = ctxWith(undefined, { name_check: false });
+    const order: string[] = [];
+    (ctx.schemaManager.captureSchemaOnce as jest.Mock).mockImplementation(async () => {
+      order.push('capture');
+      (ctx.schemaManager.getSchema as jest.Mock).mockReturnValue(makeSchema());
+      return makeSchema();
+    });
+    (ctx.connectionManager.executeQuery as jest.Mock).mockImplementation(async () => {
+      order.push('execute');
+      return { rows: [], rowCount: 0, fields: [] };
+    });
+    await handleSqlQuery(ctx, { database: 'db', query: BAD });
+    expect(order).toEqual(['capture', 'execute']);
+
+    (ctx.connectionManager.executeQuery as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('query failed'), {
+        cause: { code: '42703', message: 'column "emial" does not exist' },
+      })
+    );
+    const r = await handleSqlQuery(ctx, {
+      database: 'db',
+      query: 'WITH x AS (SELECT * FROM users) SELECT emial FROM x, users',
+    });
+    expect(r.content[0].text).toContain('Did you mean: email');
+  });
+
+  it('captures the schema before running when none is cached', async () => {
+    const ctx = ctxWith(undefined);
+    const order: string[] = [];
+    (ctx.schemaManager.captureSchemaOnce as jest.Mock).mockImplementation(async () => {
+      order.push('capture');
+      return null;
+    });
+    (ctx.connectionManager.executeQuery as jest.Mock).mockImplementation(async () => {
+      order.push('execute');
+      return { rows: [], rowCount: 0, fields: [] };
+    });
+    await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1' });
+    expect(order).toEqual(['capture', 'execute']);
+  });
+
+  it('adds a correction after the sanitized driver error (layer 2)', async () => {
+    const ctx = ctxWith(makeSchema());
+    const err = Object.assign(new Error('query failed'), {
+      cause: { code: '42703', message: 'column "emial" does not exist' },
+    });
+    (ctx.connectionManager.executeQuery as jest.Mock).mockRejectedValue(err);
+    const r = await handleSqlQuery(ctx, {
+      database: 'db',
+      query: 'WITH x AS (SELECT * FROM users) SELECT emial FROM x, users',
+    });
+    const text = r.content[0].text;
+    expect(text).toContain('Query failed on db: query failed');
+    expect(text.indexOf('query failed')).toBeLessThan(text.indexOf('Did you mean: email'));
+    expect(text).not.toContain('sql_refresh_schema');
+  });
+
+  it('does not redact names in the correction (table called token)', async () => {
+    const ctx = ctxWith(makeSchema({ token: table('token', ['id', 'secret']) }));
+    const r = await handleSqlQuery(ctx, { database: 'db', query: 'SELECT t.secrt FROM token t' });
+    const text = r.content[0].text;
+    expect(text).toContain('Columns of token');
+    expect(text).toContain('secret');
+    expect(text).not.toContain('[REDACTED]');
+  });
+
+  it('does not redact names in a layer-2 correction (table called token)', async () => {
+    const ctx = ctxWith(makeSchema({ token: table('token', ['id', 'secret']) }));
+    (ctx.connectionManager.executeQuery as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('query failed'), {
+        cause: { code: '42703', message: 'column "secrt" does not exist' },
+      })
+    );
+    const r = await handleSqlQuery(ctx, {
+      database: 'db',
+      query: 'WITH x AS (SELECT * FROM token) SELECT secrt FROM x, token',
+    });
+    const text = r.content[0].text;
+    expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    expect(text).toContain('Columns of token');
+    expect(text).toContain('secret');
+    expect(text).not.toContain('[REDACTED]');
+  });
+
+  it('blocks sql_analyze_performance too', async () => {
+    const ctx = ctxWith(makeSchema());
+    const append = jest.fn();
+    ctx.paneStore = { newId: () => 'j1', append, writeSpool: jest.fn() } as any;
+    const r = await handleAnalyzePerformance(ctx, { database: 'db', query: BAD });
+    expect(ctx.connectionManager.analyzePerformance).not.toHaveBeenCalled();
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toContain('Query not run');
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'blocked', tool: 'sql_analyze_performance' })
+    );
+    expect(r.content[0].text).toContain('Did you mean: username');
+    expect(r.content[0].text).toContain('sql_refresh_schema');
+  });
+
+  it('blocks a batch before running anything and journals the offending statement', async () => {
+    const ctx = ctxWith(makeSchema());
+    const append = jest.fn();
+    ctx.paneStore = { newId: () => 'j1', append, writeSpool: jest.fn() } as any;
+    const r = await handleBatchQuery(ctx, {
+      database: 'db',
+      queries: [{ query: 'SELECT id FROM users' }, { query: 'SELECT o.totl FROM orders o' }],
+    });
+    expect(ctx.connectionManager.executeBatch).not.toHaveBeenCalled();
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toContain('statement 2');
+    expect(r.content[0].text).toContain('Did you mean: total');
+    expect(r.content[0].text).toContain('sql_refresh_schema');
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'blocked',
+        sql: 'SELECT o.totl FROM orders o',
+        reason: expect.stringContaining('orders.totl'),
+      })
+    );
+  });
+
+  it('runs the batch when name_check is false', async () => {
+    const ctx = ctxWith(makeSchema(), { name_check: false });
+    (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+      results: [],
+      totalExecutionTime: 1,
+      successCount: 0,
+      failureCount: 0,
+      transactionUsed: false,
+    });
+    await handleBatchQuery(ctx, { database: 'db', queries: [{ query: BAD }] });
+    expect(ctx.connectionManager.executeBatch).toHaveBeenCalled();
+  });
+
+  it('adds a correction after a failed batch statement (layer 2) without leaking the cause', async () => {
+    const ctx = ctxWith(makeSchema());
+    const cause = { code: '42P01', message: 'relation "userz" does not exist' };
+    (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+      results: [
+        { index: 1, success: true, query: 'SELECT 1', data: { rows: [], rowCount: 0 } },
+        { index: 2, success: false, query: 'SELECT id FROM userz', error: 'query failed', cause },
+      ],
+      totalExecutionTime: 1,
+      successCount: 1,
+      failureCount: 1,
+      transactionUsed: false,
+    });
+    const r = await handleBatchQuery(ctx, {
+      database: 'db',
+      queries: [{ query: 'SELECT 1' }, { query: 'SELECT id FROM userz' }],
+    });
+    const text = r.content[0].text;
+    expect(text.indexOf('[ERROR] Failed')).toBeLessThan(text.indexOf('Did you mean: users'));
+    expect(text).not.toContain('42P01');
+  });
+
+  it('falls back to the error text for a layer-2 correction when cause is absent', async () => {
+    const ctx = ctxWith(makeSchema());
+    (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+      results: [
+        {
+          index: 1,
+          success: false,
+          query: 'SELECT emial FROM users',
+          error: 'column "emial" does not exist',
+        },
+      ],
+      totalExecutionTime: 1,
+      successCount: 0,
+      failureCount: 1,
+      transactionUsed: false,
+    });
+    const r = await handleBatchQuery(ctx, {
+      database: 'db',
+      queries: [{ query: 'SELECT emial FROM users' }],
+    });
+    const text = r.content[0].text;
+    expect(text).toContain('Did you mean: email');
+    expect(text.indexOf('column "emial" does not exist')).toBeLessThan(
+      text.indexOf('Did you mean: email')
+    );
+  });
+
+  it('waits for a slow capture at most once per batch', async () => {
+    jest.useFakeTimers();
+    try {
+      const ctx = ctxWith(undefined);
+      let capturing = false;
+      (ctx.schemaManager.captureSchemaOnce as jest.Mock).mockImplementation(() => {
+        capturing = true;
+        return new Promise(() => {}); // never finishes
+      });
+      (ctx.schemaManager.isCapturing as jest.Mock).mockImplementation(() => capturing);
+      (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+        results: [],
+        totalExecutionTime: 1,
+        successCount: 0,
+        failureCount: 0,
+        transactionUsed: false,
+      });
+      const queries = Array.from({ length: 10 }, (_, i) => ({ query: `SELECT ${i}` }));
+      const run = handleBatchQuery(ctx, { database: 'db', queries });
+      await jest.advanceTimersByTimeAsync(SCHEMA_CAPTURE_LIMIT_MS);
+      expect(ctx.connectionManager.executeBatch).toHaveBeenCalled();
+      await run;
+      expect(ctx.schemaManager.captureSchemaOnce).toHaveBeenCalledTimes(1);
+
+      // A later call while that capture is still running does not wait at all
+      (ctx.connectionManager.executeQuery as jest.Mock).mockResolvedValue({
+        rows: [],
+        rowCount: 0,
+        fields: [],
+      });
+      await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1' });
+      expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('runs a query whose column is in the live database but not in the cache loaded from disk', async () => {
+    // After a restart: the schema comes from disk, no connection is open yet.
+    const stale = { ...makeSchema(), fingerprint: 'old' };
+    const live = {
+      ...makeSchema({ users: table('users', ['id', 'username', 'user_name']) }),
+      fingerprint: 'new',
+    };
+    const ctx = ctxWith(stale);
+    const cm = {
+      isConnected: jest.fn().mockReturnValue(false),
+      schemaFingerprint: jest.fn().mockResolvedValue('new'),
+    };
+    (ctx.schemaManager.refreshSchema as jest.Mock).mockImplementation(async () => {
+      (ctx.schemaManager.getSchema as jest.Mock).mockReturnValue(live);
+      return live;
+    });
+    ctx.schemaWatch = new SchemaWatch(cm as any, ctx.schemaManager);
+    const r = await handleSqlQuery(ctx, { database: 'db', query: BAD });
+    expect(cm.schemaFingerprint).toHaveBeenCalledWith('db');
+    expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    expect(r.isError).toBeUndefined();
+  });
+
+  it('preflightNames copies the statement index onto each problem', async () => {
+    const ctx = ctxWith(makeSchema());
+    const found = await preflightNames(ctx, 'db', dbs().db, makeSchema(), BAD, 2);
+    expect(found.problems[0]).toMatchObject({ name: 'user_name', statement: 2 });
+    expect(found.correction).toContain('in statement 3');
+  });
+
+  it('fails open on a malformed cached schema (no views, table without columns)', async () => {
+    const bad: any = makeSchema({ broken: { name: 'broken', type: 'table' } });
+    delete bad.views;
+    const ctx = ctxWith(bad);
+    const r = await handleSqlQuery(ctx, { database: 'db', query: 'SELECT b.x FROM broken b' });
+    expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    expect(r.isError).toBeUndefined();
+    expect(ctx.logger.warning).toHaveBeenCalledWith('Name check skipped', expect.anything());
+  });
+
+  it('correctionForError returns "" for a malformed schema', () => {
+    const bad: any = makeSchema({ broken: { name: 'broken', type: 'table' } });
+    const ctx = ctxWith(bad);
+    const err = { code: '42703', message: 'column "x" does not exist' };
+    expect(correctionForError(ctx, 'db', 'SELECT x FROM broken', err)).toBe('');
   });
 });

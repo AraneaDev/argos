@@ -14,8 +14,9 @@ import { formatDatabaseSummary, createToolResponse } from '../../utils/response-
 import { getErrorMessage, sanitizeError, ConnectionError } from '../../utils/error-handler.js';
 import type { ToolHandlerContext } from './types.js';
 import { requireDbConfig } from './types.js';
+import { ensureSchema } from './name-check.js';
 
-/** sql_get_schema: the cached schema of a database, or of one table in it. */
+/** sql_get_schema: the schema of a database, or of one table in it; captured first if not cached. */
 export async function handleGetSchema(
   ctx: ToolHandlerContext,
   args: SQLGetSchemaArgs
@@ -23,11 +24,14 @@ export async function handleGetSchema(
   const { database, table } = args;
 
   try {
-    const schema = ctx.schemaManager.getSchema(database);
+    let schema = ctx.schemaManager.getSchema(database);
     if (!schema) {
-      return createToolResponse(
-        ` No schema available for database '${database}'. Connect to the database first to capture schema.`
-      );
+      schema = await ensureSchema(ctx, database, requireDbConfig(ctx.config, database), {
+        wait: true,
+      });
+    }
+    if (!schema) {
+      return createToolResponse(` Could not capture the schema for '${database}'.`);
     }
 
     const schemaText = ctx.schemaManager.generateSchemaContext(database, table);

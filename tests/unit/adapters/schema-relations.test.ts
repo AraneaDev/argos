@@ -206,7 +206,7 @@ describe('schema capture keys, relations and row estimates', () => {
         let rows: unknown[] = [];
         if (sql.includes('foreign_key_list')) {
           rows = [{ id: 0, seq: 0, table: 'customers', from: 'customer_id', to: 'id' }];
-        } else if (sql.includes('table_info')) {
+        } else if (sql.includes('table_xinfo')) {
           rows = [col(0, 'id', 1), col(1, 'customer_id', 0)];
         } else if (sql.includes('sqlite_master')) {
           rows = [{ name: 'orders', type: 'table' }];
@@ -219,7 +219,7 @@ describe('schema capture keys, relations and row estimates', () => {
     it('marks every column of a composite primary key as PRI', async () => {
       mockSqliteAll.mockImplementation((sql: string, cb: Function) => {
         let rows: unknown[] = [];
-        if (sql.includes('table_info')) rows = [col(0, 'a', 1), col(1, 'b', 2)];
+        if (sql.includes('table_xinfo')) rows = [col(0, 'a', 1), col(1, 'b', 2)];
         else if (sql.includes('sqlite_master')) rows = [{ name: 'pair', type: 'table' }];
         process.nextTick(() => cb(null, rows));
       });

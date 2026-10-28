@@ -705,6 +705,58 @@ describe('SchemaManager', () => {
     });
   });
 
+  describe('captureSchemaOnce', () => {
+    beforeEach(async () => {
+      mockFs.existsSync.mockReturnValue(true);
+      mockFs.writeFileSync.mockImplementation(() => {});
+      await schemaManager.initialize();
+    });
+
+    it('shares one capture between concurrent callers, then captures again', async () => {
+      let resolveCapture!: (value: DatabaseSchema) => void;
+      mockAdapter.captureSchema.mockImplementationOnce(
+        () => new Promise<DatabaseSchema>((resolve) => (resolveCapture = resolve))
+      );
+      const cfg = { type: 'postgresql' } as DatabaseConfig;
+      const p1 = schemaManager.captureSchemaOnce('d', cfg);
+      const p2 = schemaManager.captureSchemaOnce('d', cfg);
+      await new Promise((r) => setImmediate(r));
+      resolveCapture(mockSchema);
+      const [r1, r2] = await Promise.all([p1, p2]);
+      expect(mockAdapter.captureSchema).toHaveBeenCalledTimes(1);
+      expect(mockConnectionManager.getConnection).toHaveBeenCalledWith('d');
+      expect(r1).toBe(r2);
+
+      mockAdapter.captureSchema.mockResolvedValue(mockSchema);
+      await schemaManager.captureSchemaOnce('d', cfg);
+      expect(mockAdapter.captureSchema).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports whether a capture is in flight', async () => {
+      let resolveCapture!: (value: DatabaseSchema) => void;
+      mockAdapter.captureSchema.mockImplementationOnce(
+        () => new Promise<DatabaseSchema>((resolve) => (resolveCapture = resolve))
+      );
+      const cfg = { type: 'postgresql' } as DatabaseConfig;
+      expect(schemaManager.isCapturing('d')).toBe(false);
+      const p = schemaManager.captureSchemaOnce('d', cfg);
+      expect(schemaManager.isCapturing('d')).toBe(true);
+      expect(schemaManager.isCapturing('other')).toBe(false);
+      await new Promise((r) => setImmediate(r));
+      resolveCapture(mockSchema);
+      await p;
+      expect(schemaManager.isCapturing('d')).toBe(false);
+    });
+
+    it('allows a new capture after a failure', async () => {
+      const cfg = { type: 'postgresql' } as DatabaseConfig;
+      mockAdapter.captureSchema.mockRejectedValueOnce(new Error('boom'));
+      await expect(schemaManager.captureSchemaOnce('d', cfg)).rejects.toThrow('boom');
+      mockAdapter.captureSchema.mockResolvedValue(mockSchema);
+      await expect(schemaManager.captureSchemaOnce('d', cfg)).resolves.toBeDefined();
+    });
+  });
+
   // ============================================================================
   // File Permissions Tests
   // ============================================================================

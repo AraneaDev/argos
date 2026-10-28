@@ -5,6 +5,7 @@
 import {
   SQLMCPError,
   SecurityViolationError,
+  NameCheckError,
   ConnectionError,
   ConfigurationError,
   ValidationError,
@@ -14,6 +15,14 @@ import {
 } from '../../../src/utils/error-handler.js';
 
 describe('error-handler', () => {
+  it('NameCheckError carries its correction and sanitizeError leaves it unchanged', () => {
+    const err = new NameCheckError('m', 'c', { k: 1 });
+    expect(err._code).toBe('NAME_CHECK');
+    expect(err.correction).toBe('c');
+    expect(err.name).toBe('NameCheckError');
+    expect(sanitizeError(err)).toBe('m');
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
   });

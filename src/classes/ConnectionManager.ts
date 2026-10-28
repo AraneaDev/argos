@@ -732,6 +732,7 @@ export class ConnectionManager extends EventEmitter {
       success: boolean;
       data?: QueryResult;
       error?: string;
+      cause?: unknown;
       query: string;
       execution_time_ms?: number;
     }> = [];
@@ -781,6 +782,7 @@ export class ConnectionManager extends EventEmitter {
             label: queryObj.label || `Query ${i + 1}`,
             success: false,
             error: (error as Error).message,
+            cause: error,
             query: queryObj.query,
             execution_time_ms: Date.now() - queryStartTime,
           });

@@ -415,6 +415,13 @@ describe('DatabaseAdapter Base Class', () => {
       expect(wrappedError.message).toBe('sqlite adapter error: Test message - Original error');
       expect(wrappedError.stack).toBe('original stack trace');
     });
+
+    it('createError keeps the original error as cause', () => {
+      const orig = Object.assign(new Error('boom'), { code: '42703' });
+      const err = adapter.testCreateError('Test message', orig);
+      expect((err as Error).cause).toBe(orig);
+      expect(err.message).toBe('sqlite adapter error: Test message - boom');
+    });
   });
 
   // ============================================================================

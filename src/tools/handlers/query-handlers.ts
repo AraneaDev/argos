@@ -7,20 +7,17 @@ import type {
   SQLQueryArgs,
   SQLBatchQueryArgs,
   SQLAnalyzePerformanceArgs,
+  DatabaseConfig,
+  DatabaseSchema,
   MCPToolResponse,
 } from '../../types/index.js';
-import { SecurityViolationError } from '../../types/index.js';
+import { NameCheckError, SecurityViolationError } from '../../types/index.js';
 import {
   formatTableResults,
   formatCondensedTableResults,
   createToolResponse,
 } from '../../utils/response-formatter.js';
-import {
-  getErrorMessage,
-  sanitizeError,
-  sanitizeMessage,
-  ValidationError,
-} from '../../utils/error-handler.js';
+import { sanitizeError, sanitizeMessage, ValidationError } from '../../utils/error-handler.js';
 import { formatSchemaChanges, type SchemaChange } from '../../schema/diff.js';
 import {
   attachJournal,
@@ -29,6 +26,7 @@ import {
   paramsFlag,
   type JournalRef,
 } from './journal.js';
+import { correctionForError, preflightNames, schemaForCheck } from './name-check.js';
 import type { ToolHandlerContext } from './types.js';
 import { requireDbConfig } from './types.js';
 
@@ -53,6 +51,46 @@ function failureResponse(text: string, changes: SchemaChange[], ref: JournalRef)
   const response = createToolResponse(text, true);
   if (changes.length > 0) response.content[0].text += `\n${formatSchemaChanges(changes)}`;
   return attachJournal(response, ref, changes);
+}
+
+/** Appended to a name-check block only; after a database rejection the schema is already fresh. */
+const REFRESH_HINT = ' If you believe the schema has changed, run sql_refresh_schema and retry.';
+
+/** Failure text: a name-check block, or the sanitized error followed by the raw correction. */
+function failureText(
+  ctx: ToolHandlerContext,
+  database: string,
+  sql: string,
+  error: unknown,
+  failed: string
+): string {
+  if (error instanceof NameCheckError) {
+    return ` Query not run on ${database}: ${error.message}\n${error.correction}\n${REFRESH_HINT}`;
+  }
+  const correction = correctionForError(ctx, database, sql, error);
+  return `${failed}: ${sanitizeError(error)}${correction ? `\n${correction}` : ''}`;
+}
+
+/**
+ * Name check before running: whatever the forced schema check found is pushed onto `changes`
+ * (so it is reported even when blocked), and a column that doesn't exist throws.
+ */
+async function preflightOrThrow(
+  ctx: ToolHandlerContext,
+  database: string,
+  dbConfig: DatabaseConfig,
+  schema: DatabaseSchema | null,
+  sql: string,
+  changes: SchemaChange[],
+  statement?: number
+): Promise<void> {
+  const bad = await preflightNames(ctx, database, dbConfig, schema, sql, statement);
+  changes.push(...bad.schemaChanges);
+  if (bad.problems.length > 0) {
+    const names = bad.problems.map((p) => (p.table ? `${p.table}.${p.name}` : p.name));
+    const what = names.length === 1 ? `a column that doesn't exist` : `columns that don't exist`;
+    throw new NameCheckError(`it names ${what}: ${names.join(', ')}`, bad.correction);
+  }
 }
 
 /**
@@ -94,20 +132,10 @@ export async function handleSqlQuery(
     }
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+    const schema = await schemaForCheck(ctx, database, dbConfig);
+    await preflightOrThrow(ctx, database, dbConfig, schema, query, schemaChanges);
 
     const result = await ctx.connectionManager.executeQuery(database, query, params);
-
-    // Capture schema if not cached
-    if (!ctx.schemaManager.hasSchema(database)) {
-      try {
-        const connection = await ctx.connectionManager.getConnection(database);
-        if (connection) {
-          await ctx.schemaManager.captureSchema(database, dbConfig);
-        }
-      } catch (error) {
-        ctx.logger.warning('Failed to capture schema', { database, error: getErrorMessage(error) });
-      }
-    }
 
     let responseText = ` Query executed successfully on ${database}\n`;
     if (ctx.sshTunnelManager.hasTunnel(database)) responseText += ` Connected via SSH tunnel\n`;
@@ -139,8 +167,7 @@ export async function handleSqlQuery(
     );
     // Sanitize before returning to the client — raw driver errors can leak data,
     // schema, or connection details. SecurityViolationError messages are preserved.
-    const errorMessage = sanitizeError(error);
-    let responseText = ` Query failed on ${database}: ${errorMessage}`;
+    let responseText = failureText(ctx, database, query, error, ` Query failed on ${database}`);
 
     if (error instanceof SecurityViolationError) {
       responseText += '\n\n **Security Information:**\n';
@@ -212,6 +239,12 @@ export async function handleBatchQuery(
     }
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+    const schema = await schemaForCheck(ctx, database, dbConfig);
+    for (const [i, q] of queries.entries()) {
+      offending = q;
+      await preflightOrThrow(ctx, database, dbConfig, schema, q.query, schemaChanges, i);
+    }
+    offending = null;
 
     const result = await ctx.connectionManager.executeBatch(
       database,
@@ -260,6 +293,13 @@ export async function handleBatchQuery(
         }
       } else {
         responseText += `[ERROR] Failed: ${sanitizeMessage(queryResult.error || '')}\n`;
+        const correction = correctionForError(
+          ctx,
+          database,
+          queryResult.query ?? '',
+          queryResult.cause ?? new Error(queryResult.error)
+        );
+        if (correction) responseText += `${correction}\n`;
       }
 
       responseText += ` Query: \`${queryResult.query?.substring(0, 100)}${queryResult.query && queryResult.query.length > 100 ? '...' : ''}\`\n\n`;
@@ -310,9 +350,11 @@ export async function handleBatchQuery(
         if (i === 0) ref = r;
       }
     }
-    const errorMessage = sanitizeError(error);
     let responseText = ` **Batch Query Failed** (${database})\n\n`;
-    responseText += ` **Error:** ${errorMessage}\n\n`;
+    responseText +=
+      error instanceof NameCheckError
+        ? ` Batch not run on ${database}: ${error.message}\n${error.correction}\n${REFRESH_HINT}\n\n`
+        : ` **Error:** ${sanitizeError(error)}\n\n`;
 
     if (error instanceof SecurityViolationError) {
       responseText += '\n **Security Information:**\n';
@@ -357,6 +399,8 @@ export async function handleAnalyzePerformance(
     }
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+    const schema = await schemaForCheck(ctx, database, dbConfig);
+    await preflightOrThrow(ctx, database, dbConfig, schema, query, schemaChanges);
 
     const analysis = await ctx.connectionManager.analyzePerformance(database, query);
 
@@ -392,9 +436,8 @@ export async function handleAnalyzePerformance(
       error,
       schemaChanges
     );
-    const errorMessage = sanitizeError(error);
     return failureResponse(
-      ` Performance analysis failed for ${database}: ${errorMessage}`,
+      failureText(ctx, database, query, error, ` Performance analysis failed for ${database}`),
       schemaChanges,
       ref
     );

@@ -240,6 +240,8 @@ export function parseDatabaseConfig(name: string, config: Record<string, string>
     // An omitted select_only must NOT silently grant write access.
     select_only:
       config.select_only === undefined ? true : parseBool(config.select_only, 'select_only', name),
+    name_check:
+      config.name_check === undefined ? true : parseBool(config.name_check, 'name_check', name),
     mcp_configurable: parseBool(config.mcp_configurable, 'mcp_configurable', name),
   };
 

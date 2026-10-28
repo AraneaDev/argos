@@ -18,6 +18,7 @@ import { getLogger } from '../utils/logger.js';
  */
 export class SchemaManager extends EventEmitter {
   private schemas = new Map<string, DatabaseSchema>();
+  private captures = new Map<string, Promise<DatabaseSchema>>();
   private connectionManager: ConnectionManager;
   private schemaPath: string;
   private logger = getLogger();
@@ -108,6 +109,23 @@ export class SchemaManager extends EventEmitter {
       this.logger.error(`Failed to capture schema for '${dbName}'`, error as Error);
       throw error;
     }
+  }
+
+  /**
+   * Capture a schema, sharing one in-flight capture per database between concurrent callers.
+   * `captureSchema` gets the connection first.
+   */
+  captureSchemaOnce(dbName: string, config: DatabaseConfig): Promise<DatabaseSchema> {
+    const running = this.captures.get(dbName);
+    if (running) return running;
+    const p = this.captureSchema(dbName, config).finally(() => this.captures.delete(dbName));
+    this.captures.set(dbName, p);
+    return p;
+  }
+
+  /** Whether a captureSchemaOnce for this database is still running */
+  isCapturing(dbName: string): boolean {
+    return this.captures.has(dbName);
   }
 
   /**

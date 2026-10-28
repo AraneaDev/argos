@@ -11,7 +11,7 @@ export function getToolDefinitions() {
     {
       name: 'sql_query',
       description:
-        'Execute a single SQL query on a configured database with automatic schema awareness and SELECT-only security enforcement. IMPORTANT: Always call sql_get_schema for the target database before your first query to learn the correct table and column names.',
+        'Execute a single SQL query on a configured database with automatic schema awareness and SELECT-only security enforcement.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -36,7 +36,7 @@ export function getToolDefinitions() {
     {
       name: 'sql_batch_query',
       description:
-        'Execute multiple SQL queries in batch on a configured database for improved performance. All queries must pass security validation. IMPORTANT: Always call sql_get_schema for the target database before your first query to learn the correct table and column names.',
+        'Execute multiple SQL queries in batch on a configured database for improved performance. All queries must pass security validation.',
       inputSchema: {
         type: 'object',
         properties: {
