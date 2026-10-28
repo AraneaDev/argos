@@ -1027,6 +1027,59 @@ describe('name check', () => {
     expect(r.content[0].text).toContain('Did you mean: username');
   });
 
+  it('blocks a batch before running anything and journals the offending statement', async () => {
+    const ctx = ctxWith(makeSchema());
+    const append = jest.fn();
+    ctx.paneStore = { newId: () => 'j1', append, writeSpool: jest.fn() } as any;
+    const r = await handleBatchQuery(ctx, {
+      database: 'db',
+      queries: [{ query: 'SELECT id FROM users' }, { query: 'SELECT o.totl FROM orders o' }],
+    });
+    expect(ctx.connectionManager.executeBatch).not.toHaveBeenCalled();
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toContain('statement 2');
+    expect(r.content[0].text).toContain('Did you mean: total');
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'blocked', sql: 'SELECT o.totl FROM orders o' })
+    );
+  });
+
+  it('runs the batch when name_check is false', async () => {
+    const ctx = ctxWith(makeSchema(), { name_check: false });
+    (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+      results: [],
+      totalExecutionTime: 1,
+      successCount: 0,
+      failureCount: 0,
+      transactionUsed: false,
+    });
+    await handleBatchQuery(ctx, { database: 'db', queries: [{ query: BAD }] });
+    expect(ctx.connectionManager.executeBatch).toHaveBeenCalled();
+  });
+
+  it('adds a correction after a failed batch statement (layer 2) without leaking the cause', async () => {
+    const ctx = ctxWith(makeSchema());
+    const cause = { code: '42P01', message: 'relation "userz" does not exist' };
+    (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+      results: [
+        { index: 1, success: true, query: 'SELECT 1', data: { rows: [], rowCount: 0 } },
+        { index: 2, success: false, query: 'SELECT id FROM userz', error: 'query failed', cause },
+      ],
+      totalExecutionTime: 1,
+      successCount: 1,
+      failureCount: 1,
+      transactionUsed: false,
+    });
+    const r = await handleBatchQuery(ctx, {
+      database: 'db',
+      queries: [{ query: 'SELECT 1' }, { query: 'SELECT id FROM userz' }],
+    });
+    const text = r.content[0].text;
+    expect(text.indexOf('[ERROR] Failed')).toBeLessThan(text.indexOf('Did you mean: users'));
+    expect(text).not.toContain('42P01');
+  });
+
   it('preflightNames copies the statement index onto each problem', async () => {
     const ctx = ctxWith(makeSchema());
     const found = await preflightNames(ctx, 'db', dbs().db, BAD, 2);

@@ -7,6 +7,7 @@ import type {
   SQLQueryArgs,
   SQLBatchQueryArgs,
   SQLAnalyzePerformanceArgs,
+  DatabaseConfig,
   MCPToolResponse,
 } from '../../types/index.js';
 import { NameCheckError, SecurityViolationError } from '../../types/index.js';
@@ -67,6 +68,25 @@ function failureText(
 }
 
 /**
+ * Name check before running: whatever the forced schema check found is pushed onto `changes`
+ * (so it is reported even when blocked), and a column that doesn't exist throws.
+ */
+async function preflightOrThrow(
+  ctx: ToolHandlerContext,
+  database: string,
+  dbConfig: DatabaseConfig,
+  sql: string,
+  changes: SchemaChange[],
+  statement?: number
+): Promise<void> {
+  const bad = await preflightNames(ctx, database, dbConfig, sql, statement);
+  changes.push(...bad.schemaChanges);
+  if (bad.problems.length > 0) {
+    throw new NameCheckError(`it names a column that doesn't exist`, bad.correction);
+  }
+}
+
+/**
  *
  */
 export async function handleSqlQuery(
@@ -105,11 +125,7 @@ export async function handleSqlQuery(
     }
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
-    const bad = await preflightNames(ctx, database, dbConfig, query);
-    schemaChanges = [...schemaChanges, ...bad.schemaChanges];
-    if (bad.problems.length > 0) {
-      throw new NameCheckError(`it names a column that doesn't exist`, bad.correction);
-    }
+    await preflightOrThrow(ctx, database, dbConfig, query, schemaChanges);
 
     const result = await ctx.connectionManager.executeQuery(database, query, params);
 
@@ -215,6 +231,11 @@ export async function handleBatchQuery(
     }
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+    for (const [i, q] of queries.entries()) {
+      offending = q;
+      await preflightOrThrow(ctx, database, dbConfig, q.query, schemaChanges, i);
+    }
+    offending = null;
 
     const result = await ctx.connectionManager.executeBatch(
       database,
@@ -263,6 +284,13 @@ export async function handleBatchQuery(
         }
       } else {
         responseText += `[ERROR] Failed: ${sanitizeMessage(queryResult.error || '')}\n`;
+        const correction = correctionForError(
+          ctx,
+          database,
+          queryResult.query ?? '',
+          queryResult.cause ?? new Error(queryResult.error)
+        );
+        if (correction) responseText += `${correction}\n`;
       }
 
       responseText += ` Query: \`${queryResult.query?.substring(0, 100)}${queryResult.query && queryResult.query.length > 100 ? '...' : ''}\`\n\n`;
@@ -313,9 +341,11 @@ export async function handleBatchQuery(
         if (i === 0) ref = r;
       }
     }
-    const errorMessage = sanitizeError(error);
     let responseText = ` **Batch Query Failed** (${database})\n\n`;
-    responseText += ` **Error:** ${errorMessage}\n\n`;
+    responseText +=
+      error instanceof NameCheckError
+        ? ` Batch not run on ${database}: ${error.message}\n${error.correction}\n\n`
+        : ` **Error:** ${sanitizeError(error)}\n\n`;
 
     if (error instanceof SecurityViolationError) {
       responseText += '\n **Security Information:**\n';
@@ -361,11 +391,7 @@ export async function handleAnalyzePerformance(
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
 
-    const bad = await preflightNames(ctx, database, dbConfig, query);
-    schemaChanges = [...schemaChanges, ...bad.schemaChanges];
-    if (bad.problems.length > 0) {
-      throw new NameCheckError(`it names a column that doesn't exist`, bad.correction);
-    }
+    await preflightOrThrow(ctx, database, dbConfig, query, schemaChanges);
 
     const analysis = await ctx.connectionManager.analyzePerformance(database, query);
 
