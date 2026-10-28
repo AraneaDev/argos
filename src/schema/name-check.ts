@@ -72,7 +72,9 @@ export function defaultSchemaFor(
 }
 
 /** Columns every row has without being declared, so the cache never lists them. */
-const HIDDEN_COLUMNS = new Set('rowid oid _rowid_ ctid xmin xmax cmin cmax tableoid'.split(' '));
+const HIDDEN_COLUMNS = new Set(
+  'rowid oid _rowid_ _rowid ctid xmin xmax cmin cmax tableoid'.split(' ')
+);
 
 /** Cache key for a table ref, or null when it isn't certainly a cached table or view. */
 function resolveTable(
@@ -84,10 +86,15 @@ function resolveTable(
   if (ref.schema !== null && ref.schema.toLowerCase() !== defaultSchema?.toLowerCase()) return null;
   if (ctes.has(ref.name.toLowerCase())) return null;
   const keys = [...Object.keys(schema.tables), ...Object.keys(schema.views ?? {})];
-  if (ref.quoted && keys.includes(ref.name)) return ref.name;
+  if (ref.quoted && keys.includes(ref.name)) return isVirtual(schema, ref.name) ? null : ref.name;
   const matches = keys.filter((k) => k.toLowerCase() === ref.name.toLowerCase());
   // Two tables differing only in case: can't tell which one is meant.
-  return matches.length === 1 ? matches[0] : null;
+  return matches.length === 1 && !isVirtual(schema, matches[0]) ? matches[0] : null;
+}
+
+/** A virtual table (SQLite FTS and the like) has hidden columns the cache doesn't list. */
+function isVirtual(schema: DatabaseSchema, key: string): boolean {
+  return (schema.tables[key] ?? schema.views?.[key])?.type === 'VIRTUAL TABLE';
 }
 
 function hasColumn(schema: DatabaseSchema, key: string, name: string): boolean {

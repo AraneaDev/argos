@@ -42,6 +42,11 @@ function onNextTurn<T>(
   );
 }
 
+/** A double-quoted identifier, safe for any table name (`order`, `my table`, `a"b`). */
+function quoteIdent(name: string): string {
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
 // ============================================================================
 // SQLite Adapter Implementation
 // ============================================================================
@@ -278,10 +283,12 @@ export class SQLiteAdapter extends DatabaseAdapter {
   }
 
   /**
-   * Cheap query whose single row changes when the schema changes.
+   * Cheap query whose single row changes when the schema changes. capture_version changes
+   * the fingerprint of every schema cached before the capture gained generated columns and
+   * virtual tables, so those caches are refreshed instead of trusted.
    */
   fingerprintQuery(): string {
-    return `SELECT schema_version AS argos_fingerprint FROM pragma_schema_version`;
+    return `SELECT schema_version AS argos_fingerprint, 2 AS capture_version FROM pragma_schema_version`;
   }
 
   /**
@@ -331,7 +338,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
           columns,
         };
 
-        if (table.type === 'table') {
+        if (table.type !== 'view') {
           schema.tables[table.name] = tableInfo;
         } else {
           schema.views[table.name] = tableInfo;
@@ -357,6 +364,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
     }
   }
 
+  /** Tables and views; a virtual table (FTS, R*Tree, ...) is typed 'VIRTUAL TABLE'. */
   private async getTables(
     connection: DatabaseConnection
   ): Promise<Array<{ name: string; type: string }>> {
@@ -364,7 +372,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
       const sqliteDb = connection as SQLiteDatabase;
 
       const query = `
- SELECT name, type 
+ SELECT name, type, sql 
  FROM sqlite_master 
  WHERE type IN ('table', 'view') 
  AND name NOT LIKE 'sqlite_%'
@@ -375,7 +383,14 @@ export class SQLiteAdapter extends DatabaseAdapter {
         if (err) {
           reject(this.createError('Failed to get SQLite tables', err));
         } else {
-          resolve(rows as Array<{ name: string; type: string }>);
+          resolve(
+            (rows as Array<{ name: string; type: string; sql?: string | null }>).map((row) => ({
+              name: row.name,
+              type: /^\s*CREATE\s+VIRTUAL\s+TABLE\b/i.test(row.sql ?? '')
+                ? 'VIRTUAL TABLE'
+                : row.type,
+            }))
+          );
         }
       });
     });
@@ -386,18 +401,21 @@ export class SQLiteAdapter extends DatabaseAdapter {
     tableName: string
   ): Promise<ForeignKey[]> {
     return onNextTurn((resolve, reject) => {
-      (connection as SQLiteDatabase).all(`PRAGMA foreign_key_list(${tableName})`, (err, rows) => {
-        if (err) {
-          reject(this.createError(`Failed to get foreign keys for table ${tableName}`, err));
-          return;
+      (connection as SQLiteDatabase).all(
+        `PRAGMA foreign_key_list(${quoteIdent(tableName)})`,
+        (err, rows) => {
+          if (err) {
+            reject(this.createError(`Failed to get foreign keys for table ${tableName}`, err));
+            return;
+          }
+          resolve(
+            (rows as Array<{ id: number; seq: number; table: string; from: string; to: string }>)
+              .slice()
+              .sort((a, b) => a.id - b.id || a.seq - b.seq)
+              .map((fk) => ({ column: fk.from, references: { table: fk.table, column: fk.to } }))
+          );
         }
-        resolve(
-          (rows as Array<{ id: number; seq: number; table: string; from: string; to: string }>)
-            .slice()
-            .sort((a, b) => a.id - b.id || a.seq - b.seq)
-            .map((fk) => ({ column: fk.from, references: { table: fk.table, column: fk.to } }))
-        );
-      });
+      );
     });
   }
 
@@ -408,19 +426,23 @@ export class SQLiteAdapter extends DatabaseAdapter {
     return onNextTurn((resolve, reject) => {
       const sqliteDb = connection as SQLiteDatabase;
 
-      // Use PRAGMA table_info to get column information
-      sqliteDb.all(`PRAGMA table_info(${tableName})`, (err, rows) => {
+      // table_xinfo, unlike table_info, lists generated columns (hidden 2 and 3); hidden 1 is
+      // a virtual table's hidden column
+      sqliteDb.all(`PRAGMA table_xinfo(${quoteIdent(tableName)})`, (err, rows) => {
         if (err) {
           reject(this.createError(`Failed to get columns for table ${tableName}`, err));
         } else {
-          const found = rows as Array<{
-            cid: number;
-            name: string;
-            type: string;
-            notnull: number;
-            dflt_value: unknown;
-            pk: number;
-          }>;
+          const found = (
+            rows as Array<{
+              cid: number;
+              name: string;
+              type: string;
+              notnull: number;
+              dflt_value: unknown;
+              pk: number;
+              hidden?: number;
+            }>
+          ).filter((col) => col.hidden !== 1);
           const keyed = found.filter((col) => col.pk > 0).length;
           const columns = found.map((col): ColumnInfo => ({
             name: col.name,

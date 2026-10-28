@@ -173,6 +173,44 @@ describe('checkNames', () => {
     expect(checkNames('SELECT oid, _rowid_ FROM users', sqlite, 'main')).toEqual([]);
   });
 
+  it.each(['SELECT _rowid FROM users', 'SELECT u._rowid, username FROM users u WHERE _rowid = 1'])(
+    'does not block MySQL %s',
+    (sql) => {
+      expect(checkNames(sql, mysql, 'shop')).toEqual([]);
+    }
+  );
+
+  describe('SQLite generated columns and virtual tables', () => {
+    // Shaped like the SQLite capture: table_xinfo lists generated columns, and a virtual
+    // table keeps its declared columns but is typed 'VIRTUAL TABLE'.
+    const sqliteSchema = {
+      database: 'app.db',
+      type: 'sqlite',
+      tables: {
+        people: table('people', ['first', 'last', 'full_name']),
+        docs: { ...table('docs', ['title', 'body']), type: 'VIRTUAL TABLE' },
+        docs_content: { ...table('docs_content', ['id', 'c0', 'c1']), type: 'table' },
+      },
+      views: {},
+    } as unknown as DatabaseSchema;
+
+    it.each([
+      'SELECT full_name FROM people',
+      'SELECT p.full_name FROM people p WHERE full_name LIKE ?',
+      "SELECT title FROM docs WHERE docs MATCH 'x' ORDER BY rank",
+      "SELECT d.rank, d.docid, d.__langid, bm25(docs) FROM docs d WHERE docs MATCH 'x'",
+      'SELECT nosuch FROM docs',
+    ])('does not block %s', (sql) => {
+      expect(checkNames(sql, sqliteSchema, 'main')).toEqual([]);
+    });
+
+    it('still checks the ordinary tables next to a virtual table', () => {
+      expect(checkNames('SELECT p.fullname FROM people p', sqliteSchema, 'main')).toMatchObject([
+        { name: 'fullname', table: 'people' },
+      ]);
+    });
+  });
+
   it('does not treat a whole-row reference as a column', () => {
     expect(checkNames('SELECT users FROM users', schema, 'public')).toEqual([]);
     expect(checkNames('SELECT U FROM users u', schema, 'public')).toEqual([]);
