@@ -35,7 +35,11 @@ function makeCtx(paneStore: PaneStore | null): ToolHandlerContext {
       validateSelectOnlyQuery: jest.fn().mockReturnValue({ allowed: true }),
       validateAnyQuery: jest.fn().mockReturnValue({ allowed: true }),
     } as any,
-    schemaManager: { hasSchema: jest.fn().mockReturnValue(true) } as any,
+    schemaManager: {
+      hasSchema: jest.fn().mockReturnValue(true),
+      getSchema: jest.fn(),
+      captureSchemaOnce: jest.fn().mockResolvedValue(null),
+    } as any,
     schemaWatch: { check: jest.fn().mockResolvedValue([]) } as any,
     paneStore,
     sshTunnelManager: { hasTunnel: jest.fn().mockReturnValue(false) } as any,

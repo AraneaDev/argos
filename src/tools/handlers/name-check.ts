@@ -1,8 +1,18 @@
 /**
- * Name checking before a query runs: makes sure a schema is at hand to check against.
+ * Name checking around a query: a pre-flight check against the cached schema (layer 1) and a
+ * correction for the database's own unknown-name errors (layer 2). Corrections are plain
+ * names and types and must never be passed through sanitizeMessage.
  */
 
 import type { DatabaseConfig, DatabaseSchema } from '../../types/index.js';
+import type { SchemaChange } from '../../schema/diff.js';
+import {
+  checkNames,
+  defaultSchemaFor,
+  knownTables,
+  type NameProblem,
+} from '../../schema/name-check.js';
+import { classifyNameError, formatCorrection } from '../../schema/name-hints.js';
 import type { ToolHandlerContext } from './types.js';
 
 /** How long a query waits for a schema capture before it runs unchecked. */
@@ -41,4 +51,47 @@ export async function ensureSchema(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Null when the query may run; otherwise the problems that are still there after a forced
+ * fingerprint check and re-read (the schema may have changed since it was cached), plus any
+ * schema changes that check found. `statement` is the 0-based batch index.
+ */
+export async function preflightNames(
+  ctx: ToolHandlerContext,
+  database: string,
+  dbConfig: DatabaseConfig,
+  sql: string,
+  statement?: number
+): Promise<{ problems: NameProblem[]; correction: string; schemaChanges: SchemaChange[] } | null> {
+  if (dbConfig.name_check === false) return null;
+  const schema = await ensureSchema(ctx, database, dbConfig);
+  if (!schema) return null;
+  const defaultSchema = defaultSchemaFor(dbConfig.type, dbConfig.database);
+  if (checkNames(sql, schema, defaultSchema).length === 0) return null;
+
+  const schemaChanges = await ctx.schemaWatch.check(database, dbConfig, { force: true });
+  const fresh = ctx.schemaManager.getSchema(database) ?? schema;
+  const problems = checkNames(sql, fresh, defaultSchema);
+  if (problems.length === 0) return null;
+  if (statement !== undefined) for (const problem of problems) problem.statement = statement;
+  return { problems, correction: formatCorrection(fresh, problems), schemaChanges };
+}
+
+/** '' when the error isn't an unknown-name error or no schema is cached. */
+export function correctionForError(
+  ctx: ToolHandlerContext,
+  database: string,
+  sql: string,
+  error: unknown
+): string {
+  const info = classifyNameError(error);
+  const schema = ctx.schemaManager.getSchema(database);
+  if (!info || !schema) return '';
+  if (info.kind === 'table') return formatCorrection(schema, [{ kind: 'table', name: info.name }]);
+  const dbConfig = ctx.config.databases[database];
+  const defaultSchema = dbConfig ? defaultSchemaFor(dbConfig.type, dbConfig.database) : null;
+  const inScope = knownTables(sql, schema, defaultSchema);
+  return formatCorrection(schema, [{ kind: 'column', name: info.name, inScope }]);
 }

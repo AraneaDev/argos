@@ -96,6 +96,19 @@ function hasColumn(schema: DatabaseSchema, key: string, name: string): boolean {
   return !!info && info.columns.some((c) => c.name.toLowerCase() === lower);
 }
 
+/** Cache keys of the known tables and views a query names; empty when it can't be scanned. */
+export function knownTables(
+  sql: string,
+  schema: DatabaseSchema,
+  defaultSchema: string | null
+): string[] {
+  const scan = scanSql(sql);
+  if (!scan.checkable) return [];
+  const ctes = new Set(scan.ctes.map((c) => c.toLowerCase()));
+  const keys = scan.tables.map((ref) => resolveTable(ref, schema, defaultSchema, ctes));
+  return [...new Set(keys.filter((k): k is string => k !== null))];
+}
+
 /**
  * Columns the query names that certainly don't exist. Anything uncertain (an
  * unknown table, a shadowed alias, a statement the scanner can't place) gives

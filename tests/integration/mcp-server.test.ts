@@ -221,7 +221,11 @@ describe('SQLMCPServer Integration Tests', () => {
         initialize: jest.fn().mockResolvedValue(undefined),
         hasSchema: jest.fn().mockReturnValue(true),
         captureSchema: jest.fn().mockResolvedValue({}),
-        getSchema: jest.fn().mockReturnValue({ summary: { table_count: 5, total_columns: 25 } }),
+        getSchema: jest.fn().mockReturnValue({
+          tables: {},
+          views: {},
+          summary: { table_count: 5, total_columns: 25 },
+        }),
       };
       (server as any).schemaManager = mockSchemaManager;
 
