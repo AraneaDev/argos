@@ -60,11 +60,18 @@ function warnSkipped(ctx: ToolHandlerContext, database: string, error: unknown):
   });
 }
 
+export interface Preflight {
+  problems: NameProblem[];
+  correction: string;
+  schemaChanges: SchemaChange[];
+}
+
 /**
- * Null when the query may run; otherwise the problems that are still there after a forced
- * fingerprint check and re-read (the schema may have changed since it was cached), plus any
- * schema changes that check found. `statement` is the 0-based batch index. Fails open: any
- * error inside is logged and the query runs unchecked.
+ * Always makes sure a schema is cached (layer 2 needs it even with name_check off). Problems
+ * are those still there after a forced fingerprint check and re-read (the schema may have
+ * changed since it was cached); `schemaChanges` are whatever that check found, to be reported
+ * even when the query then runs. `statement` is the 0-based batch index. Fails open: any
+ * error inside is logged and nothing is reported.
  */
 export async function preflightNames(
   ctx: ToolHandlerContext,
@@ -72,23 +79,23 @@ export async function preflightNames(
   dbConfig: DatabaseConfig,
   sql: string,
   statement?: number
-): Promise<{ problems: NameProblem[]; correction: string; schemaChanges: SchemaChange[] } | null> {
-  if (dbConfig.name_check === false) return null;
+): Promise<Preflight> {
+  const none: Preflight = { problems: [], correction: '', schemaChanges: [] };
   try {
     const schema = await ensureSchema(ctx, database, dbConfig);
-    if (!schema) return null;
+    if (!schema || dbConfig.name_check === false) return none;
     const defaultSchema = defaultSchemaFor(dbConfig.type, dbConfig.database);
-    if (checkNames(sql, schema, defaultSchema).length === 0) return null;
+    if (checkNames(sql, schema, defaultSchema).length === 0) return none;
 
     const schemaChanges = await ctx.schemaWatch.check(database, dbConfig, { force: true });
     const fresh = ctx.schemaManager.getSchema(database) ?? schema;
     const problems = checkNames(sql, fresh, defaultSchema);
-    if (problems.length === 0) return null;
+    if (problems.length === 0) return { ...none, schemaChanges };
     if (statement !== undefined) for (const problem of problems) problem.statement = statement;
     return { problems, correction: formatCorrection(fresh, problems), schemaChanges };
   } catch (error) {
     warnSkipped(ctx, database, error);
-    return null;
+    return none;
   }
 }
 

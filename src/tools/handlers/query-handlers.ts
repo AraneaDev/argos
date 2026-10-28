@@ -106,8 +106,8 @@ export async function handleSqlQuery(
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
     const bad = await preflightNames(ctx, database, dbConfig, query);
-    if (bad) {
-      schemaChanges = [...schemaChanges, ...bad.schemaChanges];
+    schemaChanges = [...schemaChanges, ...bad.schemaChanges];
+    if (bad.problems.length > 0) {
       throw new NameCheckError(`it names a column that doesn't exist`, bad.correction);
     }
 
@@ -362,8 +362,8 @@ export async function handleAnalyzePerformance(
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
 
     const bad = await preflightNames(ctx, database, dbConfig, query);
-    if (bad) {
-      schemaChanges = [...schemaChanges, ...bad.schemaChanges];
+    schemaChanges = [...schemaChanges, ...bad.schemaChanges];
+    if (bad.problems.length > 0) {
       throw new NameCheckError(`it names a column that doesn't exist`, bad.correction);
     }
 

@@ -940,6 +940,7 @@ describe('name check', () => {
     expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
     expect(ctx.schemaWatch.check).toHaveBeenCalledWith('db', expect.anything(), { force: true });
     expect(r.isError).toBeUndefined();
+    expect(r._meta.argos?.schemaChange).toEqual([forced]);
   });
 
   it('reports the forced check changes when it still blocks', async () => {
@@ -951,6 +952,33 @@ describe('name check', () => {
     const r = await handleSqlQuery(ctx, { database: 'db', query: BAD });
     expect(r.isError).toBe(true);
     expect(r._meta.argos?.schemaChange).toEqual([forced]);
+  });
+
+  it('with name_check false still captures the schema, so layer 2 works', async () => {
+    const ctx = ctxWith(undefined, { name_check: false });
+    const order: string[] = [];
+    (ctx.schemaManager.captureSchemaOnce as jest.Mock).mockImplementation(async () => {
+      order.push('capture');
+      (ctx.schemaManager.getSchema as jest.Mock).mockReturnValue(makeSchema());
+      return makeSchema();
+    });
+    (ctx.connectionManager.executeQuery as jest.Mock).mockImplementation(async () => {
+      order.push('execute');
+      return { rows: [], rowCount: 0, fields: [] };
+    });
+    await handleSqlQuery(ctx, { database: 'db', query: BAD });
+    expect(order).toEqual(['capture', 'execute']);
+
+    (ctx.connectionManager.executeQuery as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('query failed'), {
+        cause: { code: '42703', message: 'column "emial" does not exist' },
+      })
+    );
+    const r = await handleSqlQuery(ctx, {
+      database: 'db',
+      query: 'WITH x AS (SELECT * FROM users) SELECT emial FROM x, users',
+    });
+    expect(r.content[0].text).toContain('Did you mean: email');
   });
 
   it('captures the schema before running when none is cached', async () => {
@@ -1002,8 +1030,8 @@ describe('name check', () => {
   it('preflightNames copies the statement index onto each problem', async () => {
     const ctx = ctxWith(makeSchema());
     const found = await preflightNames(ctx, 'db', dbs().db, BAD, 2);
-    expect(found?.problems[0]).toMatchObject({ name: 'user_name', statement: 2 });
-    expect(found?.correction).toContain('in statement 3');
+    expect(found.problems[0]).toMatchObject({ name: 'user_name', statement: 2 });
+    expect(found.correction).toContain('in statement 3');
   });
 
   it('fails open on a malformed cached schema (no views, table without columns)', async () => {
