@@ -220,7 +220,7 @@ Retrieve detailed schema information for a database including tables, columns, a
 - **Column Details**: Types, nullability, defaults, constraints
 - **Filtered Output**: Optional single table focus
 - **Cached Results**: Fast retrieval from schema cache
-- **Captured on Demand**: When no schema is cached yet, Argos captures it first (up to 5 seconds) instead of asking you to connect; if the capture fails or takes longer, the response says it could not capture the schema, and the capture keeps going in the background
+- **Captured on Demand**: When no schema is cached yet, Argos captures it first (up to 5 seconds) instead of asking you to connect; if the capture fails or takes longer, the response says it could not capture the schema; a capture that takes longer keeps going in the background, so a later call can return it
 
 #### Response Format
 
@@ -669,7 +669,7 @@ followed by a correction: a "did you mean" suggestion and the table's columns wi
 
 **After the database rejects the query** (always on): when the database reports an unknown column or table, the same style of correction is appended after the database's own error.
 
-If no schema is cached, Argos captures it before the first query. The capture waits up to 5 seconds; past that the query runs unchecked and the capture finishes in the background.
+If no schema is cached, Argos captures it before the first query, once per call (once per batch). The capture waits up to 5 seconds; past that the query runs unchecked and the capture finishes in the background. While that capture is still running, other queries run unchecked without waiting. If a capture fails, queries run unchecked and Argos waits 60 seconds before trying to capture again.
 
 Corrections show names and types only, capped at 3 tables, 40 columns per table and 3 suggestions. Set `name_check=false` on a connection to turn off the first layer; the second stays on.
 
