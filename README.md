@@ -62,6 +62,10 @@ refusing a `DELETE` on a connection that allows writes.
   the values
 - **Schema changes reach Claude**: when a connection's schema changed since Argos last looked,
   the next query says what changed, so Claude doesn't work from an old picture of the tables
+- **Column names checked before a query runs**: a SELECT that names a column the cached schema
+  doesn't have is not run; Claude gets a "did you mean" and the table's columns instead, and
+  an unknown-name error from the database gets the same correction appended
+  ([how it decides](docs/api/mcp-tools-reference.md#name-checking))
 - **SSH tunnels**: encrypted connections through bastion hosts, with a pinned host key
 - **Four engines**: PostgreSQL, MySQL/MariaDB (including Azure), SQLite, and SQL Server
   (including Azure SQL with passwordless sign-in through the Azure CLI)
