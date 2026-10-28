@@ -99,16 +99,29 @@ describe('schema-handlers', () => {
     it('captures the schema when none is cached', async () => {
       const dbConfig = { type: 'mysql' } as DatabaseConfig;
       const ctx = createMockContext({ testdb: dbConfig });
-      (ctx.schemaManager.getSchema as jest.Mock)
-        .mockReturnValueOnce(null) // the handler's own lookup
-        .mockReturnValueOnce(null); // ensureSchema's lookup
-      (ctx.schemaManager as any).captureSchemaOnce = jest.fn().mockResolvedValue({ summary: {} });
+      let captured = false;
+      (ctx.schemaManager.getSchema as jest.Mock).mockImplementation(() =>
+        captured ? { database: 'testdb', tables: {} } : null
+      );
+      (ctx.schemaManager as any).captureSchemaOnce = jest.fn().mockImplementation(async () => {
+        captured = true;
+        return { summary: {} };
+      });
       (ctx.schemaManager.generateSchemaContext as jest.Mock).mockReturnValue('Captured schema');
 
       const result = await handleGetSchema(ctx, { database: 'testdb' });
 
       expect((ctx.schemaManager as any).captureSchemaOnce).toHaveBeenCalledWith('testdb', dbConfig);
       expect(result.content[0].text).toBe('Captured schema');
+    });
+
+    it('returns an error response for an unknown database', async () => {
+      const ctx = createMockContext();
+
+      const result = await handleGetSchema(ctx, { database: 'nope' });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('not found');
     });
 
     it('reports a failed capture when no schema can be obtained', async () => {

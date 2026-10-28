@@ -130,6 +130,21 @@ describe('formatCorrection', () => {
     const text = formatCorrection(schema, [{ kind: 'table', name: 'userz' }]);
     expect(text).toContain('Did you mean: users');
     expect(text).not.toContain('username (text)');
+    expect(text).not.toContain('Columns of');
+  });
+
+  it('gives no suggestion for a table with no close match', () => {
+    const text = formatCorrection(schema, [{ kind: 'table', name: 'xqzv' }]);
+    expect(text).not.toContain('Did you mean');
+    expect(text).toContain('sql_get_schema');
+  });
+
+  it('prints unknown for a column scope key missing from the schema', () => {
+    let text = '';
+    expect(() => {
+      text = formatCorrection(schema, [{ name: 'foo', table: 'ghost', inScope: ['ghost'] }]);
+    }).not.toThrow();
+    expect(text).toContain('Columns of ghost: unknown');
   });
 
   it('caps columns at 40 and points to sql_get_schema', () => {

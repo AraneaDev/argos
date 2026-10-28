@@ -1048,10 +1048,35 @@ describe('name check', () => {
     expect(text).not.toContain('[REDACTED]');
   });
 
+  it('does not redact names in a layer-2 correction (table called token)', async () => {
+    const ctx = ctxWith(makeSchema({ token: table('token', ['id', 'secret']) }));
+    (ctx.connectionManager.executeQuery as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('query failed'), {
+        cause: { code: '42703', message: 'column "secrt" does not exist' },
+      })
+    );
+    const r = await handleSqlQuery(ctx, {
+      database: 'db',
+      query: 'WITH x AS (SELECT * FROM token) SELECT secrt FROM x, token',
+    });
+    const text = r.content[0].text;
+    expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    expect(text).toContain('Columns of token');
+    expect(text).toContain('secret');
+    expect(text).not.toContain('[REDACTED]');
+  });
+
   it('blocks sql_analyze_performance too', async () => {
     const ctx = ctxWith(makeSchema());
+    const append = jest.fn();
+    ctx.paneStore = { newId: () => 'j1', append, writeSpool: jest.fn() } as any;
     const r = await handleAnalyzePerformance(ctx, { database: 'db', query: BAD });
     expect(ctx.connectionManager.analyzePerformance).not.toHaveBeenCalled();
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toContain('Query not run');
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'blocked', tool: 'sql_analyze_performance' })
+    );
     expect(r.content[0].text).toContain('Did you mean: username');
     expect(r.content[0].text).toContain('sql_refresh_schema');
   });
@@ -1112,6 +1137,33 @@ describe('name check', () => {
     const text = r.content[0].text;
     expect(text.indexOf('[ERROR] Failed')).toBeLessThan(text.indexOf('Did you mean: users'));
     expect(text).not.toContain('42P01');
+  });
+
+  it('falls back to the error text for a layer-2 correction when cause is absent', async () => {
+    const ctx = ctxWith(makeSchema());
+    (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+      results: [
+        {
+          index: 1,
+          success: false,
+          query: 'SELECT emial FROM users',
+          error: 'column "emial" does not exist',
+        },
+      ],
+      totalExecutionTime: 1,
+      successCount: 0,
+      failureCount: 1,
+      transactionUsed: false,
+    });
+    const r = await handleBatchQuery(ctx, {
+      database: 'db',
+      queries: [{ query: 'SELECT emial FROM users' }],
+    });
+    const text = r.content[0].text;
+    expect(text).toContain('Did you mean: email');
+    expect(text.indexOf('column "emial" does not exist')).toBeLessThan(
+      text.indexOf('Did you mean: email')
+    );
   });
 
   it('waits for a slow capture at most once per batch', async () => {
