@@ -917,7 +917,29 @@ describe('name check', () => {
     expect(text).toContain('Query not run');
     expect(text).toContain('Did you mean: username');
     expect(text).toContain('Columns of users');
-    expect(append).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'blocked' }));
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'blocked',
+        reason: expect.stringContaining('user_name'),
+      })
+    );
+  });
+
+  it('names every wrong identifier, in the plural, in the block reason', async () => {
+    const ctx = ctxWith(makeSchema());
+    const append = jest.fn();
+    ctx.paneStore = { newId: () => 'j1', append, writeSpool: jest.fn() } as any;
+    const r = await handleSqlQuery(ctx, {
+      database: 'db',
+      query: 'SELECT u.user_name, o.totl FROM users u JOIN orders o ON o.user_id = u.id',
+    });
+    expect(r.content[0].text).toContain("columns that don't exist: users.user_name, orders.totl");
+    expect(append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'blocked',
+        reason: expect.stringContaining("columns that don't exist: users.user_name, orders.totl"),
+      })
+    );
   });
 
   it('runs the query when name_check is false', async () => {
@@ -1041,7 +1063,11 @@ describe('name check', () => {
     expect(r.content[0].text).toContain('Did you mean: total');
     expect(append).toHaveBeenCalledTimes(1);
     expect(append).toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: 'blocked', sql: 'SELECT o.totl FROM orders o' })
+      expect.objectContaining({
+        outcome: 'blocked',
+        sql: 'SELECT o.totl FROM orders o',
+        reason: expect.stringContaining('orders.totl'),
+      })
     );
   });
 

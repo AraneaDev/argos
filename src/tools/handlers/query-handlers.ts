@@ -82,7 +82,9 @@ async function preflightOrThrow(
   const bad = await preflightNames(ctx, database, dbConfig, sql, statement);
   changes.push(...bad.schemaChanges);
   if (bad.problems.length > 0) {
-    throw new NameCheckError(`it names a column that doesn't exist`, bad.correction);
+    const names = bad.problems.map((p) => (p.table ? `${p.table}.${p.name}` : p.name));
+    const what = names.length === 1 ? `a column that doesn't exist` : `columns that don't exist`;
+    throw new NameCheckError(`it names ${what}: ${names.join(', ')}`, bad.correction);
   }
 }
 
