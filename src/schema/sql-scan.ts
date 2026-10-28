@@ -108,6 +108,9 @@ function tokenize(sql: string): Tok[] | null {
     const c = sql[i];
     const next = sql[i + 1] ?? '';
     const prev = toks[toks.length - 1];
+    const before = i;
+    // Postgres U&'…' string / U&"…" identifier (backslash is a Unicode escape there).
+    const unicode = /[uU]/.test(c) && next === '&' && !WORD_CHAR.test(sql[i - 1] ?? '');
     if (/\s/.test(c)) {
       i++;
     } else if (c === '-' && next === '-') {
@@ -128,16 +131,23 @@ function tokenize(sql: string): Tok[] | null {
         i += 2;
       } while (depth > 0 && i < sql.length);
       if (depth > 0) return null;
+    } else if (unicode && sql[i + 2] === '"') {
+      const r = readQuoted(sql, i + 2, '"');
+      if (!r) return null;
+      toks.push(tok('quoted', r[0]));
+      i = r[1];
     } else if (
       c === "'" ||
+      (unicode && sql[i + 2] === "'") ||
       (/[nNeEbBxX]/.test(c) && next === "'" && !WORD_CHAR.test(sql[i - 1] ?? ''))
     ) {
       const escapes = c === 'e' || c === 'E';
-      const q = c === "'" ? i : i + 1;
+      const q = c === "'" ? i : unicode ? i + 2 : i + 1;
       let j = q + 1;
       for (; j < sql.length; j++) {
         if (sql[j] === '\\') {
-          // A backslash means E-string escape or MySQL escape; only the former is read.
+          // E-strings escape with it, U& strings keep it; otherwise it may be a MySQL escape.
+          if (unicode) continue;
           if (!escapes) return null;
           j++;
         } else if (sql[j] === "'") {
@@ -164,10 +174,14 @@ function tokenize(sql: string): Tok[] | null {
       toks.push(tok('quoted', r[0]));
       i = r[1];
     } else if (c === '[') {
-      // After a name or ")" it's a subscript; ARRAY[ is a constructor; else MSSQL [name].
+      // Right after a name or ")" it's a subscript; ARRAY[ is a constructor. After a
+      // space, "x [1]" (subscript) and "x [alias]" (MSSQL) can't be told apart.
+      const afterValue = isName(prev) || isOp(prev, ')', ']');
       if (/[\w$)\]"]/.test(sql[i - 1] ?? '') || prev?.lower === 'array') {
         toks.push(tok('op', '['));
         i++;
+      } else if (afterValue && prev?.kind !== 'quoted') {
+        return null;
       } else {
         const r = readQuoted(sql, i, ']');
         if (!r) return null;
@@ -192,8 +206,9 @@ function tokenize(sql: string): Tok[] | null {
       toks.push(tok('param', '?'));
       i++;
     } else if (c === '@' && /[\w@]/.test(next)) {
-      const m = at(/@@?[\w$]+/y, sql, i);
-      toks.push(tok('param', m));
+      // @p1 / @@VERSION are parameters; Postgres "@@ q" is the text-search operator.
+      const m = at(/@@?[\w$]+/y, sql, i) || at(/@@?/y, sql, i);
+      toks.push(tok(/^@@?$/.test(m) ? 'op' : 'param', m));
       i += m.length;
     } else if (c === ':' && next === ':') {
       toks.push(tok('op', '::'));
@@ -208,13 +223,19 @@ function tokenize(sql: string): Tok[] | null {
       if (!m) return null;
       toks.push(tok(/^#[>-]/.test(m) ? 'op' : 'temp', m));
       i += m.length;
+    } else if (c === '@' && next === '>') {
+      toks.push(tok('op', '@>'));
+      i += 2;
     } else if ('(),.;:]@'.includes(c)) {
       toks.push(tok('op', c));
       i++;
     } else if (OP_CHARS.includes(c)) {
       let j = i;
       const commentAt = (k: number) => sql.startsWith('--', k) || sql.startsWith('/*', k);
-      while (j < sql.length && OP_CHARS.includes(sql[j]) && !commentAt(j)) j++;
+      // "<@" is one operator, but "<@p1" is "<" then a parameter.
+      const opChar = (k: number) =>
+        OP_CHARS.includes(sql[k]) || (sql[k] === '@' && !/[\w@]/.test(sql[k + 1] ?? ''));
+      while (j < sql.length && opChar(j) && !commentAt(j)) j++;
       let op = sql.slice(i, j);
       // Postgres rule: "=-1" is "=" then "-", unless the operator has one of these chars.
       while (op.length > 1 && /[+-]$/.test(op) && !/[~!@#%^&|`?]/.test(op)) op = op.slice(0, -1);
@@ -223,6 +244,8 @@ function tokenize(sql: string): Tok[] | null {
     } else {
       return null;
     }
+    // Backstop: a branch that didn't advance would loop forever.
+    if (i <= before) return null;
   }
   return toks;
 }
@@ -389,7 +412,9 @@ class Walker {
       const t = this.t[i];
       const comparison = isOp(prev, ...COMPARISONS) || isOp(next, ...COMPARISONS);
       // A column is never directly followed by a value: "BINARY x", "DATE '…'", "f(…)".
-      const plain = !notColumn && !isOp(next, '(', '.') && !isValue(next);
+      // MSSQL type::Method(…) calls a static method of a type.
+      const method = isOp(next, '::') && isOp(this.t[i + 3], '(');
+      const plain = !notColumn && !method && !isOp(next, '(', '.') && !isValue(next);
       if (plain && comparison && isName(t) && ['where', 'on', 'having'].includes(f.clause))
         this.bare.push(colRef(t));
       f.item.push(t);
@@ -440,12 +465,10 @@ class Walker {
   }
 
   private close(i: number): number {
+    // An extra ")" would close the statement itself.
+    if (this.frames.length === 1) return this.fail(i);
     this.finishItem();
     const done = this.frames.pop()!;
-    if (this.frames.length === 0) {
-      this.ok = false;
-      return i + 1;
-    }
     if (done.onClose === 'derived') {
       const [alias, j] = this.alias(i + 1);
       if (alias !== null) this.derived.push(alias);
@@ -569,7 +592,12 @@ export function scanSql(sql: string): ScanResult {
   const skipped = toks.slice(0, start).some((t) => t.kind === 'word' && DML.has(t.lower));
   if (skipped || !isWord(toks[start], 'select', 'with')) return { ...EMPTY };
   const w = new Walker(toks);
-  w.run(start);
+  try {
+    w.run(start);
+  } catch {
+    // Never let a scanner bug break a query: unsure means unchecked.
+    return { ...EMPTY };
+  }
   if (!w.ok) return { ...EMPTY };
   const simple = w.simple && w.selects === 1;
   const aliases = new Set(w.aliases.map((a) => a.toLowerCase()));

@@ -125,6 +125,9 @@ describe('scanSql', () => {
     "SELECT id FROM users WHERE name = 'unterminated",
     'SELECT (id FROM users',
     'SELECT id, NEXT VALUE FOR seq FROM users',
+    'SELECT 1)',
+    'SELECT id FROM users)',
+    "SELECT id FROM t WHERE tags [1] = 'x'",
   ])('does not check %s', (sql) => {
     expect(scanSql(sql).checkable).toBe(false);
   });
@@ -161,6 +164,14 @@ describe('scanSql', () => {
       ['SELECT id FROM t WHERE a = BINARY b', ['id', 'a'], []],
       ['SELECT username u FROM t', [], []],
       ['SELECT (x).a.b FROM t', [], []],
+      ["SELECT id FROM t WHERE tsv @@ to_tsquery('x')", ['id'], []],
+      ["SELECT id FROM t WHERE tsv @@ ('x')::tsquery", ['id'], []],
+      ["SELECT id FROM t WHERE tags @> ARRAY['x'] AND tags <@ ARRAY['y']", ['id'], []],
+      ['SELECT id FROM t WHERE x <@p1', ['id', 'x'], []],
+      ["SELECT id FROM t WHERE data ?| ARRAY['a'] AND data ?& ARRAY['b']", ['id'], []],
+      ["SELECT id FROM t WHERE tags[1] = 'x'", ['id'], []],
+      ['SELECT id FROM t WHERE loc = geography::Point(1, 2, 4326)', ['id', 'loc'], []],
+      ["SELECT id FROM t WHERE x = U&'d\\0061t' AND y = 'z'", ['id', 'x', 'y'], []],
     ])('%s', (sql, bare, qualified) => {
       const r = scanSql(sql);
       expect(r.checkable).toBe(true);
@@ -204,6 +215,26 @@ describe('scanSql', () => {
     expect(s.bare).toEqual([{ qualifier: null, name: 'x', quoted: true }]);
     expect(s.tables[0].quoted).toBe(true);
     expect(s.qualified).toEqual([{ qualifier: 't', name: 'y', quoted: true }]);
+  });
+
+  it('reads U&"…" as a quoted identifier', () => {
+    expect(scanSql('SELECT U&"d\\0061t" FROM t').bare).toEqual([
+      { qualifier: null, name: 'd\\0061t', quoted: true },
+    ]);
+  });
+
+  it('never throws', () => {
+    for (const sql of [
+      'SELECT 1)',
+      ')',
+      'SELECT )))',
+      'SELECT ((',
+      'SELECT @@',
+      '@',
+      'SELECT U&',
+    ]) {
+      expect(() => scanSql(sql)).not.toThrow();
+    }
   });
 
   it('ignores three-part names', () => {
