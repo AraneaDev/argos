@@ -52,6 +52,9 @@ function failureResponse(text: string, changes: SchemaChange[], ref: JournalRef)
   return attachJournal(response, ref, changes);
 }
 
+/** Appended to a name-check block only; after a database rejection the schema is already fresh. */
+const REFRESH_HINT = ' If you believe the schema has changed, run sql_refresh_schema and retry.';
+
 /** Failure text: a name-check block, or the sanitized error followed by the raw correction. */
 function failureText(
   ctx: ToolHandlerContext,
@@ -61,7 +64,7 @@ function failureText(
   failed: string
 ): string {
   if (error instanceof NameCheckError) {
-    return ` Query not run on ${database}: ${error.message}\n${error.correction}`;
+    return ` Query not run on ${database}: ${error.message}\n${error.correction}\n${REFRESH_HINT}`;
   }
   const correction = correctionForError(ctx, database, sql, error);
   return `${failed}: ${sanitizeError(error)}${correction ? `\n${correction}` : ''}`;
@@ -346,7 +349,7 @@ export async function handleBatchQuery(
     let responseText = ` **Batch Query Failed** (${database})\n\n`;
     responseText +=
       error instanceof NameCheckError
-        ? ` Batch not run on ${database}: ${error.message}\n${error.correction}\n\n`
+        ? ` Batch not run on ${database}: ${error.message}\n${error.correction}\n${REFRESH_HINT}\n\n`
         : ` **Error:** ${sanitizeError(error)}\n\n`;
 
     if (error instanceof SecurityViolationError) {

@@ -917,6 +917,7 @@ describe('name check', () => {
     expect(text).toContain('Query not run');
     expect(text).toContain('Did you mean: username');
     expect(text).toContain('Columns of users');
+    expect(text).toContain('sql_refresh_schema');
     expect(append).toHaveBeenCalledWith(
       expect.objectContaining({
         outcome: 'blocked',
@@ -1031,6 +1032,7 @@ describe('name check', () => {
     const text = r.content[0].text;
     expect(text).toContain('Query failed on db: query failed');
     expect(text.indexOf('query failed')).toBeLessThan(text.indexOf('Did you mean: email'));
+    expect(text).not.toContain('sql_refresh_schema');
   });
 
   it('does not redact names in the correction (table called token)', async () => {
@@ -1047,6 +1049,7 @@ describe('name check', () => {
     const r = await handleAnalyzePerformance(ctx, { database: 'db', query: BAD });
     expect(ctx.connectionManager.analyzePerformance).not.toHaveBeenCalled();
     expect(r.content[0].text).toContain('Did you mean: username');
+    expect(r.content[0].text).toContain('sql_refresh_schema');
   });
 
   it('blocks a batch before running anything and journals the offending statement', async () => {
@@ -1061,6 +1064,7 @@ describe('name check', () => {
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toContain('statement 2');
     expect(r.content[0].text).toContain('Did you mean: total');
+    expect(r.content[0].text).toContain('sql_refresh_schema');
     expect(append).toHaveBeenCalledTimes(1);
     expect(append).toHaveBeenCalledWith(
       expect.objectContaining({
