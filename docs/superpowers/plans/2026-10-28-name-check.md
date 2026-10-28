@@ -284,7 +284,7 @@ SELECT * FROM #tmp
 SELECT * FROM generate_series(1,3) g WHERE g.g > 1
 SELECT username FROM users -- u.nosuch
 SELECT username FROM users WHERE email = 'u.nosuch@x.com'
-SELECT username FROM users WHERE id = $1 AND email = ? AND status = @p1 AND x = :name
+SELECT username FROM users WHERE id = $1 AND email = ? AND username = @p1 AND created_at > :since
 SELECT nosuch FROM users JOIN some_unknown_table s ON s.id = users.id
 UPDATE users SET nosuch = 1
 SHOW TABLES
@@ -383,7 +383,8 @@ Expected: FAIL.
 - Produces:
   ```ts
   /** null when the query may run; otherwise the problems and any schema changes the forced check found. */
-  export function preflightNames(ctx, database, dbConfig, sql): Promise<{ problems: NameProblem[]; correction: string; schemaChanges: SchemaChange[] } | null>;
+  /** `statement` (0-based batch index) is copied onto each problem before the correction is formatted. */
+  export function preflightNames(ctx, database, dbConfig, sql, statement?: number): Promise<{ problems: NameProblem[]; correction: string; schemaChanges: SchemaChange[] } | null>;
   /** '' when the error isn't an unknown-name error or no schema is cached. */
   export function correctionForError(ctx, database, sql, error: unknown): string;
   ```
@@ -393,7 +394,7 @@ Expected: FAIL.
 - `SELECT u.user_name FROM users u`: `executeQuery` is **not** called; `isError` is true; the text contains `Query not run`, `Did you mean: username`, and the `users` column list. The journal (with a fake `paneStore`) records `blocked`.
 - The same query with `name_check: false`: `executeQuery` is called.
 - Stale guard: the first `checkNames` finds `user_name` missing. `schemaWatch.check` with `{ force: true }` returns a change, and `getSchema` then returns a schema that has `user_name`. The query runs, and the reported schema changes include the forced check's.
-- No cached schema: `captureSchema` is called **before** `executeQuery`.
+- No cached schema: `captureSchemaOnce` (add it to the mock `schemaManager`) is called **before** `executeQuery`.
 - Layer 2: `executeQuery` rejects with an error whose `cause` is `{ code: '42703', message: 'column "emial" does not exist' }` (a bare column the scan left unchecked, e.g. inside a CTE). The text contains the sanitized driver error **and then** `Did you mean: email`.
 - **Review Focus 1:** a schema with table `token(id, secret)` and query `SELECT t.secrt FROM token t` gives a correction containing `Columns of token` and `secret`, with no `[REDACTED]`.
 - `sql_analyze_performance` with `SELECT u.user_name FROM users u`: `analyzePerformance` is not called and the correction is in the text.
@@ -434,7 +435,7 @@ In both handlers, after security validation and `schemaWatch.check`:
 
 - [ ] **Step 3: Implement**
 
-Loop `preflightNames` over the statements after the security loop. Set `offending` and the problem's `statement` index, then throw `NameCheckError`. In the results loop, append `correctionForError(ctx, database, queryResult.query, queryResult.cause ?? new Error(queryResult.error))` after the `[ERROR] Failed:` line.
+Loop `preflightNames(ctx, database, dbConfig, q.query, i)` over the statements after the security loop. On the first result, set `offending` and throw `NameCheckError`. In the results loop, append `correctionForError(ctx, database, queryResult.query, queryResult.cause ?? new Error(queryResult.error))` after the `[ERROR] Failed:` line.
 
 - [ ] **Step 4: Run to verify pass.** Run `npx jest tests/unit/tools`. Expected: PASS.
 
