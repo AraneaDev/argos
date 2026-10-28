@@ -18,29 +18,55 @@ import type { ToolHandlerContext } from './types.js';
 /** How long a query waits for a schema capture before it runs unchecked. */
 export const SCHEMA_CAPTURE_LIMIT_MS = 5000;
 
+/** How long a failed capture is remembered before a query tries again. */
+export const CAPTURE_RETRY_MS = 60_000;
+
+/** When each database's last capture failed, per schema manager (so per server). */
+const failedCaptures = new WeakMap<object, Map<string, number>>();
+
 /**
  * The cached schema, capturing one if needed. Resolves null when the capture fails or takes
- * longer than the limit; a slow capture keeps going in the background.
+ * longer than the limit; a slow capture keeps going in the background. Only the call that
+ * starts a capture waits for it: while one is running, and for a minute after one failed,
+ * this resolves null at once. `wait` (sql_get_schema, which asks for the schema itself)
+ * joins a running capture and retries a failed one.
  */
 export async function ensureSchema(
   ctx: ToolHandlerContext,
   database: string,
-  dbConfig: DatabaseConfig
+  dbConfig: DatabaseConfig,
+  opts: { wait?: boolean } = {}
 ): Promise<DatabaseSchema | null> {
   const cached = ctx.schemaManager.getSchema(database);
   if (cached) return cached;
 
-  const warn = (error: unknown) =>
-    ctx.logger.warning('Schema capture for name check failed', {
-      database,
-      error: error instanceof Error ? error.message : String(error),
-    });
+  let failed = failedCaptures.get(ctx.schemaManager);
+  if (!failed) {
+    failed = new Map();
+    failedCaptures.set(ctx.schemaManager, failed);
+  }
+  if (!opts.wait) {
+    if (ctx.schemaManager.isCapturing(database)) return null;
+    const failedAt = failed.get(database);
+    if (failedAt !== undefined && Date.now() - failedAt < CAPTURE_RETRY_MS) return null;
+  }
 
+  const failures = failed;
   // The catch also covers a capture that rejects after the timer has won the race.
-  const capture = ctx.schemaManager.captureSchemaOnce(database, dbConfig).catch((error) => {
-    warn(error);
-    return null;
-  });
+  const capture = ctx.schemaManager.captureSchemaOnce(database, dbConfig).then(
+    (schema) => {
+      failures.delete(database);
+      return schema;
+    },
+    (error) => {
+      failures.set(database, Date.now());
+      ctx.logger.warning('Schema capture for name check failed', {
+        database,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  );
 
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<null>((resolve) => {
@@ -50,6 +76,23 @@ export async function ensureSchema(
     return await Promise.race([capture, timeout]);
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * ensureSchema for a query handler, called once per call (once per batch). Fails open: an
+ * error is logged and resolves null, so the query runs unchecked.
+ */
+export async function schemaForCheck(
+  ctx: ToolHandlerContext,
+  database: string,
+  dbConfig: DatabaseConfig
+): Promise<DatabaseSchema | null> {
+  try {
+    return await ensureSchema(ctx, database, dbConfig);
+  } catch (error) {
+    warnSkipped(ctx, database, error);
+    return null;
   }
 }
 
@@ -67,23 +110,26 @@ export interface Preflight {
 }
 
 /**
- * Always makes sure a schema is cached (layer 2 needs it even with name_check off). Problems
- * are those still there after a forced fingerprint check and re-read (the schema may have
- * changed since it was cached); `schemaChanges` are whatever that check found, to be reported
- * even when the query then runs. `statement` is the 0-based batch index. Fails open: any
- * error inside is logged and nothing is reported.
+ * Checks `sql` against `captured` (from schemaForCheck, which the handler calls first, even
+ * with name_check off, because layer 2 needs a cached schema), or against the cache when an
+ * earlier statement's forced check refreshed it. Problems are those still there after a
+ * forced fingerprint check and re-read (the schema may have changed since it was cached);
+ * `schemaChanges` are whatever that check found, to be reported even when the query then
+ * runs. `statement` is the 0-based batch index. Fails open: any error inside is logged and
+ * nothing is reported.
  */
 export async function preflightNames(
   ctx: ToolHandlerContext,
   database: string,
   dbConfig: DatabaseConfig,
+  captured: DatabaseSchema | null,
   sql: string,
   statement?: number
 ): Promise<Preflight> {
   const none: Preflight = { problems: [], correction: '', schemaChanges: [] };
   try {
-    const schema = await ensureSchema(ctx, database, dbConfig);
-    if (!schema || dbConfig.name_check === false) return none;
+    if (!captured || dbConfig.name_check === false) return none;
+    const schema = ctx.schemaManager.getSchema(database) ?? captured;
     const defaultSchema = defaultSchemaFor(dbConfig.type, dbConfig.database);
     if (checkNames(sql, schema, defaultSchema).length === 0) return none;
 

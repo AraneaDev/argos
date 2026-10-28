@@ -732,6 +732,22 @@ describe('SchemaManager', () => {
       expect(mockAdapter.captureSchema).toHaveBeenCalledTimes(2);
     });
 
+    it('reports whether a capture is in flight', async () => {
+      let resolveCapture!: (value: DatabaseSchema) => void;
+      mockAdapter.captureSchema.mockImplementationOnce(
+        () => new Promise<DatabaseSchema>((resolve) => (resolveCapture = resolve))
+      );
+      const cfg = { type: 'postgresql' } as DatabaseConfig;
+      expect(schemaManager.isCapturing('d')).toBe(false);
+      const p = schemaManager.captureSchemaOnce('d', cfg);
+      expect(schemaManager.isCapturing('d')).toBe(true);
+      expect(schemaManager.isCapturing('other')).toBe(false);
+      await new Promise((r) => setImmediate(r));
+      resolveCapture(mockSchema);
+      await p;
+      expect(schemaManager.isCapturing('d')).toBe(false);
+    });
+
     it('allows a new capture after a failure', async () => {
       const cfg = { type: 'postgresql' } as DatabaseConfig;
       mockAdapter.captureSchema.mockRejectedValueOnce(new Error('boom'));

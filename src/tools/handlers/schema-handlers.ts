@@ -26,7 +26,9 @@ export async function handleGetSchema(
   try {
     let schema = ctx.schemaManager.getSchema(database);
     if (!schema) {
-      schema = await ensureSchema(ctx, database, requireDbConfig(ctx.config, database));
+      schema = await ensureSchema(ctx, database, requireDbConfig(ctx.config, database), {
+        wait: true,
+      });
     }
     if (!schema) {
       return createToolResponse(` Could not capture the schema for '${database}'.`);

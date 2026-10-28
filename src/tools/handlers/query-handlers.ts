@@ -8,6 +8,7 @@ import type {
   SQLBatchQueryArgs,
   SQLAnalyzePerformanceArgs,
   DatabaseConfig,
+  DatabaseSchema,
   MCPToolResponse,
 } from '../../types/index.js';
 import { NameCheckError, SecurityViolationError } from '../../types/index.js';
@@ -25,7 +26,7 @@ import {
   paramsFlag,
   type JournalRef,
 } from './journal.js';
-import { correctionForError, preflightNames } from './name-check.js';
+import { correctionForError, preflightNames, schemaForCheck } from './name-check.js';
 import type { ToolHandlerContext } from './types.js';
 import { requireDbConfig } from './types.js';
 
@@ -78,11 +79,12 @@ async function preflightOrThrow(
   ctx: ToolHandlerContext,
   database: string,
   dbConfig: DatabaseConfig,
+  schema: DatabaseSchema | null,
   sql: string,
   changes: SchemaChange[],
   statement?: number
 ): Promise<void> {
-  const bad = await preflightNames(ctx, database, dbConfig, sql, statement);
+  const bad = await preflightNames(ctx, database, dbConfig, schema, sql, statement);
   changes.push(...bad.schemaChanges);
   if (bad.problems.length > 0) {
     const names = bad.problems.map((p) => (p.table ? `${p.table}.${p.name}` : p.name));
@@ -130,7 +132,8 @@ export async function handleSqlQuery(
     }
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
-    await preflightOrThrow(ctx, database, dbConfig, query, schemaChanges);
+    const schema = await schemaForCheck(ctx, database, dbConfig);
+    await preflightOrThrow(ctx, database, dbConfig, schema, query, schemaChanges);
 
     const result = await ctx.connectionManager.executeQuery(database, query, params);
 
@@ -236,9 +239,10 @@ export async function handleBatchQuery(
     }
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
+    const schema = await schemaForCheck(ctx, database, dbConfig);
     for (const [i, q] of queries.entries()) {
       offending = q;
-      await preflightOrThrow(ctx, database, dbConfig, q.query, schemaChanges, i);
+      await preflightOrThrow(ctx, database, dbConfig, schema, q.query, schemaChanges, i);
     }
     offending = null;
 
@@ -395,8 +399,8 @@ export async function handleAnalyzePerformance(
     }
 
     schemaChanges = await ctx.schemaWatch.check(database, dbConfig);
-
-    await preflightOrThrow(ctx, database, dbConfig, query, schemaChanges);
+    const schema = await schemaForCheck(ctx, database, dbConfig);
+    await preflightOrThrow(ctx, database, dbConfig, schema, query, schemaChanges);
 
     const analysis = await ctx.connectionManager.analyzePerformance(database, query);
 

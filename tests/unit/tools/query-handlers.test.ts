@@ -12,7 +12,11 @@ import type { ToolHandlerContext } from '../../../src/tools/handlers/types.js';
 import type { ParsedServerConfig, DatabaseConfig } from '../../../src/types/index.js';
 import { SchemaWatch } from '../../../src/schema/watch.js';
 import { SecurityViolationError } from '../../../src/types/index.js';
-import { correctionForError, preflightNames } from '../../../src/tools/handlers/name-check.js';
+import {
+  correctionForError,
+  preflightNames,
+  SCHEMA_CAPTURE_LIMIT_MS,
+} from '../../../src/tools/handlers/name-check.js';
 import { ValidationError, ConfigurationError } from '../../../src/utils/error-handler.js';
 
 // Mock response-formatter
@@ -48,6 +52,7 @@ function createMockContext(
       hasSchema: jest.fn().mockReturnValue(true),
       captureSchema: jest.fn(),
       captureSchemaOnce: jest.fn().mockResolvedValue(null),
+      isCapturing: jest.fn().mockReturnValue(false),
       refreshSchema: jest.fn(),
       generateSchemaContext: jest.fn(),
     } as any,
@@ -952,13 +957,12 @@ describe('name check', () => {
   it('re-reads the schema after a forced check and runs if the column now exists', async () => {
     const ctx = ctxWith(makeSchema());
     const fresh = makeSchema({ users: table('users', ['id', 'user_name']) });
-    (ctx.schemaManager.getSchema as jest.Mock)
-      .mockReturnValueOnce(makeSchema())
-      .mockReturnValue(fresh);
     const forced = { kind: 'column-added', table: 'users', column: 'user_name', type: 'text' };
-    (ctx.schemaWatch.check as jest.Mock).mockImplementation(async (_d, _c, opts) =>
-      opts?.force ? [forced] : []
-    );
+    (ctx.schemaWatch.check as jest.Mock).mockImplementation(async (_d, _c, opts) => {
+      if (!opts?.force) return [];
+      (ctx.schemaManager.getSchema as jest.Mock).mockReturnValue(fresh);
+      return [forced];
+    });
     const r = await handleSqlQuery(ctx, { database: 'db', query: BAD });
     expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
     expect(ctx.schemaWatch.check).toHaveBeenCalledWith('db', expect.anything(), { force: true });
@@ -1110,9 +1114,69 @@ describe('name check', () => {
     expect(text).not.toContain('42P01');
   });
 
+  it('waits for a slow capture at most once per batch', async () => {
+    jest.useFakeTimers();
+    try {
+      const ctx = ctxWith(undefined);
+      let capturing = false;
+      (ctx.schemaManager.captureSchemaOnce as jest.Mock).mockImplementation(() => {
+        capturing = true;
+        return new Promise(() => {}); // never finishes
+      });
+      (ctx.schemaManager.isCapturing as jest.Mock).mockImplementation(() => capturing);
+      (ctx.connectionManager.executeBatch as jest.Mock).mockResolvedValue({
+        results: [],
+        totalExecutionTime: 1,
+        successCount: 0,
+        failureCount: 0,
+        transactionUsed: false,
+      });
+      const queries = Array.from({ length: 10 }, (_, i) => ({ query: `SELECT ${i}` }));
+      const run = handleBatchQuery(ctx, { database: 'db', queries });
+      await jest.advanceTimersByTimeAsync(SCHEMA_CAPTURE_LIMIT_MS);
+      expect(ctx.connectionManager.executeBatch).toHaveBeenCalled();
+      await run;
+      expect(ctx.schemaManager.captureSchemaOnce).toHaveBeenCalledTimes(1);
+
+      // A later call while that capture is still running does not wait at all
+      (ctx.connectionManager.executeQuery as jest.Mock).mockResolvedValue({
+        rows: [],
+        rowCount: 0,
+        fields: [],
+      });
+      await handleSqlQuery(ctx, { database: 'db', query: 'SELECT 1' });
+      expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('runs a query whose column is in the live database but not in the cache loaded from disk', async () => {
+    // After a restart: the schema comes from disk, no connection is open yet.
+    const stale = { ...makeSchema(), fingerprint: 'old' };
+    const live = {
+      ...makeSchema({ users: table('users', ['id', 'username', 'user_name']) }),
+      fingerprint: 'new',
+    };
+    const ctx = ctxWith(stale);
+    const cm = {
+      isConnected: jest.fn().mockReturnValue(false),
+      schemaFingerprint: jest.fn().mockResolvedValue('new'),
+    };
+    (ctx.schemaManager.refreshSchema as jest.Mock).mockImplementation(async () => {
+      (ctx.schemaManager.getSchema as jest.Mock).mockReturnValue(live);
+      return live;
+    });
+    ctx.schemaWatch = new SchemaWatch(cm as any, ctx.schemaManager);
+    const r = await handleSqlQuery(ctx, { database: 'db', query: BAD });
+    expect(cm.schemaFingerprint).toHaveBeenCalledWith('db');
+    expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    expect(r.isError).toBeUndefined();
+  });
+
   it('preflightNames copies the statement index onto each problem', async () => {
     const ctx = ctxWith(makeSchema());
-    const found = await preflightNames(ctx, 'db', dbs().db, BAD, 2);
+    const found = await preflightNames(ctx, 'db', dbs().db, makeSchema(), BAD, 2);
     expect(found.problems[0]).toMatchObject({ name: 'user_name', statement: 2 });
     expect(found.correction).toContain('in statement 3');
   });

@@ -123,6 +123,11 @@ export class SchemaManager extends EventEmitter {
     return p;
   }
 
+  /** Whether a captureSchemaOnce for this database is still running */
+  isCapturing(dbName: string): boolean {
+    return this.captures.has(dbName);
+  }
+
   /**
    * Store a fingerprint on an already cached schema (e.g. one cached before fingerprints existed)
    */
