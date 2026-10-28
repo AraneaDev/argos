@@ -1,4 +1,5 @@
-import { classifyNameError } from '../../../src/schema/name-hints.js';
+import { classifyNameError, formatCorrection } from '../../../src/schema/name-hints.js';
+import type { ColumnInfo, DatabaseSchema, TableInfo } from '../../../src/types/database.js';
 
 const withCause = (cause: unknown, message = 'adapter error'): Error =>
   new Error(message, { cause });
@@ -81,5 +82,92 @@ describe('classifyNameError', () => {
 
   it.each(rows)('%s', (_label, input, expected) => {
     expect(classifyNameError(input)).toEqual(expected);
+  });
+});
+
+describe('formatCorrection', () => {
+  const col = (name: string, type: string): ColumnInfo => ({
+    name,
+    type,
+    nullable: true,
+    default: null,
+  });
+  const table = (name: string, columns: ColumnInfo[]): TableInfo => ({
+    name,
+    type: 'BASE TABLE',
+    columns,
+  });
+  const schema = {
+    database: 'db',
+    tables: {
+      users: table('users', [
+        col('id', 'integer'),
+        col('username', 'text'),
+        col('email', 'text'),
+        col('created_at', 'timestamp'),
+      ]),
+      orders: table('orders', [
+        col('id', 'integer'),
+        col('user_id', 'integer'),
+        col('total', 'numeric'),
+        col('status', 'text'),
+        col('created_at', 'timestamp'),
+      ]),
+    },
+    views: {},
+  } as unknown as DatabaseSchema;
+
+  it('explains a qualified column with suggestion and column list', () => {
+    const text = formatCorrection(schema, [
+      { name: 'user_name', table: 'users', inScope: ['users'] },
+    ]);
+    expect(text).toContain('users.user_name');
+    expect(text).toContain('Did you mean: username');
+    expect(text).toContain('id (integer), username (text), email (text), created_at (timestamp)');
+  });
+
+  it('suggests tables without listing every table columns', () => {
+    const text = formatCorrection(schema, [{ kind: 'table', name: 'userz' }]);
+    expect(text).toContain('Did you mean: users');
+    expect(text).not.toContain('username (text)');
+  });
+
+  it('caps columns at 40 and points to sql_get_schema', () => {
+    const wide = {
+      ...schema,
+      tables: {
+        wide: table(
+          'wide',
+          Array.from({ length: 45 }, (_, i) => col(`c${i}`, 'int'))
+        ),
+      },
+    } as unknown as DatabaseSchema;
+    const text = formatCorrection(wide, [{ name: 'zzz', table: null, inScope: ['wide'] }]);
+    expect(text).toContain('c39 (int)');
+    expect(text).not.toContain('c40 (int)');
+    expect(text).toContain('5 more');
+    expect(text).toContain('sql_get_schema');
+  });
+
+  it('caps tables in scope at 3', () => {
+    const many = {
+      ...schema,
+      tables: Object.fromEntries(
+        ['t1', 't2', 't3', 't4', 't5'].map((n) => [n, table(n, [col('id', 'int')])])
+      ),
+    } as unknown as DatabaseSchema;
+    const text = formatCorrection(many, [
+      { name: 'zzz', table: null, inScope: ['t1', 't2', 't3', 't4', 't5'] },
+    ]);
+    expect(text).toContain('t3');
+    expect(text).not.toContain('Columns of t4');
+    expect(text).toContain('sql_get_schema');
+  });
+
+  it('numbers statements from 1 for people', () => {
+    const text = formatCorrection(schema, [
+      { name: 'user_name', table: 'users', inScope: ['users'], statement: 2 },
+    ]);
+    expect(text).toContain('statement 3');
   });
 });

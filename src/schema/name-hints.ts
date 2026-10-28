@@ -3,6 +3,9 @@
  * can offer a correction instead of just relaying the driver message.
  */
 
+import type { DatabaseSchema, TableInfo } from '../types/database.js';
+import { suggest, type NameProblem } from './name-check.js';
+
 export type NameErrorKind = 'column' | 'table';
 
 export interface NameErrorInfo {
@@ -93,4 +96,70 @@ export function classifyNameError(error: unknown): NameErrorInfo | null {
     kind,
     name: extractName(kind === 'column' ? COLUMN_PATTERNS : TABLE_PATTERNS, messages),
   };
+}
+
+export type Correction =
+  | NameProblem
+  | { kind: 'table'; name: string | null }
+  | { kind: 'column'; name: string | null; inScope: string[] };
+
+const MAX_TABLES = 3;
+const MAX_COLUMNS = 40;
+
+function lookupTable(schema: DatabaseSchema, key: string): TableInfo | undefined {
+  return schema.tables[key] ?? schema.views?.[key];
+}
+
+function describeTable(schema: DatabaseSchema, key: string): string {
+  const info = lookupTable(schema, key);
+  if (!info) return `Columns of ${key}: unknown`;
+  const shown = info.columns.slice(0, MAX_COLUMNS).map((c) => `${c.name} (${c.type})`);
+  const extra = info.columns.length - shown.length;
+  const more = extra > 0 ? `, ... ${extra} more (use sql_get_schema for the full list)` : '';
+  return `Columns of ${key}: ${shown.join(', ')}${more}`;
+}
+
+function formatOne(schema: DatabaseSchema, item: Correction): string[] {
+  const lines: string[] = [];
+  const where =
+    'statement' in item && item.statement !== undefined
+      ? ` in statement ${item.statement + 1}`
+      : '';
+
+  if ('kind' in item && item.kind === 'table') {
+    const known = [...Object.keys(schema.tables), ...Object.keys(schema.views ?? {})];
+    lines.push(`Table ${item.name ?? '(unknown)'} does not exist${where}.`);
+    const hints = item.name ? suggest(item.name, known) : [];
+    if (hints.length > 0) lines.push(`Did you mean: ${hints.join(', ')}`);
+    else lines.push('Use sql_get_schema to see the available tables.');
+    return lines;
+  }
+
+  const name = item.name ?? '(unknown)';
+  const table = 'table' in item ? item.table : null;
+  lines.push(`Column ${table ? `${table}.` : ''}${name} does not exist${where}.`);
+
+  const scope = table ? [table] : item.inScope;
+  const shownTables = scope.slice(0, MAX_TABLES);
+  const pool = (table ? [table] : shownTables).flatMap(
+    (key) => lookupTable(schema, key)?.columns.map((c) => c.name) ?? []
+  );
+  const hints = item.name ? suggest(item.name, [...new Set(pool)]) : [];
+  if (hints.length > 0) lines.push(`Did you mean: ${hints.join(', ')}`);
+
+  for (const key of shownTables) lines.push(describeTable(schema, key));
+  if (scope.length > shownTables.length) {
+    lines.push(
+      `... ${scope.length - shownTables.length} more tables in scope (use sql_get_schema to see them)`
+    );
+  }
+  return lines;
+}
+
+/**
+ * Build a plain-text correction (names and types only, never row data). Callers
+ * append it after sanitizing the driver error, so it is not sanitized here.
+ */
+export function formatCorrection(schema: DatabaseSchema, items: Correction[]): string {
+  return items.flatMap((item) => formatOne(schema, item)).join('\n');
 }
