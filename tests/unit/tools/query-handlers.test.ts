@@ -12,7 +12,7 @@ import type { ToolHandlerContext } from '../../../src/tools/handlers/types.js';
 import type { ParsedServerConfig, DatabaseConfig } from '../../../src/types/index.js';
 import { SchemaWatch } from '../../../src/schema/watch.js';
 import { SecurityViolationError } from '../../../src/types/index.js';
-import { preflightNames } from '../../../src/tools/handlers/name-check.js';
+import { correctionForError, preflightNames } from '../../../src/tools/handlers/name-check.js';
 import { ValidationError, ConfigurationError } from '../../../src/utils/error-handler.js';
 
 // Mock response-formatter
@@ -1004,5 +1004,22 @@ describe('name check', () => {
     const found = await preflightNames(ctx, 'db', dbs().db, BAD, 2);
     expect(found?.problems[0]).toMatchObject({ name: 'user_name', statement: 2 });
     expect(found?.correction).toContain('in statement 3');
+  });
+
+  it('fails open on a malformed cached schema (no views, table without columns)', async () => {
+    const bad: any = makeSchema({ broken: { name: 'broken', type: 'table' } });
+    delete bad.views;
+    const ctx = ctxWith(bad);
+    const r = await handleSqlQuery(ctx, { database: 'db', query: 'SELECT b.x FROM broken b' });
+    expect(ctx.connectionManager.executeQuery).toHaveBeenCalled();
+    expect(r.isError).toBeUndefined();
+    expect(ctx.logger.warning).toHaveBeenCalledWith('Name check skipped', expect.anything());
+  });
+
+  it('correctionForError returns "" for a malformed schema', () => {
+    const bad: any = makeSchema({ broken: { name: 'broken', type: 'table' } });
+    const ctx = ctxWith(bad);
+    const err = { code: '42703', message: 'column "x" does not exist' };
+    expect(correctionForError(ctx, 'db', 'SELECT x FROM broken', err)).toBe('');
   });
 });
