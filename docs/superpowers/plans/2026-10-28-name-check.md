@@ -447,6 +447,7 @@ Loop `preflightNames(ctx, database, dbConfig, q.query, i)` over the statements a
 
 **Files:**
 - Modify: `src/tools/handlers/schema-handlers.ts:19-39`
+- Modify: `src/tools/tool-definitions.ts:14,39` — remove the sentence `IMPORTANT: Always call sql_get_schema for the target database before your first query to learn the correct table and column names.` from the `sql_query` and `sql_batch_query` descriptions (the person's request: the name check makes it redundant). Adjust any test that asserts the old description text.
 - Modify: `config.ini.template` (commented `# name_check=true` with a one-line explanation, under `[database.example]`)
 - Modify: `docs/api/mcp-tools-reference.md` (`sql_query`, `sql_batch_query`, `sql_analyze_performance`, `sql_get_schema` behavior)
 - Modify: `docs/guides/security-guide.md` (or whichever page lists per-connection options; `grep -rn read_only docs` / `select_only`) to document `name_check`
