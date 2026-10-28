@@ -5,6 +5,13 @@ All notable changes to the Argos-MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.1.0](https://github.com/AraneaDev/argos/compare/v6.0.1...v6.1.0) (2026-10-28)
+
+
+### Features
+
+* check table and column names before running agent queries ([#59](https://github.com/AraneaDev/argos/issues/59)) ([95c5cb7](https://github.com/AraneaDev/argos/commit/95c5cb7748e8452f9ca07984c38e62345a39e893))
+
 ## [6.0.1](https://github.com/AraneaDev/argos/compare/v6.0.0...v6.0.1) (2026-10-26)
 
 
