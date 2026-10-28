@@ -475,6 +475,29 @@ Claude shows SQL tools but queries return errors
  select_only=false # Use with caution!
  ```
 
+### Issue: "Query not run ... names a column that doesn't exist"
+```
+ Query not run on demo: it names a column that doesn't exist: emial
+Column emial does not exist.
+Did you mean: email
+Columns of users: id (INTEGER), name (TEXT), email (TEXT), created_at (TEXT)
+ If you believe the schema has changed, run sql_refresh_schema and retry.
+```
+
+The name check compared the query with the cached schema and found a column that isn't
+there, so the query never reached the database.
+
+**Solutions:**
+1. **Fix the name**: use the suggestion or one of the listed columns.
+2. **The column was just added**: Argos already re-checks the schema fingerprint before it
+   blocks, but if the cache is still wrong, run `sql_refresh_schema` and retry.
+3. **Turn the check off for one connection** if it gets in the way:
+ ```ini
+ [database.legacy]
+ name_check=false
+ ```
+ Corrections appended to the database's own unknown-name errors stay on.
+
 ### Issue: "Query timeout"
 ```
  Query execution timeout after 30000ms

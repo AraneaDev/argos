@@ -115,6 +115,7 @@ value Argos cannot read is reported instead of guessed.
 | `ssl` | `false` | Enable SSL/TLS | `true` |
 | `timeout` | `30000` | Connection timeout (ms) | `15000` |
 | `mcp_configurable` | `false` | Allow MCP tools to modify this database config | `true` |
+| `name_check` | `true` | Check column names against the cached schema before a SELECT runs; see [Name Checking](../api/mcp-tools-reference.md#name-checking) | `false` |
 
 #### SQLite-Specific Parameters
 | Parameter | Description | Example |
