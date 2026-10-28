@@ -58,7 +58,10 @@ export class SchemaWatch {
 
   /**
    * Returns [] when skipped, unchanged, first seen or failed. Never throws.
-   * `force` bypasses only the rate limit; it still records the check time.
+   * `force` (the check before a name-check block) bypasses the rate limit, runs even when no
+   * connection is open yet (a schema loaded from disk after a restart; schemaFingerprint
+   * connects), and refreshes a legacy cache that has no fingerprint instead of trusting it.
+   * It still records the check time.
    */
   async check(
     dbName: string,
@@ -69,12 +72,15 @@ export class SchemaWatch {
       const t = this.now();
       const last = await this.lastChecked(dbName, t);
       if (!opts.force && last !== undefined && t - last < this.intervalMs) return [];
-      if (!this.cm.isConnected(dbName)) return [];
+      if (!opts.force && !this.cm.isConnected(dbName)) return [];
 
       const cached = this.sm.getSchema(dbName);
       if (!cached) return [];
 
       await this.recordCheck(dbName, t);
+      if (opts.force && !cached.fingerprint) {
+        return diffSchemas(cached, await this.sm.refreshSchema(dbName));
+      }
       const current = await this.cm.schemaFingerprint(dbName);
 
       if (!cached.fingerprint) {

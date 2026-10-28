@@ -61,13 +61,29 @@ describe('SchemaWatch', () => {
     expect(cm.schemaFingerprint).toHaveBeenCalledTimes(2);
   });
 
-  it('force still skips when not connected or nothing is cached', async () => {
-    const a = setup(schema(['id'], 'fp1'), false);
-    await a.watch.check('d', cfg, { force: true });
-    expect(a.cm.schemaFingerprint).not.toHaveBeenCalled();
-    const b = setup(null);
-    await b.watch.check('d', cfg, { force: true });
-    expect(b.cm.schemaFingerprint).not.toHaveBeenCalled();
+  it('force still skips when nothing is cached', async () => {
+    const { cm, watch } = setup(null);
+    await watch.check('d', cfg, { force: true });
+    expect(cm.schemaFingerprint).not.toHaveBeenCalled();
+  });
+
+  it('force checks a schema loaded from disk before any connection is open', async () => {
+    // After a restart the cache comes from disk and connections open lazily: the check
+    // before a block must still compare fingerprints (schemaFingerprint connects).
+    const { cm, sm, watch } = setup(schema(['id'], 'old'), false);
+    sm.refreshSchema.mockResolvedValue(schema(['id', 'extra'], 'fp1'));
+    const changes = await watch.check('d', cfg, { force: true });
+    expect(cm.schemaFingerprint).toHaveBeenCalledWith('d');
+    expect(sm.refreshSchema).toHaveBeenCalledWith('d');
+    expect(changes).toEqual([{ kind: 'column-added', table: 't', column: 'extra', type: 'int' }]);
+  });
+
+  it('force refreshes a legacy cache that has no fingerprint', async () => {
+    const { sm, watch } = setup(schema(['id']));
+    sm.refreshSchema.mockResolvedValue(schema(['id', 'extra'], 'fp1'));
+    const changes = await watch.check('d', cfg, { force: true });
+    expect(sm.refreshSchema).toHaveBeenCalledWith('d');
+    expect(changes).toEqual([{ kind: 'column-added', table: 't', column: 'extra', type: 'int' }]);
   });
 
   it('skips when no connection is open', async () => {
