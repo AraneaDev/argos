@@ -63,11 +63,12 @@ export async function startUp(io: Port, openOnStart: boolean): Promise<void> {
  * Opens the pane and reads the connections again: every open does, so the
  * pane never presents an old list as current. The read runs on a timer. A
  * refused or unplaced pane is the person's layout, not a failure of the mod.
+ * The pane asks for no ground of its own: the terminal's shows through.
  */
 export async function openPane(io: Port): Promise<void> {
   await reloadConnections(io)
   await reloadQueries(io)
-  await io.ui.open({ id: PANE, title: 'Argos' }).catch(() => undefined)
+  await io.ui.open({ id: PANE, title: 'Argos', backgroundColor: 'transparent' }).catch(() => undefined)
 }
 
 /** Whether the pane is open now. */

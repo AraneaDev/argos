@@ -44,6 +44,8 @@ describe('the /argos command', () => {
     const port = fakePort()
     expect(await runCommand(port.io, '')).toBe('Argos pane opened.')
     expect(port.opened).toEqual(['argos'])
+    // The pane lays no ground of its own: the terminal's shows through.
+    expect(port.openedWith[0]).toMatchObject({ id: 'argos', backgroundColor: 'transparent' })
     await port.advance()
     expect(port.runs.map(r => r.argv[2]).sort()).toEqual(['connections', 'history', 'pins'])
     expect(await runCommand(port.io, '  ')).toBe('Argos pane closed.')
