@@ -2,6 +2,7 @@
  * PostgreSQL Database Adapter
  */
 
+import * as tls from 'node:tls';
 import * as pg from 'pg';
 import type { Client as PgClient, PoolClient } from 'pg';
 import { DatabaseAdapter } from './base.js';
@@ -103,13 +104,13 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
         // A bearer token on an unverified connection goes to whoever answers, and is
         // replayable against every database the identity can reach: TLS with
         // certificate verification, whatever ssl and ssl_verify say.
-        poolConfig.ssl = { rejectUnauthorized: true };
+        poolConfig.ssl = this.verifiedTls();
       } else if (this.config.ssl !== undefined) {
         // Mirror the same SSL branches as the old connect() to avoid behavior change
         const sslEnabled = this.parseConfigValue(this.config.ssl, 'boolean', false);
         if (sslEnabled) {
           const sslVerify = this.verifyServerCertificate();
-          poolConfig.ssl = { rejectUnauthorized: sslVerify };
+          poolConfig.ssl = sslVerify ? this.verifiedTls() : { rejectUnauthorized: false };
         } else {
           poolConfig.ssl = false; // explicitly disable
         }
@@ -118,6 +119,21 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
       this._pool = new pg.Pool(poolConfig);
     }
     return this._pool;
+  }
+
+  /**
+   * TLS with certificate verification. Through an SSH tunnel the connection goes to
+   * 127.0.0.1, so the certificate is checked against the database's own hostname
+   * (tls_servername), which is also sent as SNI.
+   */
+  private verifiedTls(): pg.PoolConfig['ssl'] {
+    const name = this.config.tls_servername;
+    if (!name) return { rejectUnauthorized: true };
+    return {
+      rejectUnauthorized: true,
+      servername: name,
+      checkServerIdentity: (_host, cert) => tls.checkServerIdentity(name, cert),
+    };
   }
 
   /**

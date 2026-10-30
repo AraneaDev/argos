@@ -57,6 +57,10 @@ export interface DatabaseConfig {
   // MySQL only). Never read from config.ini: the pane CLI sets it on its own copy of
   // each connection so the MCP server's behaviour is unchanged.
   read_only_session?: boolean;
+  // The database's own hostname, set by ConnectionManager on the copy of the config it
+  // points at an SSH tunnel (host then reads 127.0.0.1). A verified TLS connection checks
+  // the certificate against this name instead. Never read from config.ini.
+  tls_servername?: string;
   timeout?: number;
   file?: string; // For SQLite
   encrypt?: boolean; // For MSSQL

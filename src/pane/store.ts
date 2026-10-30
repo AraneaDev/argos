@@ -44,6 +44,7 @@ export class PaneStore {
   private readonly spoolDays: number;
   private readonly now: () => number;
   private ensured = false;
+  private roleChanges: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly dir: string,
@@ -260,10 +261,23 @@ export class PaneStore {
     return this.readJsonObject(this.checksPath);
   }
 
+  /**
+   * Change roles.json, one change at a time: each reads the file as the previous
+   * change left it, so two checks finishing together cannot overwrite each other.
+   * A failed change is the caller's to see; the queue goes on after it.
+   */
+  private updateRoles(change: (roles: Record<string, unknown>) => boolean): Promise<void> {
+    const run = this.roleChanges.then(async () => {
+      await this.ensureDirs();
+      const roles = await this.readJsonObject(this.rolesPath);
+      if (change(roles)) await this.writeAtomic(this.rolesPath, JSON.stringify(roles));
+    });
+    this.roleChanges = run.catch(() => undefined);
+    return run;
+  }
+
   /** Record the MCP server's privilege check of a connection, for the pane to show. */
-  async recordRole(database: string, probe: PrivilegeProbe): Promise<void> {
-    await this.ensureDirs();
-    const roles = await this.readJsonObject(this.rolesPath);
+  recordRole(database: string, probe: PrivilegeProbe): Promise<void> {
     const role: RoleView =
       'canWrite' in probe
         ? {
@@ -273,8 +287,19 @@ export class PaneStore {
             reasons: probe.reasons,
           }
         : { checkedAt: probe.checkedAt, canWrite: null, principal: null, reasons: [] };
-    roles[database] = role;
-    await this.writeAtomic(this.rolesPath, JSON.stringify(roles));
+    return this.updateRoles((roles) => {
+      roles[database] = role;
+      return true;
+    });
+  }
+
+  /** Drop a connection's recorded role check, after its config changed or it was removed. */
+  forgetRole(database: string): Promise<void> {
+    return this.updateRoles((roles) => {
+      if (!(database in roles)) return false;
+      delete roles[database];
+      return true;
+    });
   }
 
   /** Every recorded role check, by database name. A malformed entry is left out. */

@@ -993,6 +993,48 @@ describe('PostgreSQLAdapter', () => {
       });
     });
 
+    it('through an SSH tunnel, checks the certificate against the database host', async () => {
+      const ssl = (
+        await poolConfig(
+          azureConfig({ host: '127.0.0.1', tls_servername: 'myserver.postgres.database.azure.com' })
+        )
+      ).ssl as import('node:tls').ConnectionOptions;
+      expect(ssl).toMatchObject({
+        rejectUnauthorized: true,
+        servername: 'myserver.postgres.database.azure.com',
+      });
+      const cert = (name: string) =>
+        ({
+          subject: { CN: name },
+          subjectaltname: `DNS:${name}`,
+        }) as unknown as import('node:tls').PeerCertificate;
+      expect(
+        ssl.checkServerIdentity!('127.0.0.1', cert('myserver.postgres.database.azure.com'))
+      ).toBeUndefined();
+      expect(ssl.checkServerIdentity!('127.0.0.1', cert('attacker.example.com'))?.message).toMatch(
+        /does not match certificate's altnames/
+      );
+    });
+
+    it('does the same on the plain verified-TLS path', async () => {
+      const ssl = (
+        await poolConfig({ ...config, ssl: true, host: '127.0.0.1', tls_servername: 'db.internal' })
+      ).ssl as import('node:tls').ConnectionOptions;
+      expect(ssl).toMatchObject({ rejectUnauthorized: true, servername: 'db.internal' });
+      expect(
+        (
+          await poolConfig({
+            ...config,
+            ssl: true,
+            ssl_verify: false,
+            tls_servername: 'db.internal',
+          })
+        ).ssl
+      ).toEqual({
+        rejectUnauthorized: false,
+      });
+    });
+
     it('refuses an empty token rather than sending no password', async () => {
       mockGetToken.mockResolvedValueOnce(null);
       const pool = await poolConfig(azureConfig());

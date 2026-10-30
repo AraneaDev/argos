@@ -657,6 +657,28 @@ describe('ConnectionManager', () => {
       await expect(connectionManager.getConnection('ssh_db')).rejects.toThrow(/SSH tunnel/);
     });
 
+    test('points a tunnelled adapter at the tunnel, keeping the real host for TLS', async () => {
+      const config: DatabaseConfig = {
+        ...TestConfigFixtures.validPostgresConfig,
+        host: 'myserver.postgres.database.azure.com',
+        ssh_host: 'bastion.example.com',
+        ssh_username: 'jump',
+        ssh_password: 'x',
+      };
+      const built: DatabaseConfig[] = [];
+      jest.spyOn(connectionManager as any, 'createAdapter').mockImplementation((c) => {
+        built.push(c as DatabaseConfig);
+        return MockDatabaseFactory.createPostgresAdapter(c as DatabaseConfig);
+      });
+      connectionManager.registerDatabase('tunnelled', config);
+      await connectionManager.getConnection('tunnelled');
+      expect(built.at(-1)).toMatchObject({
+        host: '127.0.0.1',
+        port: 12345,
+        tls_servername: 'myserver.postgres.database.azure.com',
+      });
+    });
+
     test('should not create SSH tunnel for sqlite even with ssh_host set', async () => {
       const mockAdapter = MockDatabaseFactory.createSqliteAdapter(
         TestConfigFixtures.validSqliteConfig
@@ -1891,6 +1913,34 @@ describe('ConnectionManager', () => {
       expect(connectionManager.isConnected('strict')).toBe(false);
     });
 
+    test('require_readonly_role publishes nothing while the check runs, and disconnects on refusal', async () => {
+      const config = selectOnly({ require_readonly_role: true });
+      let answer: (probe: unknown) => void = () => undefined;
+      const adapter = MockDatabaseFactory.createPostgresAdapter(config);
+      jest
+        .spyOn(adapter, 'probePrivileges')
+        .mockImplementation(() => new Promise((resolve) => (answer = resolve as never)) as never);
+      const disconnect = jest.spyOn(adapter, 'disconnect');
+      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(adapter);
+      connectionManager.registerDatabase('strict', config);
+
+      const probe = adapter.probePrivileges as jest.Mock;
+      const connecting = connectionManager.getConnection('strict');
+      // Wait until the probe has been asked (the mock connect takes a moment).
+      for (let i = 0; i < 200 && probe.mock.calls.length === 0; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(probe).toHaveBeenCalledTimes(1);
+      // The probe is still pending: nothing may hand this connection out yet.
+      expect(connectionManager.isConnected('strict')).toBe(false);
+      expect((connectionManager as any).connections.has('strict')).toBe(false);
+
+      answer(WRITER);
+      await expect(connecting).rejects.toThrow(/require_readonly_role/);
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      expect((connectionManager as any).connections.has('strict')).toBe(false);
+    });
+
     test('require_readonly_role refuses when the privileges could not be checked', async () => {
       const config = selectOnly({ require_readonly_role: true });
       withProbe(config, async () => {
@@ -1902,11 +1952,33 @@ describe('ConnectionManager', () => {
       );
     });
 
+    test('stores a failed check with the driver error sanitized', async () => {
+      withProbe(selectOnly(), async () => {
+        throw new Error('connect to postgres://admin:hunter2@db:5432/app failed, password=hunter2');
+      });
+      connectionManager.registerDatabase('ro', selectOnly());
+      await connectionManager.getConnection('ro');
+      const stored = JSON.stringify(connectionManager.getPrivileges('ro'));
+      expect(stored).not.toContain('hunter2');
+      expect(stored).toContain('<connection_string>');
+    });
+
     test('require_readonly_role lets a reader in', async () => {
       const config = selectOnly({ require_readonly_role: true });
       withProbe(config, async () => READER);
       connectionManager.registerDatabase('strict', config);
       await expect(connectionManager.getConnection('strict')).resolves.toBeDefined();
+    });
+
+    test('forgets the check and says so when the database is unregistered', async () => {
+      withProbe(selectOnly(), async () => WRITER);
+      const gone: string[] = [];
+      connectionManager.on('unregistered', (db: string) => gone.push(db));
+      connectionManager.registerDatabase('ro', selectOnly());
+      await connectionManager.getConnection('ro');
+      connectionManager.unregisterDatabase('ro');
+      expect(connectionManager.getPrivileges('ro')).toBeUndefined();
+      expect(gone).toEqual(['ro']);
     });
 
     test('checkPrivileges runs the probe again on an open connection', async () => {

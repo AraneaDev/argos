@@ -152,7 +152,7 @@ export async function handleTestConnection(
 
     // Ask the database what the role may do: never fatal, unless require_readonly_role refused the connection above.
     const privileges = await ctx.connectionManager.checkPrivileges(database).catch((error) => ({
-      error: getErrorMessage(error),
+      error: sanitizeError(error),
       checkedAt: new Date().toISOString(),
     }));
 

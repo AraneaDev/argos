@@ -523,6 +523,13 @@ describe('schema-handlers', () => {
         'Database role: read-only (reader)'
       );
 
+      (ctx.connectionManager.checkPrivileges as jest.Mock).mockRejectedValueOnce(
+        new Error('password=hunter2 rejected')
+      );
+      const leaked = (await handleTestConnection(ctx, { database: 'ro' })).content[0].text;
+      expect(leaked).toContain('could not be checked (password=[REDACTED] rejected)');
+      expect(leaked).not.toContain('hunter2');
+
       (ctx.connectionManager.checkPrivileges as jest.Mock).mockRejectedValue(
         new Error('timed out')
       );

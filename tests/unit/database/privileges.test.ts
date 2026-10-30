@@ -172,7 +172,7 @@ describe('mysqlPrivileges', () => {
     expect(report.reasons).toEqual(['ALL PRIVILEGES on *.*', 'UPDATE on `shop`.`users`']);
   });
 
-  it('notes role grants it cannot expand', () => {
+  it('counts a role grant it cannot expand as able to write', () => {
     const report = mysqlPrivileges(
       grants(
         'reader@%',
@@ -180,10 +180,8 @@ describe('mysqlPrivileges', () => {
         'GRANT `ro_role`@`%` TO `reader`@`%`'
       )
     );
-    expect(report.canWrite).toBe(false);
-    expect(report.notes).toEqual([
-      'has role `ro_role`@`%`, whose privileges this check does not expand',
-    ]);
+    expect(report.canWrite).toBe(true);
+    expect(report.reasons).toEqual(['role `ro_role`@`%` (its privileges are not checked)']);
   });
 });
 

@@ -67,6 +67,8 @@ const BYPASSES: Array<[string, string, Dialect[]]> = [
   ['side-effect function', "SELECT lo_import('/etc/passwd')", ALL],
   ['side-effect function', "SELECT lo_from_bytea(0, 'x')", ALL],
   ['side-effect function', 'SELECT lo_unlink(16409)', ALL],
+  // lo_get reads; a write after it in the same statement is still caught.
+  ['side-effect function', 'SELECT lo_get(16409), lo_unlink(16409)', ALL],
   ['side-effect function', "SELECT pg_read_file('/etc/passwd')", ALL],
   ['side-effect function', "SELECT pg_read_binary_file('/etc/passwd')", ALL],
   ['side-effect function', "SELECT pg_ls_dir('/')", ALL],
@@ -134,6 +136,7 @@ const READS: Array<[string, Dialect[]]> = [
   ['SELECT currval_view, next_value FROM t', ALL],
   ["SELECT current_setting('default_transaction_read_only')", ALL],
   ['SELECT pid, state FROM pg_stat_activity', ALL],
+  ['SELECT lo_get(24528)', ALL],
   ["SELECT 'naïve café' AS word", ALL],
   ['SELECT "Straße" FROM t', ALL],
   ['WITH x AS (SELECT 1 AS a) SELECT a FROM x', ALL],

@@ -205,6 +205,28 @@ describe('PaneStore', () => {
     expect((await stat(join(dir, '.argos', 'roles.json'))).mode & 0o777).toBe(0o600);
   });
 
+  it('keeps every role when checks finish together, and forgets one on request', async () => {
+    const reader = { canWrite: false, principal: null, reasons: [], notes: [], checkedAt: 't' };
+    await Promise.all(['a', 'b', 'c', 'd', 'e'].map((db) => store.recordRole(db, reader)));
+    expect(Object.keys(await store.roles()).sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
+    await store.forgetRole('c');
+    await store.forgetRole('absent');
+    expect(Object.keys(await store.roles()).sort()).toEqual(['a', 'b', 'd', 'e']);
+  });
+
+  it('reports a failed role write to its caller and goes on with the next', async () => {
+    const reader = { canWrite: false, principal: null, reasons: [], notes: [], checkedAt: 't' };
+    const broken = store as unknown as { writeAtomic: (p: string, t: string) => Promise<void> };
+    const write = broken.writeAtomic.bind(store);
+    broken.writeAtomic = async () => {
+      throw new Error('disk full');
+    };
+    await expect(store.recordRole('a', reader)).rejects.toThrow('disk full');
+    broken.writeAtomic = write;
+    await store.recordRole('b', reader);
+    expect(Object.keys(await store.roles())).toEqual(['b']);
+  });
+
   it('leaves out a malformed role entry', async () => {
     await store.recordRole('ok', {
       canWrite: false,

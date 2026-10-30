@@ -140,7 +140,9 @@ select_only=true
   new connection the pool opens rather than holding one that expires.
 - TLS with certificate verification is forced. `ssl=false` is a startup error,
   and `ssl_verify=false` does not reach this path: an access token on an
-  unverified connection goes to whoever answers.
+  unverified connection goes to whoever answers. Through an SSH tunnel the
+  certificate is checked against `host`, not the tunnel's local address, so a
+  private endpoint behind a bastion still verifies.
 - `az login` must have been run. A token failure says so, rather than surfacing
   as an opaque login error.
 - `azure_config_dir=~/.azure-claude-ro` takes the token from that Azure CLI

@@ -931,10 +931,16 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
 
     // Whole families, matched by prefix: dblink_connect/dblink_exec/..., the
     // large-object functions (lo_from_bytea, lo_unlink, lo_put, ...) and adminpack's
-    // pg_file_write/pg_file_unlink/....
+    // pg_file_write/pg_file_unlink/.... lo_get only reads a large object and stays allowed.
+    const readOnlyMembers = new Set(['LO_GET']);
     for (const prefix of ['DBLINK', 'LO_', 'PG_FILE_']) {
-      const match = new RegExp(`\\b(${prefix}\\w*)\\s*\\(`, 'i').exec(query);
-      if (match) dangerous.push(`Function: ${match[1]!.toUpperCase()}`);
+      for (const match of query.matchAll(new RegExp(`\\b(${prefix}\\w*)\\s*\\(`, 'gi'))) {
+        const name = match[1]!.toUpperCase();
+        if (!readOnlyMembers.has(name)) {
+          dangerous.push(`Function: ${name}`);
+          break;
+        }
+      }
     }
 
     // Phrase / construct patterns (not function-call shaped).

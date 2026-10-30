@@ -114,8 +114,9 @@ Two results surprise people:
   that was revoked, so the check reports `CREATE in schema public`. Fix it with
   `REVOKE CREATE ON SCHEMA public FROM PUBLIC;`.
 
-MySQL roles granted to the user are listed in `SHOW GRANTS` by name only; the
-check notes them but does not expand them.
+MySQL roles granted to the user are listed in `SHOW GRANTS` by name only. The
+check does not expand them, so a granted role counts as "can write": unknown is
+not read-only. Grant `SELECT` to the user directly to get a clean result.
 
 ## Parameters
 

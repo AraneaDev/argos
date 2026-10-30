@@ -334,6 +334,13 @@ export class SQLMCPServer extends EventEmitter {
         });
       });
     });
+    this.connectionManager.on('unregistered', (dbName: string) => {
+      this.paneStore?.forgetRole(dbName).catch((error) => {
+        this.logger.debug(`Could not forget the role check of '${dbName}'`, {
+          error: (error as Error).message,
+        });
+      });
+    });
     this.connectionManager.on('error', (error: Error, dbName?: string) => {
       this.logger.error(`Database connection error${dbName ? ` (${dbName})` : ''}`, error);
     });

@@ -215,9 +215,10 @@ export function mysqlPrivileges(result: QueryResult): PrivilegeReport {
     if (typeof value !== 'string') continue;
     const grant = /^GRANT\s+(.+?)\s+ON\s+(.+?)\s+TO\s+/i.exec(value);
     if (!grant) {
-      // A role grant (`GRANT role TO user`): its privileges are not listed here.
+      // A role grant (`GRANT role TO user`): its privileges are not listed here, so the
+      // role may write. Unknown is not read-only: it counts, and require_readonly_role refuses.
       const role = /^GRANT\s+(.+?)\s+TO\s+/i.exec(value);
-      if (role) notes.push(`has role ${role[1]}, whose privileges this check does not expand`);
+      if (role) reasons.push(`role ${role[1]} (its privileges are not checked)`);
       continue;
     }
     const target = grant[2]!.trim();
