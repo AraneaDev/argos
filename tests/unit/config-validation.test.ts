@@ -64,6 +64,29 @@ describe('validateDatabaseConfig - Azure CLI authentication', () => {
     expect(r.errors.some((e: any) => e.field === 'password')).toBe(true);
   });
 
+  it('passes postgresql config with azure-cli auth, a username and no password', () => {
+    const r = validateDatabaseConfig({
+      type: 'postgresql',
+      host: 'myserver.postgres.database.azure.com',
+      port: 5432,
+      database: 'db',
+      username: 'argos-readers',
+      authentication: 'azure-cli',
+    } as any);
+    expect(r.valid).toBe(true);
+  });
+
+  it('still requires the username for postgresql with azure-cli auth', () => {
+    const r = validateDatabaseConfig({
+      type: 'postgresql',
+      host: 'myserver.postgres.database.azure.com',
+      port: 5432,
+      database: 'db',
+      authentication: 'azure-cli',
+    } as any);
+    expect(r.errors.map((e: any) => e.field)).toEqual(['user']);
+  });
+
   it('still requires username and password for mysql with azure-cli auth', () => {
     const r = validateDatabaseConfig({
       ...base,

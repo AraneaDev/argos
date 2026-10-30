@@ -3,6 +3,7 @@
  * Pure functions for formatting query results and database summaries
  */
 
+import { describePrivileges } from '../database/privileges.js';
 import type { QueryResult, DatabaseListItem, MCPToolResponse } from '../types/index.js';
 
 /**
@@ -111,6 +112,7 @@ export function formatDatabaseSummary(db: DatabaseListItem): string {
     summary += ` Security: SELECT-only mode (production safe)\n`;
     summary += ` Allows: SELECT, WITH, SHOW, EXPLAIN, DESCRIBE\n`;
     summary += ` Blocks: INSERT, UPDATE, DELETE, DROP, CREATE, ALTER\n`;
+    for (const line of describePrivileges(true, db.privileges)) summary += ` ${line}\n`;
   } else {
     summary += ` Security: Full access mode (use with caution)\n`;
   }

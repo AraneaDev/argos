@@ -123,8 +123,15 @@ footer says `tab: leave field`, and Tab moves out so the hotkeys work again.
 ![The Connections tab: counts across the top and a card each for shop (SQLite, full access) and analytics (PostgreSQL, select-only)](../images/claude-code/connections.png)
 
 One card per database from `config.ini`: type, host, whether it uses an SSH
-tunnel or SSL, whether it is SELECT-only, and how old its captured schema is.
-Passwords are never shown.
+tunnel or SSL, whether it is SELECT-only, what its database role may do, and how
+old its captured schema is. Passwords are never shown.
+
+The `role` line comes from the MCP server, which checks a SELECT-only
+connection's role each time it connects. `read-only` is what you want. `can
+write: db_owner as dbo` (in the warning colour) means the role could change data
+and Argos's SQL filter is the only thing in the way: connect as a read-only
+role. `not checked yet` means the server has not connected to it since the
+check shipped.
 
 The single-key shortcuts are for the lists. While you type in the Schema filter
 or the Editor field, the letters go into the field.

@@ -13,6 +13,7 @@ const sqlite3 = ((sqlite3Ns as unknown as { default?: typeof sqlite3Ns }).defaul
   sqlite3Ns) as typeof sqlite3Ns;
 const { Database } = sqlite3;
 import { DatabaseAdapter } from './base.js';
+import { sqlitePrivileges, type PrivilegeReport } from '../privileges.js';
 import type {
   DatabaseConnection,
   QueryResult,
@@ -280,6 +281,11 @@ export class SQLiteAdapter extends DatabaseAdapter {
    */
   buildExplainQuery(query: string): string {
     return `EXPLAIN QUERY PLAN ${query}`;
+  }
+
+  /** SQLite has no roles: the file is opened read-only for a select_only database, read-write otherwise. */
+  override async probePrivileges(_connection: DatabaseConnection): Promise<PrivilegeReport> {
+    return sqlitePrivileges(!!this.config.select_only);
   }
 
   /**

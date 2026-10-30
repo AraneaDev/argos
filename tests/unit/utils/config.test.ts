@@ -26,6 +26,7 @@ jest.mock('fs', () => ({
 jest.mock('path', () => ({
   join: jest.fn((...args: string[]) => args.join('/')),
   dirname: jest.fn((p) => p.substring(0, p.lastIndexOf('/')) || '/'),
+  isAbsolute: jest.fn((p: string) => p.startsWith('/')),
 }));
 
 jest.mock('ini', () => ({
@@ -294,6 +295,101 @@ describe('config', () => {
             authentication: 'azure-cli',
           })
         ).toThrow('authentication');
+      });
+
+      it('should accept azure-cli authentication for postgresql with a username and no password', () => {
+        for (const type of ['postgresql', 'postgres']) {
+          const config = parseDatabaseConfig('db', {
+            type,
+            host: 'myserver.postgres.database.azure.com',
+            database: 'db',
+            username: 'argos-readers',
+            authentication: 'azure-cli',
+            azure_tenant_id: 'd958da54-24bc-444a-981b-317de09e73ee',
+          });
+          expect(config.authentication).toBe('azure-cli');
+          expect(config.username).toBe('argos-readers');
+          expect(config.password).toBeUndefined();
+        }
+      });
+
+      it('should require the Entra principal as username for postgresql azure-cli', () => {
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'postgresql',
+            host: 'myserver.postgres.database.azure.com',
+            database: 'db',
+            authentication: 'azure-cli',
+          })
+        ).toThrow("missing required 'username'");
+      });
+
+      it('should reject ssl=false alongside azure-cli authentication on postgresql', () => {
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'postgresql',
+            host: 'myserver.postgres.database.azure.com',
+            database: 'db',
+            username: 'u',
+            authentication: 'azure-cli',
+            ssl: 'false',
+          })
+        ).toThrow('ssl=false');
+      });
+
+      it('should reject azure-cli authentication and azure_tenant_id for sqlite', () => {
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'sqlite',
+            file: '/tmp/x.db',
+            authentication: 'azure-cli',
+          })
+        ).toThrow("only supported for types 'mssql' and 'postgresql'");
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'sqlite',
+            file: '/tmp/x.db',
+            azure_tenant_id: 'd958da54-24bc-444a-981b-317de09e73ee',
+          })
+        ).toThrow('azure_tenant_id');
+      });
+
+      it('should accept azure_config_dir with azure-cli and expand a leading ~', () => {
+        const config = parseDatabaseConfig('db', {
+          type: 'mssql',
+          host: 'myserver.database.windows.net',
+          database: 'db',
+          authentication: 'azure-cli',
+          azure_config_dir: '~/.azure-claude-ro',
+        });
+        expect(config.azure_config_dir).toBe(`${require('os').homedir()}/.azure-claude-ro`);
+      });
+
+      it('should reject azure_config_dir without azure-cli, or as a relative path', () => {
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'postgresql',
+            host: 'h',
+            username: 'u',
+            azure_config_dir: '/home/me/.azure-ro',
+          })
+        ).toThrow('requires authentication=azure-cli');
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'postgresql',
+            host: 'h',
+            username: 'u',
+            authentication: 'azure-cli',
+            azure_config_dir: '.azure-ro',
+          })
+        ).toThrow('not an absolute path');
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'sqlite',
+            file: '/tmp/x.db',
+            azure_config_dir: '/home/me/.azure-ro',
+          })
+        ).toThrow('azure_config_dir');
       });
 
       it('should reject an unknown authentication value', () => {

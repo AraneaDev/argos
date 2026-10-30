@@ -21,6 +21,7 @@ export function fakePort(options: { files?: Record<string, string>; run?: Runner
   const runs: { argv: string[]; timeoutMs: number | undefined }[] = []
   const reads: string[] = []
   const opened: string[] = []
+  const openedWith: Record<string, unknown>[] = []
   const closed: string[] = []
   const panes = new Set<string>()
   const registered: string[] = []
@@ -58,6 +59,7 @@ export function fakePort(options: { files?: Record<string, string>; run?: Runner
       panes: async () => [...panes].map(id => ({ id })),
       open: async (args: { id: string }) => {
         opened.push(args.id)
+        openedWith.push({ ...args })
         panes.add(args.id)
         return { isPlaced: true }
       },
@@ -111,6 +113,7 @@ export function fakePort(options: { files?: Record<string, string>; run?: Runner
     runs,
     reads,
     opened,
+    openedWith,
     closed,
     registered,
     advance,

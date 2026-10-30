@@ -41,6 +41,23 @@ describe('the Connections tab', () => {
     expect(text.match(/access\s+select-only/g)).toHaveLength(1)
   })
 
+  it("says what a select-only connection's database role may do, and warns when it can write", () => {
+    const only = (c: ConnectionView) => model({ connections: { ask: 1, phase: 'done', answer: [c], failure: null } })
+    const rows = (c: ConnectionView) => paneRows(only(c), 100, 40)
+    const segment = (c: ConnectionView, text: RegExp) => rows(c).flatMap(r => r.segments).find(s => text.test(s.text))
+    // The fixture: the server found the SQLite file opened read-only.
+    expect(all(rows(CONNECTIONS[0]!))).toMatch(/role\s+read-only/)
+    const writer: ConnectionView = { ...CONNECTIONS[0]!, type: 'mssql', role: { checkedAt: 't', canWrite: true, principal: 'dbo', reasons: ['db_owner'] } }
+    expect(all(rows(writer))).toMatch(/role\s+can write: db_owner as dbo/)
+    expect(segment(writer, /^can write/)?.color).toBe('warning')
+    expect(all(rows({ ...writer, role: { ...writer.role!, canWrite: null } }))).toMatch(/role\s+could not be checked/)
+    expect(all(rows({ ...writer, role: null }))).toMatch(/role\s+not checked yet/)
+    // From a CLI older than the check.
+    const { role: _role, ...older } = writer
+    expect(all(rows(older))).toMatch(/role\s+not checked yet/)
+    expect(all(rows(CONNECTIONS[1]!))).toMatch(/role\s+not checked \(full access\)/)
+  })
+
   it('says the engine, the host, the tunnel, MCP configuration and when the schema was captured', () => {
     const captured = { ...CONNECTIONS[0]!, type: 'postgresql', host: 'db.internal', ssh: true, ssl: true, mcpConfigurable: true, schemaCapturedAt: '2000-01-01T00:00:00.000Z' }
     const text = all(paneRows(model({ connections: { ask: 1, phase: 'done', answer: [captured], failure: null } }), 100, 40))

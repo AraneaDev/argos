@@ -68,6 +68,13 @@ const isChange = (raw: unknown): raw is SchemaChange => {
   return false
 }
 
+const isRole = shape<NonNullable<ConnectionView['role']>>({
+  checkedAt: isString,
+  canWrite: orNull(isBoolean),
+  principal: orNull(isString),
+  reasons: listOf(isString),
+})
+
 const isConnection = shape<ConnectionView>({
   name: isString,
   type: isString,
@@ -77,6 +84,7 @@ const isConnection = shape<ConnectionView>({
   selectOnly: isBoolean,
   mcpConfigurable: isBoolean,
   schemaCapturedAt: orNull(isString),
+  role: optional(orNull(isRole)),
 })
 
 const isSchema = shape<SchemaView>({

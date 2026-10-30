@@ -62,12 +62,23 @@ export async function startUp(io: Port, openOnStart: boolean): Promise<void> {
 /**
  * Opens the pane and reads the connections again: every open does, so the
  * pane never presents an old list as current. The read runs on a timer. A
- * refused or unplaced pane is the person's layout, not a failure of the mod.
+ * pane left unplaced is the person's layout, not a failure of the mod.
+ * The pane asks for no ground of its own, so the terminal's shows through; a
+ * host older than that option refuses the open, and is asked again without it.
+ * Resolves to why the pane could not be opened, or null when it was.
  */
-export async function openPane(io: Port): Promise<void> {
+export async function openPane(io: Port): Promise<string | null> {
   await reloadConnections(io)
   await reloadQueries(io)
-  await io.ui.open({ id: PANE, title: 'Argos' }).catch(() => undefined)
+  try {
+    await io.ui.open({ id: PANE, title: 'Argos', backgroundColor: 'transparent' })
+    return null
+  } catch {
+    return io.ui
+      .open({ id: PANE, title: 'Argos' })
+      .then(() => null)
+      .catch((err: unknown) => message(err))
+  }
 }
 
 /** Whether the pane is open now. */
@@ -84,8 +95,8 @@ export async function runCommand(io: Port, args: string): Promise<string> {
       await io.ui.close({ id: PANE }).catch(() => undefined)
       return 'Argos pane closed.'
     }
-    await openPane(io)
-    return 'Argos pane opened.'
+    const failed = await openPane(io)
+    return failed === null ? 'Argos pane opened.' : `argos: the pane could not be opened (${failed})`
   } catch (err) {
     return `argos: ${message(err)}`
   }

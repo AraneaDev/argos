@@ -141,8 +141,34 @@ Requirements:
 
 - The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) is installed and on `PATH`.
 - `az login` has been run, and the signed-in identity has access to the database.
-- The Azure AD identity is mapped to a database user, for example:
-  `CREATE USER [you@company.com] FROM EXTERNAL PROVIDER;`
+- The Entra identity is mapped to a database user. Use a dedicated reader
+  identity or group with `db_datareader` only:
+  `CREATE USER [argos-readers] FROM EXTERNAL PROVIDER;` then
+  `ALTER ROLE db_datareader ADD MEMBER [argos-readers];`
+- Not the server's Entra admin: the admin is a member of `db_owner` in every
+  user database and enters each one as `dbo`. Argos warns when a `select_only`
+  connection can write; see the
+  [database role check](../guides/security-guide.md#database-role-check).
+
+### A separate Azure CLI profile
+
+`az` keeps its sign-in in `~/.azure`, or in `AZURE_CONFIG_DIR` when that is set.
+Start Argos with `AZURE_CONFIG_DIR` pointing at a profile where only the reader
+identity is signed in (`AZURE_CONFIG_DIR=~/.azure-claude-ro az login`), or set
+`azure_config_dir` on one database to give just that database its own profile:
+
+```ini
+[database.azure_cli]
+type=mssql
+host=myserver.database.windows.net
+database=mydatabase
+authentication=azure-cli
+azure_config_dir=~/.azure-claude-ro
+```
+
+With `azure_config_dir` Argos runs `az account get-access-token` itself with that
+profile, so two databases in one config can use two identities. The path must be
+absolute; a leading `~` is your home directory.
 
 ### Choosing the tenant
 

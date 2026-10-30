@@ -21,7 +21,24 @@ import { getLogger } from '../utils/logger.js';
 // ============================================================================
 
 /**
+ * The SQL filter: what SELECT-only mode refuses before a query reaches the driver.
  *
+ * What it can promise: one statement, led by a read command, with no write, DDL or
+ * privilege keyword anywhere in it, none of the listed side-effect functions, no
+ * invisible formatting characters, and within the complexity limits. The published
+ * bypass families (stacked statements, comments as whitespace, SET, data-modifying
+ * CTEs, SELECT ... INTO, COPY ... TO PROGRAM, side-effect functions, case and
+ * Unicode tricks) are pinned in tests/unit/security-bypass-regression.test.ts.
+ *
+ * What it cannot promise: that a function it does not know has no side effects.
+ * A SELECT may call a user-defined function, or an extension's, that writes, and
+ * no keyword list sees inside it. Nor does it bound load beyond the complexity
+ * score: a heavy read is stopped by query_timeout, not here.
+ *
+ * So this is the second net. The boundary is the database role: a role that cannot
+ * write cannot be made to write by any parser bug. ConnectionManager checks the role
+ * of every select_only connection (src/database/privileges.ts) and warns, or with
+ * require_readonly_role refuses, when it can write.
  */
 export class SecurityManager extends EventEmitter implements ISecurityManager {
   // Commands that are dangerous regardless of select_only mode
@@ -412,6 +429,18 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
       return {
         allowed: false,
         reason: `Query exceeds maximum length of ${this.complexityLimits.maxQueryLength} characters (current: ${query.length})`,
+        confidence: 1.0,
+      };
+    }
+
+    // Invisible formatting characters (zero-width spaces and joiners, bidi controls,
+    // soft hyphens) split a keyword for this validator while meaning nothing to a
+    // reader: DEL<U+200B>ETE is not DELETE here. No read needs them.
+    if (/\p{Cf}/u.test(query)) {
+      return {
+        allowed: false,
+        reason:
+          'Query contains invisible Unicode formatting characters (such as a zero-width space), which are not allowed in SELECT-only mode.',
         confidence: 1.0,
       };
     }
@@ -879,12 +908,38 @@ export class SecurityManager extends EventEmitter implements ISecurityManager {
       'LO_IMPORT',
       'LO_EXPORT',
       'PG_SLEEP',
-      'DBLINK',
+      // PostgreSQL functions that change state from inside a plain SELECT: session
+      // settings (turning a read-only session read-write), other backends, the server
+      // configuration, and sequences (an advance survives a rollback).
+      'SET_CONFIG',
+      'PG_TERMINATE_BACKEND',
+      'PG_CANCEL_BACKEND',
+      'PG_RELOAD_CONF',
+      'PG_ROTATE_LOGFILE',
+      'PG_SWITCH_WAL',
+      'PG_PROMOTE',
+      'NEXTVAL',
+      'SETVAL',
+      'LOWRITE',
     ];
 
     for (const name of dangerousFunctionNames) {
       if (new RegExp(`\\b${name}\\s*\\(`, 'i').test(query)) {
         dangerous.push(`Function: ${name}`);
+      }
+    }
+
+    // Whole families, matched by prefix: dblink_connect/dblink_exec/..., the
+    // large-object functions (lo_from_bytea, lo_unlink, lo_put, ...) and adminpack's
+    // pg_file_write/pg_file_unlink/.... lo_get only reads a large object and stays allowed.
+    const readOnlyMembers = new Set(['LO_GET']);
+    for (const prefix of ['DBLINK', 'LO_', 'PG_FILE_']) {
+      for (const match of query.matchAll(new RegExp(`\\b(${prefix}\\w*)\\s*\\(`, 'gi'))) {
+        const name = match[1]!.toUpperCase();
+        if (!readOnlyMembers.has(name)) {
+          dangerous.push(`Function: ${name}`);
+          break;
+        }
       }
     }
 

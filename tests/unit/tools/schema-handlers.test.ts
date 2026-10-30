@@ -37,6 +37,8 @@ function createMockContext(
       executeQuery: jest.fn(),
       executeBatch: jest.fn(),
       analyzePerformance: jest.fn(),
+      getPrivileges: jest.fn().mockReturnValue(undefined),
+      checkPrivileges: jest.fn().mockResolvedValue(undefined),
     } as any,
     securityManager: {
       validateSelectOnlyQuery: jest.fn(),
@@ -474,6 +476,87 @@ describe('schema-handlers', () => {
       await handleTestConnection(ctx, { database: 'testdb' });
 
       expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('SSH tunnel'));
+    });
+  });
+
+  describe('privilege check', () => {
+    const WRITER = {
+      canWrite: true,
+      principal: 'dbo',
+      reasons: ['db_owner'],
+      notes: [],
+      checkedAt: '2026-10-30T00:00:00.000Z',
+    };
+    const connected = (ctx: ToolHandlerContext) => {
+      (ctx.connectionManager.getConnection as jest.Mock).mockResolvedValue({ isConnected: true });
+      (ctx.connectionManager.executeQuery as jest.Mock).mockResolvedValue({ rows: [{ 1: 1 }] });
+    };
+
+    it('sql_test_connection warns when a select_only connection can write', async () => {
+      const ctx = createMockContext({
+        az: { type: 'mssql', host: 'h', select_only: true } as DatabaseConfig,
+      });
+      connected(ctx);
+      (ctx.connectionManager.checkPrivileges as jest.Mock).mockResolvedValue(WRITER);
+
+      const text = (await handleTestConnection(ctx, { database: 'az' })).content[0].text;
+
+      expect(ctx.connectionManager.checkPrivileges).toHaveBeenCalledWith('az');
+      expect(text).toContain(
+        'Warning: select_only is on, but this connection can write as dbo (db_owner).'
+      );
+      expect(text).toContain("Argos's filter is the only guard.");
+    });
+
+    it('sql_test_connection says when the role is read-only, and when it could not be checked', async () => {
+      const ctx = createMockContext({
+        ro: { type: 'postgresql', host: 'h', select_only: true } as DatabaseConfig,
+      });
+      connected(ctx);
+      (ctx.connectionManager.checkPrivileges as jest.Mock).mockResolvedValue({
+        ...WRITER,
+        canWrite: false,
+        principal: 'reader',
+        reasons: [],
+      });
+      expect((await handleTestConnection(ctx, { database: 'ro' })).content[0].text).toContain(
+        'Database role: read-only (reader)'
+      );
+
+      (ctx.connectionManager.checkPrivileges as jest.Mock).mockRejectedValueOnce(
+        new Error('password=hunter2 rejected')
+      );
+      const leaked = (await handleTestConnection(ctx, { database: 'ro' })).content[0].text;
+      expect(leaked).toContain('could not be checked (password=[REDACTED] rejected)');
+      expect(leaked).not.toContain('hunter2');
+
+      (ctx.connectionManager.checkPrivileges as jest.Mock).mockRejectedValue(
+        new Error('timed out')
+      );
+      const text = (await handleTestConnection(ctx, { database: 'ro' })).content[0].text;
+      expect(text).toContain('Connection successful');
+      expect(text).toContain('Database role: could not be checked (timed out)');
+    });
+
+    it('sql_test_connection says nothing about the role of a full-access database', async () => {
+      const ctx = createMockContext({
+        rw: { type: 'postgresql', host: 'h', select_only: false } as DatabaseConfig,
+      });
+      connected(ctx);
+      expect((await handleTestConnection(ctx, { database: 'rw' })).content[0].text).not.toContain(
+        'Database role'
+      );
+    });
+
+    it('sql_list_databases hands the last check to the summary', async () => {
+      const ctx = createMockContext({
+        az: { type: 'mssql', host: 'h', select_only: true } as DatabaseConfig,
+      });
+      (ctx.connectionManager.getPrivileges as jest.Mock).mockReturnValue(WRITER);
+      await handleListDatabases(ctx);
+      expect(formatDatabaseSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'az', privileges: WRITER })
+      );
     });
   });
 });

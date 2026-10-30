@@ -49,6 +49,19 @@ export interface ConnectionView {
   selectOnly: boolean;
   mcpConfigurable: boolean;
   schemaCapturedAt: string | null;
+  /** The server's last check of a select_only connection's database role; null when none ran. */
+  role: RoleView | null;
+}
+
+/**
+ * What the database role may do, as the MCP server last found it. `canWrite` is
+ * null when the check could not run.
+ */
+export interface RoleView {
+  checkedAt: string;
+  canWrite: boolean | null;
+  principal: string | null;
+  reasons: string[];
 }
 
 export interface SchemaView {

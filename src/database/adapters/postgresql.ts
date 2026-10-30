@@ -2,9 +2,17 @@
  * PostgreSQL Database Adapter
  */
 
+import * as tls from 'node:tls';
 import * as pg from 'pg';
 import type { Client as PgClient, PoolClient } from 'pg';
 import { DatabaseAdapter } from './base.js';
+import { usesAzureCliAuth } from '../../utils/config.js';
+import { azureCliCredential, type EntraCredential } from '../azure-credential.js';
+import {
+  POSTGRES_PRIVILEGE_QUERY,
+  postgresPrivileges,
+  type PrivilegeReport,
+} from '../privileges.js';
 import type {
   DatabaseConnection,
   QueryResult,
@@ -18,11 +26,46 @@ import type {
 // PostgreSQL Adapter Implementation
 // ============================================================================
 
+/** The resource Azure Database for PostgreSQL accepts Entra access tokens for. */
+export const AZURE_POSTGRES_SCOPE = 'https://ossrdbms-aad.database.windows.net/.default';
+
+/**
+ * Whether a connect failure came from acquiring the token rather than from the
+ * connection itself; see the same check in the SQL Server adapter.
+ */
+function isCredentialFailure(error: unknown): boolean {
+  const name = (error as { name?: string } | null)?.name;
+  return name === 'CredentialUnavailableError' || name === 'AuthenticationError';
+}
+
 /**
  *
  */
 export class PostgreSQLAdapter extends DatabaseAdapter {
   private _pool?: pg.Pool;
+  private credential?: Promise<EntraCredential>;
+
+  /** The Azure CLI credential, built once per adapter. */
+  private entraCredential(): Promise<EntraCredential> {
+    this.credential ??= azureCliCredential(this.config);
+    return this.credential;
+  }
+
+  /**
+   * A fresh Entra access token, the password for one new connection. Tokens live
+   * 5 to 60 minutes, so the pool asks again for every connection it opens rather
+   * than holding one string that would expire under it.
+   */
+  private async entraToken(): Promise<string> {
+    const credential = await this.entraCredential();
+    const token = await credential.getToken(AZURE_POSTGRES_SCOPE);
+    if (!token?.token) {
+      const error = new Error('The Azure CLI returned no access token');
+      error.name = 'CredentialUnavailableError';
+      throw error;
+    }
+    return token.token;
+  }
 
   // ============================================================================
   // Connection Management
@@ -34,6 +77,7 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
       const database = this.config.database as string;
       const username = this.config.username as string;
       const password = this.config.password as string;
+      const azureCli = usesAzureCliAuth(this.config);
 
       // Same resolution as every other adapter: query_timeout, else the
       // connection timeout, else 30s. This used to read query_timeout directly
@@ -46,7 +90,8 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
         port: this.parseConfigValue(this.config.port, 'number', 5432),
         database,
         user: username,
-        password,
+        // An async password is called by pg for every new connection.
+        password: azureCli ? () => this.entraToken() : password,
         max: 10,
         connectionTimeoutMillis: this.connectionTimeout,
         // Server-side cancellation: PostgreSQL aborts a query that runs longer than
@@ -55,12 +100,17 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
         query_timeout: statementTimeout,
       };
 
-      // Mirror the same SSL branches as the old connect() to avoid behavior change
-      if (this.config.ssl !== undefined) {
+      if (azureCli) {
+        // A bearer token on an unverified connection goes to whoever answers, and is
+        // replayable against every database the identity can reach: TLS with
+        // certificate verification, whatever ssl and ssl_verify say.
+        poolConfig.ssl = this.verifiedTls();
+      } else if (this.config.ssl !== undefined) {
+        // Mirror the same SSL branches as the old connect() to avoid behavior change
         const sslEnabled = this.parseConfigValue(this.config.ssl, 'boolean', false);
         if (sslEnabled) {
           const sslVerify = this.verifyServerCertificate();
-          poolConfig.ssl = { rejectUnauthorized: sslVerify };
+          poolConfig.ssl = sslVerify ? this.verifiedTls() : { rejectUnauthorized: false };
         } else {
           poolConfig.ssl = false; // explicitly disable
         }
@@ -72,10 +122,28 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
   }
 
   /**
+   * TLS with certificate verification. Through an SSH tunnel the connection goes to
+   * 127.0.0.1, so the certificate is checked against the database's own hostname
+   * (tls_servername), which is also sent as SNI.
+   */
+  private verifiedTls(): pg.PoolConfig['ssl'] {
+    const name = this.config.tls_servername;
+    if (!name) return { rejectUnauthorized: true };
+    return {
+      rejectUnauthorized: true,
+      servername: name,
+      checkServerIdentity: (_host, cert) => tls.checkServerIdentity(name, cert),
+    };
+  }
+
+  /**
    *
    */
   async connect(): Promise<DatabaseConnection> {
-    this.validateConfig(['host', 'database', 'username', 'password']);
+    const azureCli = usesAzureCliAuth(this.config);
+    this.validateConfig(
+      azureCli ? ['host', 'database', 'username'] : ['host', 'database', 'username', 'password']
+    );
     try {
       const client: PoolClient = await this.getPool().connect();
       if (this.config.read_only_session) {
@@ -90,7 +158,13 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
       }
       return client as DatabaseConnection;
     } catch (error) {
-      throw this.createError('Failed to acquire PostgreSQL connection from pool', error as Error);
+      throw this.createError(
+        azureCli && isCredentialFailure(error)
+          ? 'Failed to connect to PostgreSQL using Azure CLI authentication. ' +
+              'Check that the Azure CLI is installed and that `az login` has been run'
+          : 'Failed to acquire PostgreSQL connection from pool',
+        error as Error
+      );
     }
   }
 
@@ -215,6 +289,11 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
   buildExplainQuery(query: string): string {
     // Use JSON format for better parsing and analysis
     return `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`;
+  }
+
+  /** What this connection's role may do, from one read-only query. */
+  override async probePrivileges(connection: DatabaseConnection): Promise<PrivilegeReport> {
+    return postgresPrivileges(await this.executeQuery(connection, POSTGRES_PRIVILEGE_QUERY));
   }
 
   /**

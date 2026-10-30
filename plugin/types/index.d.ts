@@ -18,6 +18,19 @@ export type ConnectionView = {
   selectOnly: boolean
   mcpConfigurable: boolean
   schemaCapturedAt: string | null
+  /**
+   * The MCP server's last check of a select_only connection's database role
+   * (`RoleView`); null when none ran, absent from a CLI older than the check.
+   */
+  role?: RoleView | null
+}
+
+/** What the database role may do, as the MCP server last found it; `canWrite` null when the check could not run. */
+export type RoleView = {
+  checkedAt: string
+  canWrite: boolean | null
+  principal: string | null
+  reasons: string[]
 }
 
 /** A change the schema check found, as the CLI's `src/schema/diff.ts` names it. */

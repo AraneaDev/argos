@@ -44,10 +44,31 @@ describe('the /argos command', () => {
     const port = fakePort()
     expect(await runCommand(port.io, '')).toBe('Argos pane opened.')
     expect(port.opened).toEqual(['argos'])
+    // The pane lays no ground of its own: the terminal's shows through.
+    expect(port.openedWith[0]).toMatchObject({ id: 'argos', backgroundColor: 'transparent' })
     await port.advance()
     expect(port.runs.map(r => r.argv[2]).sort()).toEqual(['connections', 'history', 'pins'])
     expect(await runCommand(port.io, '  ')).toBe('Argos pane closed.')
     expect(port.closed).toEqual(['argos'])
+  })
+
+  it('opens without the transparent background on a host that refuses it', async () => {
+    const port = fakePort()
+    const open = port.io.ui.open
+    port.io.ui.open = async (args: { id: string; backgroundColor?: string }) => {
+      if (args.backgroundColor !== undefined) throw new Error('unknown key backgroundColor')
+      return open(args)
+    }
+    expect(await runCommand(port.io, '')).toBe('Argos pane opened.')
+    expect(port.openedWith).toEqual([{ id: 'argos', title: 'Argos' }])
+  })
+
+  it('says so when the pane cannot be opened at all', async () => {
+    const port = fakePort()
+    port.io.ui.open = async () => {
+      throw new Error('no surface')
+    }
+    expect(await runCommand(port.io, '')).toBe('argos: the pane could not be opened (no surface)')
   })
 
   it('answers anything else with its usage', async () => {

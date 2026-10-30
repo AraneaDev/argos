@@ -13,6 +13,7 @@ const LAST_CHANGE_SCAN = 500;
 
 /** List configured connections without opening any of them. */
 export async function connections(core: Core): Promise<ConnectionView[]> {
+  const roles = await core.store.roles();
   return Object.entries(core.config.databases).map(([name, c]) => ({
     name,
     type: c.type,
@@ -22,6 +23,8 @@ export async function connections(core: Core): Promise<ConnectionView[]> {
     selectOnly: c.select_only !== false,
     mcpConfigurable: !!c.mcp_configurable,
     schemaCapturedAt: core.schemaManager.getSchema(name)?.captured_at ?? null,
+    // Only a select_only connection is checked; a stale check of one switched to full access is not shown.
+    role: c.select_only !== false ? (roles[name] ?? null) : null,
   }));
 }
 

@@ -3,7 +3,7 @@
  */
 
 import type { DatabaseConfig, DatabaseTypeString } from '../../types/index.js';
-import { usesAzureCliAuth } from '../../utils/config.js';
+import { needsUsername, usesAzureCliAuth } from '../../utils/config.js';
 import type { DatabaseAdapter } from './base.js';
 import { MySQLAdapter } from './mysql.js';
 import { PostgreSQLAdapter } from './postgresql.js';
@@ -76,8 +76,9 @@ export class AdapterFactory {
         // config loader exempts the pair too. Without this branch a valid
         // azure-cli database parses and loads but is rejected here, before the
         // adapter that knows how to connect it is ever built.
+        // PostgreSQL still needs the username: the Entra principal's name.
         if (config && usesAzureCliAuth(config)) {
-          return ['host', 'database'];
+          return needsUsername(config) ? ['host', 'database', 'username'] : ['host', 'database'];
         }
         return ['host', 'database', 'username', 'password'];
       default:

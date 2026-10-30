@@ -113,6 +113,43 @@ ssl=true
 select_only=true
 ```
 
+### Azure Database for PostgreSQL with Azure CLI authentication
+
+The Azure CLI's sign-in is the credential: Argos asks it for a Microsoft Entra
+access token and sends that as the password, so no secret is written to
+`config.ini`.
+
+```ini
+[database.azure_pg]
+type=postgresql
+host=myserver.postgres.database.azure.com
+port=5432
+database=myapp
+username=argos-readers
+authentication=azure-cli
+select_only=true
+# Only when the server's tenant is not the CLI's active context. Must be the GUID.
+# azure_tenant_id=00000000-0000-0000-0000-000000000000
+```
+
+- `username` is the Entra principal's name as the database knows it: a user's
+  sign-in name, or a group's display name, as mapped with
+  `SELECT * FROM pgaadauth_create_principal('argos-readers', false, false);`.
+  Grant that role read access only.
+- A token is valid for 5 to 60 minutes, so Argos fetches a fresh one for every
+  new connection the pool opens rather than holding one that expires.
+- TLS with certificate verification is forced. `ssl=false` is a startup error,
+  and `ssl_verify=false` does not reach this path: an access token on an
+  unverified connection goes to whoever answers. Through an SSH tunnel the
+  certificate is checked against `host`, not the tunnel's local address, so a
+  private endpoint behind a bastion still verifies.
+- `az login` must have been run. A token failure says so, rather than surfacing
+  as an opaque login error.
+- `azure_config_dir=~/.azure-claude-ro` takes the token from that Azure CLI
+  profile instead of the server's, so the agent can use a reader identity signed
+  in with `AZURE_CONFIG_DIR=~/.azure-claude-ro az login` while your own shell
+  keeps your login.
+
 ### Cloud Database (Google Cloud SQL)
 ```ini
 [database.gcp_sql]

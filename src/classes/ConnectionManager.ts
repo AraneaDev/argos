@@ -26,8 +26,13 @@ import {
   recordFailure,
   recordSuccess,
 } from '../utils/circuit-breaker.js';
-import { CircuitOpenError } from '../utils/error-handler.js';
+import { CircuitOpenError, sanitizeError } from '../utils/error-handler.js';
 import { writeAuditLog } from '../utils/audit-logger.js';
+import {
+  isPrivilegeReport,
+  privilegeWarning,
+  type PrivilegeProbe,
+} from '../database/privileges.js';
 
 // ============================================================================
 // Connection Manager Class
@@ -94,6 +99,7 @@ export class ConnectionManager extends EventEmitter {
   private sshTunnelManager: EnhancedSSHTunnelManager;
   private logger = getLogger();
   private circuits = new Map<string, CircuitBreakerState>();
+  private privileges = new Map<string, PrivilegeProbe>();
   private metrics?: MetricsManager;
   private queryCache?: QueryCache;
 
@@ -153,6 +159,9 @@ export class ConnectionManager extends EventEmitter {
    */
   public unregisterDatabase(name: string): void {
     delete this.databases[name];
+    this.privileges.delete(name);
+    // An updated or removed database's role check no longer describes it.
+    this.emit('unregistered', name);
 
     // Audit H2: invalidate the query cache for this database so stale results
     // from the old config/host are not served after an update or removal.
@@ -277,6 +286,8 @@ export class ConnectionManager extends EventEmitter {
             ...config,
             host: tunnelInfo.localHost,
             port: tunnelInfo.localPort,
+            // The certificate names the database host, not the tunnel's local end.
+            ...(config.host ? { tls_servername: config.host } : {}),
           };
 
           // Create new adapter with tunnel config
@@ -315,6 +326,24 @@ export class ConnectionManager extends EventEmitter {
         });
       }
 
+      // The database role is the boundary, the filter a second net: check the role once per
+      // connection, before the connection is published, so no caller can be handed it while
+      // require_readonly_role is still deciding.
+      if (config.select_only) {
+        const probe = await this.runPrivilegeProbe(dbName, adapter, connection);
+        if (config.require_readonly_role && !(isPrivilegeReport(probe) && !probe.canWrite)) {
+          await this.discardUnpublished(dbName, config, adapter, connection);
+          const why = isPrivilegeReport(probe)
+            ? `its role can write (${probe.reasons.join('; ')})`
+            : `its privileges could not be checked (${probe.error})`;
+          throw new ConnectionError(
+            `Refused to connect to '${dbName}': require_readonly_role is on and ${why}. ` +
+              'Connect as a read-only role, or turn require_readonly_role off.',
+            { database: dbName }
+          );
+        }
+      }
+
       // Store connection info
       const connectionInfo: ConnectionInfo = {
         connection,
@@ -347,6 +376,67 @@ export class ConnectionManager extends EventEmitter {
         { database: dbName, error: originalMessage }
       );
     }
+  }
+
+  /**
+   * Run the adapter's privilege probe, remember the result and say when a
+   * select_only connection can write. A probe that fails is remembered as such,
+   * never thrown: the result is advice unless require_readonly_role asks for more.
+   */
+  private async runPrivilegeProbe(
+    dbName: string,
+    adapter: DatabaseAdapter,
+    connection: DatabaseConnection
+  ): Promise<PrivilegeProbe> {
+    let probe: PrivilegeProbe;
+    try {
+      probe = await this.withQueryTimeout(
+        dbName,
+        () => adapter.probePrivileges(connection),
+        'Privilege check'
+      );
+    } catch (error) {
+      // Driver errors can carry hosts, users or connection strings: the stored text reaches clients.
+      probe = { error: sanitizeError(error), checkedAt: new Date().toISOString() };
+      this.logger.info(`Could not check the privileges of '${dbName}'`, { error: probe.error });
+    }
+    this.privileges.set(dbName, probe);
+    const warning = privilegeWarning(probe);
+    if (warning) this.logger.warning(`Database '${dbName}': ${warning}`);
+    this.emit('privileges', dbName, probe);
+    return probe;
+  }
+
+  /** Close a connection that was never published: its client, its pool and its tunnel. */
+  private async discardUnpublished(
+    dbName: string,
+    config: DatabaseConfig,
+    adapter: DatabaseAdapter,
+    connection: DatabaseConnection
+  ): Promise<void> {
+    await adapter.disconnect(connection).catch(() => undefined);
+    const poolable = adapter as unknown as { destroyPool?: () => Promise<void> };
+    if (typeof poolable.destroyPool === 'function')
+      await poolable.destroyPool().catch(() => undefined);
+    if (config.ssh_host) await this.sshTunnelManager.closeTunnel(dbName).catch(() => undefined);
+  }
+
+  /** The last privilege check of a select_only database, if one ran. */
+  public getPrivileges(dbName: string): PrivilegeProbe | undefined {
+    return this.privileges.get(dbName);
+  }
+
+  /** Check a select_only database's privileges again on its open (or a new) connection. */
+  async checkPrivileges(dbName: string): Promise<PrivilegeProbe | undefined> {
+    const config = this.getDatabaseConfig(dbName);
+    if (!config?.select_only) return undefined;
+    const fresh = !this.connections.has(dbName);
+    const { connection } = await this.getConnection(dbName);
+    // A new connection was just checked by createConnection.
+    if (fresh) return this.privileges.get(dbName);
+    const adapter = this.adapters.get(dbName);
+    if (!adapter) return undefined;
+    return this.runPrivilegeProbe(dbName, adapter, connection);
   }
 
   /**

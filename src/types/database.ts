@@ -9,6 +9,7 @@ import type {
 } from 'mysql2/promise';
 import type { Database as SQLiteConnection } from 'sqlite3';
 import type { ConnectionPool as MSSQLConnection } from 'mssql';
+import type { PrivilegeProbe } from '../database/privileges.js';
 
 // ============================================================================
 // Database Types
@@ -49,17 +50,25 @@ export interface DatabaseConfig {
   ssl_verify?: boolean; // Verify SSL certificates (default: true)
   select_only?: boolean;
   name_check?: boolean; // Check table/column names against the cached schema before running a query
+  // Refuse a select_only connection whose database role can write, or whose
+  // privileges could not be checked. Off by default: the check then only warns.
+  require_readonly_role?: boolean;
   // Ask the database itself to refuse writes for the whole session (PostgreSQL and
   // MySQL only). Never read from config.ini: the pane CLI sets it on its own copy of
   // each connection so the MCP server's behaviour is unchanged.
   read_only_session?: boolean;
+  // The database's own hostname, set by ConnectionManager on the copy of the config it
+  // points at an SSH tunnel (host then reads 127.0.0.1). A verified TLS connection checks
+  // the certificate against this name instead. Never read from config.ini.
+  tls_servername?: string;
   timeout?: number;
   file?: string; // For SQLite
   encrypt?: boolean; // For MSSQL
 
-  // Authentication mode. Only meaningful for MSSQL; omitted means SQL
-  // authentication with username/password. 'azure-cli' delegates to the
-  // signed-in Azure CLI, so no credentials live in config.ini.
+  // Authentication mode, for MSSQL and PostgreSQL; omitted means username and
+  // password. 'azure-cli' takes an Entra access token from the signed-in Azure
+  // CLI, so no secret lives in config.ini. On PostgreSQL the username is still
+  // needed: it is the Entra principal's name as mapped in the database.
   authentication?: MSSQLAuthenticationMode;
 
   // Tenant to acquire the Azure CLI token from. Only meaningful alongside
@@ -67,6 +76,11 @@ export interface DatabaseConfig {
   // different tenant from the one the server lives in, which is the normal
   // case for an account with access to several.
   azure_tenant_id?: string;
+
+  // Azure CLI profile directory to take the token from, as AZURE_CONFIG_DIR, so
+  // this database can use its own (reader) identity. Only alongside
+  // authentication='azure-cli'; unset, the server's own profile is used.
+  azure_config_dir?: string;
 
   // SSH Tunnel Configuration
   ssh_host?: string;
@@ -230,6 +244,8 @@ export interface DatabaseListItem {
   select_only_mode: boolean;
   mcp_configurable: boolean;
   schema_cached: boolean;
+  /** The last privilege check of a select_only database, if one ran. */
+  privileges?: PrivilegeProbe;
   schema_info?: {
     table_count: number;
     view_count: number;

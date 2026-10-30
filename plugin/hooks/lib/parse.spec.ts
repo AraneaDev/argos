@@ -28,6 +28,14 @@ describe('reading what the argos CLI prints', () => {
     expect(parsePins([{ ...(fixture('pins') as object[])[0], sql: null }])).toBeNull()
   })
 
+  it('reads a connection from a CLI older than the role check, and rejects a malformed role', () => {
+    const [first] = fixture('connections') as Record<string, unknown>[]
+    const { role: _role, ...older } = first!
+    expect(parseConnections([older])).toEqual([older])
+    expect(parseConnections([{ ...first, role: { checkedAt: 't', canWrite: 'no', principal: null, reasons: [] } }])).toBeNull()
+    expect(parseConnections([{ ...first, role: { checkedAt: 't', canWrite: null, principal: null, reasons: [] } }])).not.toBeNull()
+  })
+
   it('rejects what is not the shape at all', () => {
     for (const raw of [null, undefined, 'text', 3, {}, [{}]]) {
       expect(parseConnections(raw)).toBeNull()

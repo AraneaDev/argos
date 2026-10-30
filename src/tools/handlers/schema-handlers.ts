@@ -3,6 +3,7 @@
  * Handles sql_get_schema, sql_refresh_schema, sql_list_databases, sql_test_connection
  */
 
+import { describePrivileges } from '../../database/privileges.js';
 import type {
   SQLGetSchemaArgs,
   SQLTestConnectionArgs,
@@ -96,6 +97,7 @@ export async function handleListDatabases(ctx: ToolHandlerContext): Promise<MCPT
         select_only_mode: !!config.select_only,
         mcp_configurable: !!config.mcp_configurable,
         schema_cached: hasSchema,
+        privileges: ctx.connectionManager.getPrivileges(name),
         schema_info: schemaInfo
           ? {
               table_count: schemaInfo.table_count,
@@ -148,6 +150,12 @@ export async function handleTestConnection(
     // Verify the connection works with a simple query
     await ctx.connectionManager.executeQuery(database, 'SELECT 1');
 
+    // Ask the database what the role may do: never fatal, unless require_readonly_role refused the connection above.
+    const privileges = await ctx.connectionManager.checkPrivileges(database).catch((error) => ({
+      error: sanitizeError(error),
+      checkedAt: new Date().toISOString(),
+    }));
+
     // Capture schema if not cached (schema failure is non-fatal)
     if (!ctx.schemaManager.hasSchema(database)) {
       try {
@@ -162,6 +170,9 @@ export async function handleTestConnection(
     let responseText = ` Connection successful to ${database}\n`;
     if (ctx.sshTunnelManager.hasTunnel(database)) responseText += ` SSH tunnel established\n`;
     if (dbConfig.select_only) responseText += ` SELECT-only mode active\n`;
+    for (const line of describePrivileges(!!dbConfig.select_only, privileges)) {
+      responseText += ` ${line}\n`;
+    }
     if (schema) {
       responseText += ` Schema captured: ${schema.summary.table_count} tables, ${schema.summary.total_columns} columns\n`;
     }
