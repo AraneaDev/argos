@@ -142,7 +142,7 @@ const READS: Array<[string, Dialect[]]> = [
 ];
 
 describe('SELECT-only mode against the published bypass families', () => {
-  const security = new SecurityManager({ max_query_length: 10000 });
+  const security = new SecurityManager();
 
   const cases = BYPASSES.flatMap(([family, sql, dialects]) =>
     dialects.map((d) => [family, d, sql] as const)
