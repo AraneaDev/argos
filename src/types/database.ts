@@ -73,6 +73,11 @@ export interface DatabaseConfig {
   // case for an account with access to several.
   azure_tenant_id?: string;
 
+  // Azure CLI profile directory to take the token from, as AZURE_CONFIG_DIR, so
+  // this database can use its own (reader) identity. Only alongside
+  // authentication='azure-cli'; unset, the server's own profile is used.
+  azure_config_dir?: string;
+
   // SSH Tunnel Configuration
   ssh_host?: string;
   ssh_port?: number;

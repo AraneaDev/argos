@@ -143,6 +143,10 @@ select_only=true
   unverified connection goes to whoever answers.
 - `az login` must have been run. A token failure says so, rather than surfacing
   as an opaque login error.
+- `azure_config_dir=~/.azure-claude-ro` takes the token from that Azure CLI
+  profile instead of the server's, so the agent can use a reader identity signed
+  in with `AZURE_CONFIG_DIR=~/.azure-claude-ro az login` while your own shell
+  keeps your login.
 
 ### Cloud Database (Google Cloud SQL)
 ```ini

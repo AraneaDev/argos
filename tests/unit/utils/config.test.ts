@@ -26,6 +26,7 @@ jest.mock('fs', () => ({
 jest.mock('path', () => ({
   join: jest.fn((...args: string[]) => args.join('/')),
   dirname: jest.fn((p) => p.substring(0, p.lastIndexOf('/')) || '/'),
+  isAbsolute: jest.fn((p: string) => p.startsWith('/')),
 }));
 
 jest.mock('ini', () => ({
@@ -351,6 +352,44 @@ describe('config', () => {
             azure_tenant_id: 'd958da54-24bc-444a-981b-317de09e73ee',
           })
         ).toThrow('azure_tenant_id');
+      });
+
+      it('should accept azure_config_dir with azure-cli and expand a leading ~', () => {
+        const config = parseDatabaseConfig('db', {
+          type: 'mssql',
+          host: 'myserver.database.windows.net',
+          database: 'db',
+          authentication: 'azure-cli',
+          azure_config_dir: '~/.azure-claude-ro',
+        });
+        expect(config.azure_config_dir).toBe(`${require('os').homedir()}/.azure-claude-ro`);
+      });
+
+      it('should reject azure_config_dir without azure-cli, or as a relative path', () => {
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'postgresql',
+            host: 'h',
+            username: 'u',
+            azure_config_dir: '/home/me/.azure-ro',
+          })
+        ).toThrow('requires authentication=azure-cli');
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'postgresql',
+            host: 'h',
+            username: 'u',
+            authentication: 'azure-cli',
+            azure_config_dir: '.azure-ro',
+          })
+        ).toThrow('not an absolute path');
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'sqlite',
+            file: '/tmp/x.db',
+            azure_config_dir: '/home/me/.azure-ro',
+          })
+        ).toThrow('azure_config_dir');
       });
 
       it('should reject an unknown authentication value', () => {

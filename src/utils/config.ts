@@ -4,7 +4,8 @@
  */
 
 import { readFileSync, existsSync, writeFileSync, statSync, mkdirSync, renameSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, isAbsolute } from 'path';
+import { homedir } from 'os';
 import { parse as parseIni } from 'ini';
 
 import type {
@@ -275,9 +276,11 @@ export function parseDatabaseConfig(name: string, config: Record<string, string>
       );
     }
     dbConfig.file = config.file;
-    // The networked path validates these; SQLite has no login, so either key is a mistake.
-    if (config.authentication !== undefined || config.azure_tenant_id !== undefined) {
-      const field = config.authentication !== undefined ? 'authentication' : 'azure_tenant_id';
+    // The networked path validates these; SQLite has no login, so any of them is a mistake.
+    const field = (['authentication', 'azure_tenant_id', 'azure_config_dir'] as const).find(
+      (key) => config[key] !== undefined
+    );
+    if (field) {
       throw new ConfigValidationError(
         `Database '${name}' sets '${field}' but that is only supported for types 'mssql' and 'postgresql'`,
         field,
@@ -341,6 +344,42 @@ function parseAzureTenantId(
   }
 
   dbConfig.azure_tenant_id = tenant;
+}
+
+/**
+ * Parse and validate the optional 'azure_config_dir' key: the Azure CLI profile
+ * this database takes its token from. A leading `~` is the home directory; the
+ * result must be absolute, because the server's working directory is whatever
+ * the MCP client started it in.
+ */
+function parseAzureConfigDir(
+  name: string,
+  config: Record<string, string>,
+  dbConfig: DatabaseConfig
+): void {
+  if (config.azure_config_dir === undefined) {
+    return;
+  }
+
+  if (!usesAzureCliAuth(dbConfig)) {
+    throw new ConfigValidationError(
+      `Database '${name}' sets 'azure_config_dir' but that requires authentication=azure-cli`,
+      'azure_config_dir',
+      name
+    );
+  }
+
+  const raw = config.azure_config_dir.trim();
+  const dir = raw === '~' ? homedir() : raw.startsWith('~/') ? join(homedir(), raw.slice(2)) : raw;
+  if (dir === '' || !isAbsolute(dir)) {
+    throw new ConfigValidationError(
+      `Database '${name}' has azure_config_dir '${config.azure_config_dir}', which is not an absolute path`,
+      'azure_config_dir',
+      name
+    );
+  }
+
+  dbConfig.azure_config_dir = dir;
 }
 
 /**
@@ -423,6 +462,7 @@ function validateNetworkedDatabase(
   }
   parseAuthentication(name, config, dbConfig);
   parseAzureTenantId(name, config, dbConfig);
+  parseAzureConfigDir(name, config, dbConfig);
 
   if (!config.username && needsUsername(dbConfig)) {
     throw new ConfigValidationError(

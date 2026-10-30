@@ -129,6 +129,7 @@ value Argos cannot read is reported instead of guessed.
 | `encrypt` | `true` | Enable connection encryption | `false` |
 | `authentication` | `sql` | Authentication mode: `sql` or `azure-cli` | `azure-cli` |
 | `azure_tenant_id` | *CLI's active tenant* | Tenant to take the Azure CLI token from (GUID) | `00000000-0000-0000-0000-000000000000` |
+| `azure_config_dir` | *the server's profile* | Azure CLI profile directory (as `AZURE_CONFIG_DIR`) this database takes its token from, so it can use its own reader identity | `~/.azure-claude-ro` |
 
 With `authentication=azure-cli` the connection uses the identity already signed
 in to the Azure CLI, so `username` and `password` are neither required nor read.

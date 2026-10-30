@@ -6,6 +6,7 @@ import * as pg from 'pg';
 import type { Client as PgClient, PoolClient } from 'pg';
 import { DatabaseAdapter } from './base.js';
 import { usesAzureCliAuth } from '../../utils/config.js';
+import { azureCliCredential, type EntraCredential } from '../azure-credential.js';
 import {
   POSTGRES_PRIVILEGE_QUERY,
   postgresPrivileges,
@@ -27,11 +28,6 @@ import type {
 /** The resource Azure Database for PostgreSQL accepts Entra access tokens for. */
 export const AZURE_POSTGRES_SCOPE = 'https://ossrdbms-aad.database.windows.net/.default';
 
-/** The part of `@azure/identity`'s TokenCredential this adapter calls. */
-export interface EntraCredential {
-  getToken(scope: string): Promise<{ token: string } | null>;
-}
-
 /**
  * Whether a connect failure came from acquiring the token rather than from the
  * connection itself; see the same check in the SQL Server adapter.
@@ -48,15 +44,9 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
   private _pool?: pg.Pool;
   private credential?: Promise<EntraCredential>;
 
-  /**
-   * The Azure CLI credential, built once and imported lazily so installs that
-   * never touch Azure do not load `@azure/identity`.
-   */
+  /** The Azure CLI credential, built once per adapter. */
   private entraCredential(): Promise<EntraCredential> {
-    this.credential ??= import('@azure/identity').then(({ AzureCliCredential }) => {
-      const tenantId = this.config.azure_tenant_id;
-      return tenantId ? new AzureCliCredential({ tenantId }) : new AzureCliCredential();
-    });
+    this.credential ??= azureCliCredential(this.config);
     return this.credential;
   }
 

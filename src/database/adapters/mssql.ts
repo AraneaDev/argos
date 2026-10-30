@@ -10,6 +10,7 @@ import type { ConnectionPool as MSSQLConnectionPool, IResult, config as MSSQLCon
 // for the real package via `.default` and for the jest mock, which has no `.default`).
 const sql = ((sqlNs as unknown as { default?: typeof sqlNs }).default ?? sqlNs) as typeof sqlNs;
 import { DatabaseAdapter } from './base.js';
+import { azureCliCredential } from '../azure-credential.js';
 import { MSSQL_PRIVILEGE_QUERY, mssqlPrivileges, type PrivilegeReport } from '../privileges.js';
 import type {
   DatabaseConnection,
@@ -82,14 +83,10 @@ export class MSSQLAdapter extends DatabaseAdapter {
     };
 
     if (azureCli) {
-      // Imported lazily so installs that never touch Azure, and the other three
-      // adapters, do not pay to load @azure/identity.
-      const { AzureCliCredential } = await import('@azure/identity');
-      const tenantId = this.config.azure_tenant_id;
       connectionConfig.authentication = {
         type: 'token-credential',
         options: {
-          credential: tenantId ? new AzureCliCredential({ tenantId }) : new AzureCliCredential(),
+          credential: await azureCliCredential(this.config),
         },
       };
     } else {

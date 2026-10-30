@@ -235,9 +235,56 @@ select_only=true
 ```
 
 Needs `az login` beforehand, and the signed-in identity mapped as a database
-user: `CREATE USER [you@company.com] FROM EXTERNAL PROVIDER;`. Encryption and
-certificate verification are forced on for this mode, because an access token is
-a bearer credential and an unverified connection hands it to whoever answers.
+user. Map a dedicated reader identity, or a group, with `db_datareader` only:
+
+```sql
+CREATE USER [argos-readers] FROM EXTERNAL PROVIDER;
+ALTER ROLE db_datareader ADD MEMBER [argos-readers];
+```
+
+Do not let Argos sign in as the server's Entra admin: the admin is a member of
+`db_owner` in every user database and enters each one as `dbo`, so the only thing
+between the agent and a `DELETE` is Argos's filter. Argos checks this on connect
+and warns (see the [database role check](docs/guides/security-guide.md#database-role-check)).
+Encryption and certificate verification are forced on for this mode, because an
+access token is a bearer credential and an unverified connection hands it to
+whoever answers.
+
+#### A separate Azure identity for the agent
+
+The Azure CLI keeps its sign-in in a profile directory, `~/.azure` unless
+`AZURE_CONFIG_DIR` says otherwise. Sign the reader identity in to a profile of
+its own, and start Argos with that variable, so the agent never uses your own,
+possibly admin, login:
+
+```bash
+export AZURE_CONFIG_DIR="$HOME/.azure-claude-ro"
+az login            # as the reader identity
+claude mcp add argos --scope user -e AZURE_CONFIG_DIR="$HOME/.azure-claude-ro" -- \
+  node "$(pwd)/dist/cli.js" serve --config "$HOME/.config/argos/config.ini"
+```
+
+Your own shell keeps `~/.azure` and your own login. To give one database its own
+profile instead of the whole server, set `azure_config_dir` on it:
+
+```ini
+[database.azure_sql]
+type=mssql
+host=your-server.database.windows.net
+database=your_database_name
+authentication=azure-cli
+azure_config_dir=~/.azure-claude-ro
+```
+
+Then check who Argos is from inside a session, with `sql_query`:
+
+```sql
+SELECT USER_NAME() AS db_user, IS_ROLEMEMBER('db_owner') AS is_owner,
+       IS_ROLEMEMBER('db_datawriter') AS is_writer;
+```
+
+`db_user` should be the reader, and both flags `0`. `sql_test_connection` runs
+the same check and says so.
 
 See the [SQL Server guide](docs/databases/sql-server.md#azure-cli-authentication)
 for the details, including unattended use.
