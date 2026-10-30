@@ -6,6 +6,7 @@ import sqlite3 from 'sqlite3';
 import { connections, runPaneCommand } from '../../../src/cli/pane-commands.js';
 import { openCore } from '../../../src/cli/core.js';
 import { PaneStore, dataDirFor } from '../../../src/pane/store.js';
+import { sqlitePrivileges } from '../../../src/database/privileges.js';
 
 const FIXTURES = join(__dirname, '..', '..', 'fixtures', 'pane-contract');
 const STAMP = '2000-01-01T00:00:00.000Z';
@@ -57,6 +58,10 @@ describe('pane commands', () => {
   });
 
   it('lists connections with selectOnly as configured', async () => {
+    // The MCP server's role checks, as it records them; a full-access connection's is not shown.
+    const store = new PaneStore(dataDirFor(configPath));
+    await store.recordRole('demo', { ...sqlitePrivileges(true), checkedAt: STAMP });
+    await store.recordRole('writable', { ...sqlitePrivileges(false), checkedAt: STAMP });
     const out = await runPaneCommand('connections', ['--config', configPath], schemas);
     expect(out.code).toBe(0);
     const list = out.json as any[];
@@ -67,8 +72,12 @@ describe('pane commands', () => {
       ssl: false,
       selectOnly: true,
       mcpConfigurable: false,
+      role: { checkedAt: STAMP, canWrite: false, principal: null, reasons: [] },
     });
-    expect(list.find((c) => c.name === 'writable').selectOnly).toBe(false);
+    expect(list.find((c) => c.name === 'writable')).toMatchObject({
+      selectOnly: false,
+      role: null,
+    });
     await mkdir(FIXTURES, { recursive: true });
     await writeFile(
       join(FIXTURES, 'connections.json'),

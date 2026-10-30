@@ -584,6 +584,41 @@ describe('response-formatter', () => {
       expect(result).toContain('INSERT, UPDATE, DELETE, DROP, CREATE, ALTER');
     });
 
+    it('says the database role has not been checked before Argos connects', () => {
+      const db: DatabaseListItem = {
+        name: 'mydb',
+        type: 'mssql',
+        ssh_enabled: false,
+        ssl_enabled: false,
+        select_only_mode: true,
+        mcp_configurable: false,
+        schema_cached: false,
+      };
+      expect(formatDatabaseSummary(db)).toContain('Database role: not checked yet');
+    });
+
+    it('warns under SELECT-only when the role can write', () => {
+      const db: DatabaseListItem = {
+        name: 'mydb',
+        type: 'mssql',
+        ssh_enabled: false,
+        ssl_enabled: false,
+        select_only_mode: true,
+        mcp_configurable: false,
+        schema_cached: false,
+        privileges: {
+          canWrite: true,
+          principal: 'dbo',
+          reasons: ['db_owner'],
+          notes: [],
+          checkedAt: 'now',
+        },
+      };
+      expect(formatDatabaseSummary(db)).toContain(
+        ' Warning: select_only is on, but this connection can write as dbo (db_owner).'
+      );
+    });
+
     it('should show MCP configurable when true', () => {
       const db: DatabaseListItem = {
         name: 'mydb',

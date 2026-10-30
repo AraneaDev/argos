@@ -10,6 +10,7 @@ import type { ConnectionPool as MSSQLConnectionPool, IResult, config as MSSQLCon
 // for the real package via `.default` and for the jest mock, which has no `.default`).
 const sql = ((sqlNs as unknown as { default?: typeof sqlNs }).default ?? sqlNs) as typeof sqlNs;
 import { DatabaseAdapter } from './base.js';
+import { MSSQL_PRIVILEGE_QUERY, mssqlPrivileges, type PrivilegeReport } from '../privileges.js';
 import type {
   DatabaseConnection,
   QueryResult,
@@ -348,6 +349,11 @@ export class MSSQLAdapter extends DatabaseAdapter {
    */
   buildExplainQuery(query: string): string {
     return `SET SHOWPLAN_ALL ON; ${query}; SET SHOWPLAN_ALL OFF`;
+  }
+
+  /** What this connection's role may do, from one read-only query. */
+  override async probePrivileges(connection: DatabaseConnection): Promise<PrivilegeReport> {
+    return mssqlPrivileges(await this.executeQuery(connection, MSSQL_PRIVILEGE_QUERY));
   }
 
   /**

@@ -276,7 +276,11 @@ query_timeout=30000
 
 1. **Query validation**: SQL injection prevention and syntax analysis
 2. **Complexity limits**: resource-intensive queries are refused
-3. **SELECT-only mode**: read-only database access for production safety
+3. **SELECT-only mode**: Argos refuses anything but a read. The filter is a second net: the
+   database role is the boundary, so for a `select_only` database Argos asks the database
+   once per connection whether its role can write, and warns in `sql_test_connection`,
+   `sql_list_databases` and the pane when it can. Set `require_readonly_role=true` to refuse
+   such a connection instead
 4. **Read-only pane**: what you run from the pane opens read-only at the database (SQLite
    read-only mode, a read-only PostgreSQL or MySQL session) behind the SELECT-only check; SQL
    Server has no session-level equivalent and relies on the check. The

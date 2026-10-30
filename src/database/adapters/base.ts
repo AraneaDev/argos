@@ -11,6 +11,7 @@ import type {
   DatabaseTypeString,
 } from '../../types/index.js';
 import { RedactionManager } from '../../classes/RedactionManager.js';
+import type { PrivilegeReport } from '../privileges.js';
 
 // ============================================================================
 // Abstract Database Adapter
@@ -97,6 +98,14 @@ export abstract class DatabaseAdapter {
    * that changes whenever the schema changes.
    */
   abstract fingerprintQuery(): string;
+
+  /**
+   * Ask the database what this connection's role may do, with read-only queries.
+   * Engines without a probe say so by throwing; the caller treats that as unknown.
+   */
+  public async probePrivileges(_connection: DatabaseConnection): Promise<PrivilegeReport> {
+    throw new Error(`no privilege probe for ${this.config.type}`);
+  }
 
   // ============================================================================
   // Performance Analysis

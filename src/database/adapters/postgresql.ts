@@ -5,6 +5,11 @@
 import * as pg from 'pg';
 import type { Client as PgClient, PoolClient } from 'pg';
 import { DatabaseAdapter } from './base.js';
+import {
+  POSTGRES_PRIVILEGE_QUERY,
+  postgresPrivileges,
+  type PrivilegeReport,
+} from '../privileges.js';
 import type {
   DatabaseConnection,
   QueryResult,
@@ -215,6 +220,11 @@ export class PostgreSQLAdapter extends DatabaseAdapter {
   buildExplainQuery(query: string): string {
     // Use JSON format for better parsing and analysis
     return `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`;
+  }
+
+  /** What this connection's role may do, from one read-only query. */
+  override async probePrivileges(connection: DatabaseConnection): Promise<PrivilegeReport> {
+    return postgresPrivileges(await this.executeQuery(connection, POSTGRES_PRIVILEGE_QUERY));
   }
 
   /**

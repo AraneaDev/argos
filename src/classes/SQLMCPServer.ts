@@ -4,6 +4,7 @@
  * are extracted into src/tools/ and src/utils/response-formatter.ts
  */
 
+import type { PrivilegeProbe } from '../database/privileges.js';
 import { EventEmitter } from 'events';
 import { existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
@@ -324,6 +325,14 @@ export class SQLMCPServer extends EventEmitter {
     });
     this.connectionManager.on('disconnected', (dbName: string) => {
       this.logger.info(`Database connection closed: ${dbName}`);
+    });
+    // The pane reads the role check from the store: it runs in another process.
+    this.connectionManager.on('privileges', (dbName: string, probe: PrivilegeProbe) => {
+      this.paneStore?.recordRole(dbName, probe).catch((error) => {
+        this.logger.debug(`Could not record the role check of '${dbName}'`, {
+          error: (error as Error).message,
+        });
+      });
     });
     this.connectionManager.on('error', (error: Error, dbName?: string) => {
       this.logger.error(`Database connection error${dbName ? ` (${dbName})` : ''}`, error);

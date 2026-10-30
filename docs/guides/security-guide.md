@@ -69,6 +69,43 @@ CREATE USER 'argos_ro'@'%' IDENTIFIED BY '…';
 GRANT SELECT ON app.* TO 'argos_ro'@'%';
 ```
 
+### Database role check
+
+Argos checks that boundary for you. Each time it connects to a `select_only`
+database it asks the database, with read-only queries, what the role may do:
+
+| Engine | What it reads | Counts as "can write" |
+|--------|---------------|-----------------------|
+| SQL Server | `USER_NAME()`, `IS_ROLEMEMBER` for `db_owner`, `db_datawriter`, `db_ddladmin`, `IS_SRVROLEMEMBER('sysadmin')` (NULL on Azure SQL Database), `HAS_PERMS_BY_NAME` on the database and every visible table | any of those roles, entering as `dbo`, or INSERT/UPDATE/DELETE/CREATE TABLE granted directly |
+| PostgreSQL | `rolsuper`, membership of `pg_execute_server_program`, `pg_read_server_files`, `pg_write_server_files`, `pg_write_all_data`, `has_table_privilege` on every visible table, `has_schema_privilege(..., 'CREATE')`, `default_transaction_read_only` | superuser, any of those roles, INSERT/UPDATE/DELETE/TRUNCATE on a table, or CREATE in a schema |
+| MySQL | `SHOW GRANTS FOR CURRENT_USER()` | anything beyond `SELECT`, `SHOW VIEW` and `USAGE`; `FILE` is named on its own |
+| SQLite | the mode Argos opened the file in | a file opened read-write |
+
+When the role can write, `sql_test_connection`, `sql_list_databases` and the
+pane say so:
+
+```
+Warning: select_only is on, but this connection can write as dbo (db_owner).
+Argos's filter is the only guard. Connect as a read-only role.
+```
+
+It is a warning, not a block. Set `require_readonly_role=true` on the database to
+refuse the connection instead; with it on, a check that could not run also
+refuses, because "unknown" is not "read-only".
+
+Two results surprise people:
+
+- **Azure SQL with `authentication=azure-cli`, signed in as the server's Entra
+  admin.** The admin is a member of `db_owner` in every user database and enters
+  each one as `dbo`. Sign in as a dedicated reader identity instead; see the
+  [SQL Server guide](../databases/sql-server.md#azure-cli-authentication).
+- **PostgreSQL 14 and older.** Every role may create tables in `public` unless
+  that was revoked, so the check reports `CREATE in schema public`. Fix it with
+  `REVOKE CREATE ON SCHEMA public FROM PUBLIC;`.
+
+MySQL roles granted to the user are listed in `SHOW GRANTS` by name only; the
+check notes them but does not expand them.
+
 ## Parameters
 
 Pass values through `params` rather than building them into the SQL. Each

@@ -12,7 +12,9 @@ import {
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { QueryResult } from '../types/database.js';
-import type { JournalEntry, Pin, SpoolPage } from './contract.js';
+import type { JournalEntry, Pin, RoleView, SpoolPage } from './contract.js';
+// Type only: the store is also loaded on its own, outside the build, by a multi-process test.
+import type { PrivilegeProbe } from '../database/privileges.js';
 
 const DIR_MODE = 0o700;
 const FILE_MODE = 0o600;
@@ -63,6 +65,9 @@ export class PaneStore {
   }
   private get checksPath(): string {
     return join(this.dir, 'schema-checks.json');
+  }
+  private get rolesPath(): string {
+    return join(this.dir, 'roles.json');
   }
 
   /**
@@ -252,8 +257,53 @@ export class PaneStore {
   }
 
   private async readChecks(): Promise<Record<string, unknown>> {
+    return this.readJsonObject(this.checksPath);
+  }
+
+  /** Record the MCP server's privilege check of a connection, for the pane to show. */
+  async recordRole(database: string, probe: PrivilegeProbe): Promise<void> {
+    await this.ensureDirs();
+    const roles = await this.readJsonObject(this.rolesPath);
+    const role: RoleView =
+      'canWrite' in probe
+        ? {
+            checkedAt: probe.checkedAt,
+            canWrite: probe.canWrite,
+            principal: probe.principal,
+            reasons: probe.reasons,
+          }
+        : { checkedAt: probe.checkedAt, canWrite: null, principal: null, reasons: [] };
+    roles[database] = role;
+    await this.writeAtomic(this.rolesPath, JSON.stringify(roles));
+  }
+
+  /** Every recorded role check, by database name. A malformed entry is left out. */
+  async roles(): Promise<Record<string, RoleView>> {
+    const out: Record<string, RoleView> = {};
+    for (const [db, raw] of Object.entries(await this.readJsonObject(this.rolesPath))) {
+      const r = raw as Partial<RoleView> | null;
+      if (
+        r &&
+        typeof r.checkedAt === 'string' &&
+        (r.canWrite === null || typeof r.canWrite === 'boolean') &&
+        (r.principal === null || typeof r.principal === 'string') &&
+        Array.isArray(r.reasons) &&
+        r.reasons.every((x) => typeof x === 'string')
+      ) {
+        out[db] = {
+          checkedAt: r.checkedAt,
+          canWrite: r.canWrite,
+          principal: r.principal,
+          reasons: r.reasons,
+        };
+      }
+    }
+    return out;
+  }
+
+  private async readJsonObject(path: string): Promise<Record<string, unknown>> {
     try {
-      const parsed = JSON.parse(await readFile(this.checksPath, 'utf8'));
+      const parsed = JSON.parse(await readFile(path, 'utf8'));
       return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     } catch {
       return {};

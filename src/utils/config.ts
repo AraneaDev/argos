@@ -244,6 +244,13 @@ export function parseDatabaseConfig(name: string, config: Record<string, string>
       config.name_check === undefined ? true : parseBool(config.name_check, 'name_check', name),
     mcp_configurable: parseBool(config.mcp_configurable, 'mcp_configurable', name),
   };
+  if (config.require_readonly_role !== undefined) {
+    dbConfig.require_readonly_role = parseBool(
+      config.require_readonly_role,
+      'require_readonly_role',
+      name
+    );
+  }
 
   // Handle SQLite specific configuration
   if (dbConfig.type === 'sqlite') {

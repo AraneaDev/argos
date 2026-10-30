@@ -1827,4 +1827,95 @@ describe('ConnectionManager', () => {
       expect(result).toEqual(mockResult);
     });
   });
+
+  describe('privilege check', () => {
+    const WRITER = {
+      canWrite: true,
+      principal: 'dbo',
+      reasons: ['db_owner'],
+      notes: [],
+      checkedAt: '2026-10-30T00:00:00.000Z',
+    };
+    const READER = { ...WRITER, canWrite: false, principal: 'reader', reasons: [] };
+    const selectOnly = (extra: Partial<DatabaseConfig> = {}): DatabaseConfig => ({
+      ...TestConfigFixtures.validPostgresConfig,
+      select_only: true,
+      ...extra,
+    });
+    const withProbe = (config: DatabaseConfig, probe: () => Promise<unknown>) => {
+      const adapter = MockDatabaseFactory.createPostgresAdapter(config);
+      const spy = jest.spyOn(adapter, 'probePrivileges').mockImplementation(probe as never);
+      jest.spyOn(connectionManager as any, 'createAdapter').mockReturnValue(adapter);
+      return spy;
+    };
+
+    test('checks a select_only connection once on connect and remembers the result', async () => {
+      const spy = withProbe(selectOnly(), async () => WRITER);
+      const seen: unknown[] = [];
+      connectionManager.on('privileges', (db: string, probe: unknown) => seen.push([db, probe]));
+      connectionManager.registerDatabase('ro', selectOnly());
+      await connectionManager.getConnection('ro');
+      await connectionManager.getConnection('ro');
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(connectionManager.getPrivileges('ro')).toEqual(WRITER);
+      expect(seen).toEqual([['ro', WRITER]]);
+    });
+
+    test('does not check a connection that is not select_only', async () => {
+      const config = { ...selectOnly(), select_only: false };
+      const spy = withProbe(config, async () => WRITER);
+      connectionManager.registerDatabase('rw', config);
+      await connectionManager.getConnection('rw');
+      expect(spy).not.toHaveBeenCalled();
+      expect(connectionManager.getPrivileges('rw')).toBeUndefined();
+    });
+
+    test('keeps the connection when the check fails, and remembers the failure', async () => {
+      withProbe(selectOnly(), async () => {
+        throw new Error('permission denied for pg_roles');
+      });
+      connectionManager.registerDatabase('ro', selectOnly());
+      await expect(connectionManager.getConnection('ro')).resolves.toBeDefined();
+      expect(connectionManager.getPrivileges('ro')).toMatchObject({
+        error: 'permission denied for pg_roles',
+      });
+    });
+
+    test('require_readonly_role refuses a role that can write, and closes the connection', async () => {
+      const config = selectOnly({ require_readonly_role: true });
+      withProbe(config, async () => WRITER);
+      connectionManager.registerDatabase('strict', config);
+      await expect(connectionManager.getConnection('strict')).rejects.toThrow(
+        /require_readonly_role is on and its role can write \(db_owner\)/
+      );
+      expect(connectionManager.isConnected('strict')).toBe(false);
+    });
+
+    test('require_readonly_role refuses when the privileges could not be checked', async () => {
+      const config = selectOnly({ require_readonly_role: true });
+      withProbe(config, async () => {
+        throw new Error('no privilege probe');
+      });
+      connectionManager.registerDatabase('strict', config);
+      await expect(connectionManager.getConnection('strict')).rejects.toThrow(
+        /could not be checked/
+      );
+    });
+
+    test('require_readonly_role lets a reader in', async () => {
+      const config = selectOnly({ require_readonly_role: true });
+      withProbe(config, async () => READER);
+      connectionManager.registerDatabase('strict', config);
+      await expect(connectionManager.getConnection('strict')).resolves.toBeDefined();
+    });
+
+    test('checkPrivileges runs the probe again on an open connection', async () => {
+      const spy = withProbe(selectOnly(), async () => READER);
+      connectionManager.registerDatabase('ro', selectOnly());
+      await connectionManager.getConnection('ro');
+      spy.mockImplementation(async () => WRITER as never);
+      await expect(connectionManager.checkPrivileges('ro')).resolves.toEqual(WRITER);
+      expect(spy).toHaveBeenCalledTimes(2);
+    });
+  });
 });

@@ -13,6 +13,8 @@ select_only=true
 timeout=30000
 # Check column names against the cached schema before running a query (default: true)
 # name_check=true
+# Refuse to connect when the database role can write (default: false, which only warns)
+# require_readonly_role=false
 
 # Field Redaction Configuration (optional)
 # redaction_enabled=true

@@ -9,6 +9,7 @@ import type {
 } from 'mysql2/promise';
 import type { Database as SQLiteConnection } from 'sqlite3';
 import type { ConnectionPool as MSSQLConnection } from 'mssql';
+import type { PrivilegeProbe } from '../database/privileges.js';
 
 // ============================================================================
 // Database Types
@@ -49,6 +50,9 @@ export interface DatabaseConfig {
   ssl_verify?: boolean; // Verify SSL certificates (default: true)
   select_only?: boolean;
   name_check?: boolean; // Check table/column names against the cached schema before running a query
+  // Refuse a select_only connection whose database role can write, or whose
+  // privileges could not be checked. Off by default: the check then only warns.
+  require_readonly_role?: boolean;
   // Ask the database itself to refuse writes for the whole session (PostgreSQL and
   // MySQL only). Never read from config.ini: the pane CLI sets it on its own copy of
   // each connection so the MCP server's behaviour is unchanged.
@@ -230,6 +234,8 @@ export interface DatabaseListItem {
   select_only_mode: boolean;
   mcp_configurable: boolean;
   schema_cached: boolean;
+  /** The last privilege check of a select_only database, if one ran. */
+  privileges?: PrivilegeProbe;
   schema_info?: {
     table_count: number;
     view_count: number;

@@ -127,9 +127,24 @@ function capturedOf(at: string | null, now: number): Segment[] {
 }
 
 /**
+ * What the database role of a select_only connection may do, as the MCP server
+ * last found it. A role that can write is the warning: Argos's filter is then
+ * the only guard.
+ */
+function roleOf(c: ConnectionView): Segment[] {
+  if (!c.selectOnly) return [{ text: 'not checked (full access)', dim: true }]
+  const role = c.role ?? null
+  if (role === null) return [{ text: 'not checked yet', dim: true }]
+  if (role.canWrite === null) return [{ text: 'could not be checked', dim: true }]
+  const who: Segment[] = role.principal === null ? [] : [{ text: ` as ${role.principal}`, dim: true }]
+  if (!role.canWrite) return [{ text: 'read-only', color: STATUS_COLOURS.ok }, ...who]
+  return [{ text: `can write: ${role.reasons.join(', ')}`, color: STATUS_COLOURS.warn }, ...who]
+}
+
+/**
  * One connection as a card: its name in the title, then its engine (a chip in
- * its colour), host, tunnel, access, whether MCP may change its config, and
- * when its schema was captured. The marked card is tinted, its first line
+ * its colour), host, tunnel, access, what its database role may do, whether
+ * MCP may change its config, and when its schema was captured. The marked card is tinted, its first line
  * carrying the marker and the press that marks it.
  */
 function connectionBlock(c: ConnectionView, i: number, marked: boolean, now: number): Block {
@@ -143,6 +158,7 @@ function connectionBlock(c: ConnectionView, i: number, marked: boolean, now: num
         line('host', c.host === null ? [{ text: 'local', dim: true }] : [{ text: c.host }]),
         line('tunnel', tunnel === '' ? [{ text: 'none', dim: true }] : [{ text: tunnel }]),
         line('access', c.selectOnly ? [{ text: 'select-only', color: STATUS_COLOURS.ok }] : [{ text: 'full access', color: STATUS_COLOURS.warn }]),
+        line('role', roleOf(c)),
         line('MCP', [{ text: `configurable: ${c.mcpConfigurable ? 'yes' : 'no'}`, ...(c.mcpConfigurable ? {} : { dim: true }) }]),
         line('schema', capturedOf(c.schemaCapturedAt, now)),
       ]

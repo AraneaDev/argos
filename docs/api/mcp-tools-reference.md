@@ -280,7 +280,15 @@ Test connectivity to a database, establish SSH tunnels if needed, and capture sc
  Connection successful to production
  SSH tunnel established
  SELECT-only mode active
+ Database role: read-only (analytics_reader)
  Schema captured: 45 tables, 1,247 columns
+```
+
+**A SELECT-only connection whose role can write:**
+```
+ Connection successful to azure_sql
+ SELECT-only mode active
+ Warning: select_only is on, but this connection can write as dbo (db_owner). Argos's filter is the only guard. Connect as a read-only role.
 ```
 
 **Failed Connection:**

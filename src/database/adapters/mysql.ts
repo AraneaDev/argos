@@ -9,6 +9,7 @@ import type {
   PoolConnection as MySQLPoolConnection,
 } from 'mysql2/promise';
 import { DatabaseAdapter } from './base.js';
+import { MYSQL_PRIVILEGE_QUERY, mysqlPrivileges, type PrivilegeReport } from '../privileges.js';
 import type {
   DatabaseConnection,
   QueryResult,
@@ -309,6 +310,11 @@ export class MySQLAdapter extends DatabaseAdapter {
   buildExplainQuery(query: string): string {
     // Use JSON format for structured analysis (MySQL 5.7+)
     return `EXPLAIN FORMAT=JSON ${query}`;
+  }
+
+  /** What this connection's role may do, from one read-only query. */
+  override async probePrivileges(connection: DatabaseConnection): Promise<PrivilegeReport> {
+    return mysqlPrivileges(await this.executeQuery(connection, MYSQL_PRIVILEGE_QUERY));
   }
 
   /**

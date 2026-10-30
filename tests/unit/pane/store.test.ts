@@ -187,6 +187,39 @@ describe('PaneStore', () => {
     expect((await stat(join(dir, '.argos', 'schema-checks.json'))).mode & 0o777).toBe(0o600);
   });
 
+  it('records role checks per connection, a failed check with canWrite null', async () => {
+    expect(await store.roles()).toEqual({});
+    await store.recordRole('az', {
+      canWrite: true,
+      principal: 'dbo',
+      reasons: ['db_owner'],
+      notes: ['ignored by the pane'],
+      checkedAt: 't1',
+    });
+    await store.recordRole('pg', { error: 'permission denied', checkedAt: 't2' });
+    const again = new PaneStore(join(dir, '.argos'));
+    expect(await again.roles()).toEqual({
+      az: { checkedAt: 't1', canWrite: true, principal: 'dbo', reasons: ['db_owner'] },
+      pg: { checkedAt: 't2', canWrite: null, principal: null, reasons: [] },
+    });
+    expect((await stat(join(dir, '.argos', 'roles.json'))).mode & 0o777).toBe(0o600);
+  });
+
+  it('leaves out a malformed role entry', async () => {
+    await store.recordRole('ok', {
+      canWrite: false,
+      principal: null,
+      reasons: [],
+      notes: [],
+      checkedAt: 't',
+    });
+    const path = join(dir, '.argos', 'roles.json');
+    const roles = JSON.parse(await readFile(path, 'utf8'));
+    roles.bad = { checkedAt: 't', canWrite: 'yes', principal: null, reasons: [] };
+    await writeFile(path, JSON.stringify(roles));
+    expect(Object.keys(await store.roles())).toEqual(['ok']);
+  });
+
   it('two processes appending 500 entries each yield 1000 parseable lines', async () => {
     const src = await readFile(join(__dirname, '../../../src/pane/store.ts'), 'utf8');
     const js = transformSync(src, {
