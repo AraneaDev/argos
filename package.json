@@ -1,6 +1,6 @@
 {
   "name": "argos-mcp",
-  "version": "6.1.0",
+  "version": "6.2.0",
   "description": "Argos - the hundred-eyed MCP server for SQL databases, with support for PostgreSQL, MySQL, SQLite, MSSQL, and SSH tunnels",
   "license": "MIT",
   "type": "module",

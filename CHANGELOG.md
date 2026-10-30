@@ -5,6 +5,21 @@ All notable changes to the Argos-MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.2.0](https://github.com/AraneaDev/argos/compare/v6.1.0...v6.2.0) (2026-10-30)
+
+
+### Features
+
+* authenticate to Azure Database for PostgreSQL with Azure CLI Entra tokens ([c1cc24f](https://github.com/AraneaDev/argos/commit/c1cc24f691956d2fe2633e38a2437af6dd071ebf))
+* **pane:** draw the Argos pane on a transparent background ([c1cc24f](https://github.com/AraneaDev/argos/commit/c1cc24f691956d2fe2633e38a2437af6dd071ebf))
+* take a database's Azure CLI token from its own profile with azure_config_dir ([c1cc24f](https://github.com/AraneaDev/argos/commit/c1cc24f691956d2fe2633e38a2437af6dd071ebf))
+* warn when a select_only connection's database role can write ([c1cc24f](https://github.com/AraneaDev/argos/commit/c1cc24f691956d2fe2633e38a2437af6dd071ebf))
+
+
+### Fixes
+
+* **security:** block PostgreSQL side-effect functions and invisible characters in SELECT-only mode ([c1cc24f](https://github.com/AraneaDev/argos/commit/c1cc24f691956d2fe2633e38a2437af6dd071ebf))
+
 ## [6.1.0](https://github.com/AraneaDev/argos/compare/v6.0.1...v6.1.0) (2026-10-28)
 
 
