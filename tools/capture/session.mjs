@@ -469,9 +469,10 @@ export async function createSession({
     })
   );
   // No tips under the spinner: a tip is Claude Code's advice, not the session's work.
+  // The theme goes here too: newer Claude Code builds read it from settings.json.
   await writeFile(
     path.join(configDir, 'settings.json'),
-    JSON.stringify({ spinnerTipsEnabled: false })
+    JSON.stringify({ spinnerTipsEnabled: false, theme })
   );
   const name = sessionName();
   const session = {

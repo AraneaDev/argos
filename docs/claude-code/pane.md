@@ -120,7 +120,7 @@ footer says `tab: leave field`, and Tab moves out so the hotkeys work again.
 
 ### Connections
 
-![The Connections tab: counts across the top and a card each for shop (SQLite, full access) and analytics (PostgreSQL, select-only)](../images/claude-code/connections.png)
+![The Connections tab: counts across the top and a card each for shop (SQLite, full access) and analytics (SQLite, select-only, its role read-only)](../images/claude-code/connections.png)
 
 One card per database from `config.ini`: type, host, whether it uses an SSH
 tunnel or SSL, whether it is SELECT-only, what its database role may do, and how
