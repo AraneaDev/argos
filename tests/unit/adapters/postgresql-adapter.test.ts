@@ -34,7 +34,18 @@ jest.mock('pg', () => ({
   })),
 }));
 
+// Mock '@azure/identity': every getToken call answers a new token, as the CLI does once one expires.
+const mockAzureCliCredentialCtor = jest.fn();
+const mockGetToken = jest.fn();
+jest.mock('@azure/identity', () => ({
+  AzureCliCredential: jest.fn().mockImplementation(function (this: any, ...args: unknown[]) {
+    mockAzureCliCredentialCtor(...args);
+    this.getToken = mockGetToken;
+  }),
+}));
+
 import * as pg from 'pg';
+import { AZURE_POSTGRES_SCOPE } from '../../../src/database/adapters/postgresql.js';
 
 // ============================================================================
 // Test Suite
@@ -917,6 +928,91 @@ describe('PostgreSQLAdapter', () => {
       );
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('azure-cli authentication', () => {
+    const azureConfig = (extra: Partial<DatabaseConfig> = {}): DatabaseConfig => ({
+      type: 'postgresql',
+      host: 'myserver.postgres.database.azure.com',
+      port: 5432,
+      database: 'app',
+      username: 'argos-readers',
+      authentication: 'azure-cli',
+      ...extra,
+    });
+    const poolConfig = async (c: DatabaseConfig): Promise<pg.PoolConfig> => {
+      await new PostgreSQLAdapter(c).connect();
+      const calls = (pg.Pool as unknown as jest.Mock).mock.calls;
+      return calls[calls.length - 1][0] as pg.PoolConfig;
+    };
+
+    beforeEach(() => {
+      let n = 0;
+      mockGetToken.mockImplementation(async () => ({
+        token: `token-${++n}`,
+        expiresOnTimestamp: 0,
+      }));
+    });
+
+    it('connects with the Entra principal as user and no password in the config', async () => {
+      const pool = await poolConfig(azureConfig());
+      expect(pool.user).toBe('argos-readers');
+      expect(typeof pool.password).toBe('function');
+    });
+
+    it('fetches a fresh token from the Azure CLI for every new connection', async () => {
+      const pool = await poolConfig(azureConfig());
+      const password = pool.password as () => Promise<string>;
+      await expect(password()).resolves.toBe('token-1');
+      await expect(password()).resolves.toBe('token-2');
+      expect(mockGetToken).toHaveBeenCalledTimes(2);
+      expect(mockGetToken).toHaveBeenCalledWith(AZURE_POSTGRES_SCOPE);
+      expect(AZURE_POSTGRES_SCOPE).toBe('https://ossrdbms-aad.database.windows.net/.default');
+      // One credential, built once.
+      expect(mockAzureCliCredentialCtor).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes the configured tenant to AzureCliCredential', async () => {
+      const pool = await poolConfig(
+        azureConfig({ azure_tenant_id: 'd958da54-24bc-444a-981b-317de09e73ee' })
+      );
+      await (pool.password as () => Promise<string>)();
+      expect(mockAzureCliCredentialCtor).toHaveBeenCalledWith({
+        tenantId: 'd958da54-24bc-444a-981b-317de09e73ee',
+      });
+    });
+
+    it('forces TLS with certificate verification, whatever ssl and ssl_verify say', async () => {
+      expect((await poolConfig(azureConfig())).ssl).toEqual({ rejectUnauthorized: true });
+      expect((await poolConfig(azureConfig({ ssl_verify: false }))).ssl).toEqual({
+        rejectUnauthorized: true,
+      });
+      expect((await poolConfig(azureConfig({ ssl: false }))).ssl).toEqual({
+        rejectUnauthorized: true,
+      });
+    });
+
+    it('refuses an empty token rather than sending no password', async () => {
+      mockGetToken.mockResolvedValueOnce(null);
+      const pool = await poolConfig(azureConfig());
+      await expect((pool.password as () => Promise<string>)()).rejects.toThrow('no access token');
+    });
+
+    it('points at az login when the token could not be acquired', async () => {
+      const failure = Object.assign(new Error('Please run az login'), {
+        name: 'CredentialUnavailableError',
+      });
+      mockPoolConnect.mockRejectedValueOnce(failure);
+      await expect(new PostgreSQLAdapter(azureConfig()).connect()).rejects.toThrow(
+        /Azure CLI authentication.*az login/
+      );
+    });
+
+    it('keeps the plain password path unchanged', async () => {
+      const pool = await poolConfig(config);
+      expect(pool.password).toBe('testpass');
+      expect(mockGetToken).not.toHaveBeenCalled();
     });
   });
 });

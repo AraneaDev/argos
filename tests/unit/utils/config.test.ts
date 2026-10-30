@@ -296,6 +296,63 @@ describe('config', () => {
         ).toThrow('authentication');
       });
 
+      it('should accept azure-cli authentication for postgresql with a username and no password', () => {
+        for (const type of ['postgresql', 'postgres']) {
+          const config = parseDatabaseConfig('db', {
+            type,
+            host: 'myserver.postgres.database.azure.com',
+            database: 'db',
+            username: 'argos-readers',
+            authentication: 'azure-cli',
+            azure_tenant_id: 'd958da54-24bc-444a-981b-317de09e73ee',
+          });
+          expect(config.authentication).toBe('azure-cli');
+          expect(config.username).toBe('argos-readers');
+          expect(config.password).toBeUndefined();
+        }
+      });
+
+      it('should require the Entra principal as username for postgresql azure-cli', () => {
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'postgresql',
+            host: 'myserver.postgres.database.azure.com',
+            database: 'db',
+            authentication: 'azure-cli',
+          })
+        ).toThrow("missing required 'username'");
+      });
+
+      it('should reject ssl=false alongside azure-cli authentication on postgresql', () => {
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'postgresql',
+            host: 'myserver.postgres.database.azure.com',
+            database: 'db',
+            username: 'u',
+            authentication: 'azure-cli',
+            ssl: 'false',
+          })
+        ).toThrow('ssl=false');
+      });
+
+      it('should reject azure-cli authentication and azure_tenant_id for sqlite', () => {
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'sqlite',
+            file: '/tmp/x.db',
+            authentication: 'azure-cli',
+          })
+        ).toThrow("only supported for types 'mssql' and 'postgresql'");
+        expect(() =>
+          parseDatabaseConfig('db', {
+            type: 'sqlite',
+            file: '/tmp/x.db',
+            azure_tenant_id: 'd958da54-24bc-444a-981b-317de09e73ee',
+          })
+        ).toThrow('azure_tenant_id');
+      });
+
       it('should reject an unknown authentication value', () => {
         expect(() =>
           parseDatabaseConfig('db', {

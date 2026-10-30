@@ -61,9 +61,10 @@ export interface DatabaseConfig {
   file?: string; // For SQLite
   encrypt?: boolean; // For MSSQL
 
-  // Authentication mode. Only meaningful for MSSQL; omitted means SQL
-  // authentication with username/password. 'azure-cli' delegates to the
-  // signed-in Azure CLI, so no credentials live in config.ini.
+  // Authentication mode, for MSSQL and PostgreSQL; omitted means username and
+  // password. 'azure-cli' takes an Entra access token from the signed-in Azure
+  // CLI, so no secret lives in config.ini. On PostgreSQL the username is still
+  // needed: it is the Entra principal's name as mapped in the database.
   authentication?: MSSQLAuthenticationMode;
 
   // Tenant to acquire the Azure CLI token from. Only meaningful alongside

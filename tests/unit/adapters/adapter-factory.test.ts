@@ -242,6 +242,19 @@ describe('AdapterFactory', () => {
       ).toEqual(['host', 'database', 'username', 'password']);
     });
 
+    it('should drop only the password for postgresql with azure-cli auth', () => {
+      // The token is the password; the username is the Entra principal's name.
+      expect(
+        AdapterFactory.getRequiredFields('postgresql', {
+          type: 'postgresql',
+          authentication: 'azure-cli',
+          host: 'example.postgres.database.azure.com',
+          database: 'app',
+          username: 'argos-readers',
+        } as unknown as DatabaseConfig)
+      ).toEqual(['host', 'database', 'username']);
+    });
+
     it('should accept an azure-cli mssql config that has no username or password', () => {
       const result = AdapterFactory.validateConfig({
         name: 'azure_db',

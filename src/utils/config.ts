@@ -62,14 +62,25 @@ export type FullyParsedConfig = ParsedServerConfig & {
 const SHELL_METACHAR_RE = /[;&|$()><]/;
 const EMBEDDED_CREDENTIALS_RE = /[^@]+:[^@]+@/;
 
+/** The engines that can take an Entra access token from the Azure CLI. */
+const AZURE_CLI_TYPES: readonly string[] = ['mssql', 'postgresql', 'postgres'];
+
 /**
- * Azure CLI authentication takes its identity from the signed-in `az` session,
- * so a username and password are not merely optional but absent by design.
- * Every credential check has to agree on that, or a config valid at parse time
- * fails at connect time (or the reverse).
+ * Azure CLI authentication takes its credential from the signed-in `az` session,
+ * so a password is not merely optional but absent by design. Every credential
+ * check has to agree on that, or a config valid at parse time fails at connect
+ * time (or the reverse).
  */
 export function usesAzureCliAuth(config: Pick<DatabaseConfig, 'type' | 'authentication'>): boolean {
-  return config.type === 'mssql' && config.authentication === 'azure-cli';
+  return AZURE_CLI_TYPES.includes(config.type) && config.authentication === 'azure-cli';
+}
+
+/**
+ * Whether the database still needs a username. SQL Server takes the identity
+ * from the token; PostgreSQL needs the Entra principal's name as its user.
+ */
+export function needsUsername(config: Pick<DatabaseConfig, 'type' | 'authentication'>): boolean {
+  return !(usesAzureCliAuth(config) && config.type === 'mssql');
 }
 
 /**
@@ -82,9 +93,11 @@ export function validateDatabaseConfig(config: DatabaseConfig): ValidationResult
   if (t === 'mysql' || t === 'postgresql' || t === 'mssql') {
     if (!config.host) errors.push({ field: 'host', message: 'host is required' });
     if (!config.port) errors.push({ field: 'port', message: 'port is required' });
-    if (!usesAzureCliAuth(config)) {
+    if (needsUsername(config)) {
       if (!(config as unknown as Record<string, unknown>).user && !config.username)
         errors.push({ field: 'user', message: 'user is required' });
+    }
+    if (!usesAzureCliAuth(config)) {
       if (!config.password) errors.push({ field: 'password', message: 'password is required' });
     }
     if (!config.database) errors.push({ field: 'database', message: 'database is required' });
@@ -262,6 +275,15 @@ export function parseDatabaseConfig(name: string, config: Record<string, string>
       );
     }
     dbConfig.file = config.file;
+    // The networked path validates these; SQLite has no login, so either key is a mistake.
+    if (config.authentication !== undefined || config.azure_tenant_id !== undefined) {
+      const field = config.authentication !== undefined ? 'authentication' : 'azure_tenant_id';
+      throw new ConfigValidationError(
+        `Database '${name}' sets '${field}' but that is only supported for types 'mssql' and 'postgresql'`,
+        field,
+        name
+      );
+    }
   } else {
     // Handle other database types
     validateNetworkedDatabase(name, config, dbConfig);
@@ -324,8 +346,9 @@ function parseAzureTenantId(
 /**
  * Parse and validate the optional 'authentication' key.
  *
- * Only the SQL Server adapter can act on it, so accepting it elsewhere would
- * mean silently ignoring a key the user believed changed how they authenticate.
+ * Only the SQL Server and PostgreSQL adapters can act on it, so accepting it
+ * elsewhere would mean silently ignoring a key the user believed changed how
+ * they authenticate.
  */
 function parseAuthentication(
   name: string,
@@ -338,9 +361,9 @@ function parseAuthentication(
 
   const mode = config.authentication.trim().toLowerCase();
 
-  if (dbConfig.type !== 'mssql') {
+  if (!AZURE_CLI_TYPES.includes(dbConfig.type)) {
     throw new ConfigValidationError(
-      `Database '${name}' sets 'authentication' but that is only supported for type 'mssql'`,
+      `Database '${name}' sets 'authentication' but that is only supported for types 'mssql' and 'postgresql'`,
       'authentication',
       name
     );
@@ -360,6 +383,16 @@ function parseAuthentication(
   // The adapter forces encryption on for token authentication. Accepting
   // encrypt=false here would mean quietly doing the opposite of what the file
   // says, so an explicit one is a startup error instead.
+  if (mode === 'azure-cli' && dbConfig.type !== 'mssql' && config.ssl !== undefined) {
+    if (!parseBool(config.ssl, 'ssl', name)) {
+      throw new ConfigValidationError(
+        `Database '${name}' sets ssl=false with authentication=azure-cli. ` +
+          'An access token requires a verified, encrypted connection; remove ssl or set it to true',
+        'ssl',
+        name
+      );
+    }
+  }
   if (mode === 'azure-cli' && config.encrypt !== undefined) {
     if (!parseBool(config.encrypt, 'encrypt', name)) {
       throw new ConfigValidationError(
@@ -391,7 +424,7 @@ function validateNetworkedDatabase(
   parseAuthentication(name, config, dbConfig);
   parseAzureTenantId(name, config, dbConfig);
 
-  if (!config.username && !usesAzureCliAuth(dbConfig)) {
+  if (!config.username && needsUsername(dbConfig)) {
     throw new ConfigValidationError(
       `Database '${name}' missing required 'username' field`,
       'username',

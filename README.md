@@ -242,6 +242,29 @@ a bearer credential and an unverified connection hands it to whoever answers.
 See the [SQL Server guide](docs/databases/sql-server.md#azure-cli-authentication)
 for the details, including unattended use.
 
+### Azure Database for PostgreSQL without a password
+
+The same Azure CLI sign-in works for Azure Database for PostgreSQL. The Entra
+access token is the password, fetched fresh for every new connection because it
+is valid for 5 to 60 minutes.
+
+```ini
+[database.azure_pg]
+type=postgresql
+host=your-server.postgres.database.azure.com
+port=5432
+database=your_database_name
+username=argos-readers
+authentication=azure-cli
+select_only=true
+# azure_tenant_id=00000000-0000-0000-0000-000000000000
+```
+
+`username` is the Entra user or group as mapped in the database with
+`pgaadauth_create_principal`. TLS with certificate verification is forced, for
+the same reason as for Azure SQL. See the
+[PostgreSQL guide](docs/databases/postgresql.md#azure-database-for-postgresql-with-azure-cli-authentication).
+
 ### Multi-Database Analytics Setup
 ```ini
 [database.transactions]

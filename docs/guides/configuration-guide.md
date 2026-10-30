@@ -134,6 +134,11 @@ With `authentication=azure-cli` the connection uses the identity already signed
 in to the Azure CLI, so `username` and `password` are neither required nor read.
 See the [SQL Server guide](../databases/sql-server.md#azure-cli-authentication).
 
+PostgreSQL takes `authentication=azure-cli` and `azure_tenant_id` too, for Azure
+Database for PostgreSQL. There `username` is still required: it is the Entra
+principal's name. See the
+[PostgreSQL guide](../databases/postgresql.md#azure-database-for-postgresql-with-azure-cli-authentication).
+
 ### Default Port Numbers
 - **PostgreSQL**: 5432
 - **MySQL**: 3306
