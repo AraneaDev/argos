@@ -36,9 +36,13 @@ reaches the driver:
 - **No dangerous construct appears** — `INTO OUTFILE`, `INTO DUMPFILE`,
   `COPY … PROGRAM`, `WAITFOR DELAY`, and function calls such as `LOAD_FILE`,
   `SYSTEM`, `SHELL`, `EXEC`, `BENCHMARK`, `SLEEP`, `pg_read_file`, `pg_ls_dir`,
-  `lo_import`, `lo_export`, `pg_sleep` and `dblink`. These are matched as
-  function calls with a word boundary, so an ordinary column named
-  `description` is not mistaken for `SCRIPT`.
+  `pg_sleep`, every `dblink*`, `lo_*` and `pg_file_*` function, and the
+  PostgreSQL functions that change state from inside a SELECT: `set_config`,
+  `pg_terminate_backend`, `pg_cancel_backend`, `pg_reload_conf`, `nextval` and
+  `setval`. These are matched as function calls with a word boundary, so an
+  ordinary column named `description` is not mistaken for `SCRIPT`.
+- **No invisible formatting characters.** A zero-width space inside a keyword
+  hides the keyword from the scan, so none are accepted.
 - **It is within the complexity limits** from `[security]`: joins, subqueries,
   unions, group-bys, overall score and raw length.
 
@@ -49,6 +53,13 @@ Write mode (`select_only=false`) still applies the dangerous-construct and
 complexity checks. It only stops restricting the leading command.
 
 ### The limits of it
+
+The published bypass families (stacked statements, comments as whitespace,
+`SET`, data-modifying CTEs, `SELECT ... INTO`, `COPY ... TO PROGRAM`, side-effect
+functions, case and Unicode tricks) are pinned as a regression suite in
+`tests/unit/security-bypass-regression.test.ts`. What no keyword list can see is
+the inside of a function: a SELECT that calls a user-defined or extension
+function that writes passes the filter.
 
 This is defence in depth, not a substitute for database permissions. **Give the
 account only the rights it needs.** If the account cannot write, no parser bug
