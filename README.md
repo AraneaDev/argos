@@ -5,7 +5,7 @@
 **A hundred eyes on your databases, and none of them blink: beside Claude Code, and in front of every query it runs.**
 
 [![Release](https://img.shields.io/github/v/release/AraneaDev/argos?label=release)](https://github.com/AraneaDev/argos/releases)
-[![Tool page](https://img.shields.io/badge/tool%20page-aranea.dev-0b7285)](https://aranea.dev/en/tools/argos)
+[![Tool page](https://img.shields.io/badge/tool%20page-aranea.dev-0b7285)](https://aranea.dev/tools/argos)
 [![CI](https://img.shields.io/github/actions/workflow/status/AraneaDev/argos/ci.yml?label=CI)](https://github.com/AraneaDev/argos/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FAraneaDev%2Fargos%2Fgh-pages%2Fcoverage.json)](https://github.com/AraneaDev/argos/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/AraneaDev/argos?label=license&color=yellow)](./LICENSE)
